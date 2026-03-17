@@ -185,6 +185,15 @@ export async function getParcelsByPhone(phone: string): Promise<Parcel[]> {
   return data.map(mapParcel);
 }
 
+export async function updateStatus(id: string, status: ParcelStatus): Promise<void> {
+  const { error } = await supabase
+    .from("parcels")
+    .update({ status })
+    .eq("id", id);
+  
+  if (error) throw error;
+}
+
 export async function updateParcelStatus(id: string, status: ParcelStatus, travellerName?: string, otp?: string): Promise<Parcel | null> {
   const updateData: any = { status };
   
