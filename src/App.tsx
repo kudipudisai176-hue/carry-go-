@@ -13,6 +13,7 @@ import Sender from "./pages/Sender";
 import Receiver from "./pages/Receiver";
 import Traveller from "./pages/Traveller";
 import Profile from "./pages/Profile";
+import { ProtectedRoute } from "./components/ProtectedRoute";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -26,11 +27,46 @@ function AppInner() {
         <Route path="/" element={<Index />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/sender" element={<Sender />} />
-        <Route path="/receiver" element={<Receiver />} />
-        <Route path="/traveller" element={<Traveller />} />
-        <Route path="/profile" element={<Profile />} />
+        <Route 
+          path="/dashboard" 
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/sender" 
+          element={
+            <ProtectedRoute allowedRole="sender">
+              <Sender />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/receiver" 
+          element={
+            <ProtectedRoute allowedRole="receiver">
+              <Receiver />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/traveller" 
+          element={
+            <ProtectedRoute allowedRole="traveller">
+              <Traveller />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/profile" 
+          element={
+            <ProtectedRoute>
+              <Profile />
+            </ProtectedRoute>
+          } 
+        />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </>

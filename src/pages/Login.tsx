@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { LogIn, Package, Mail, Lock, Truck, MapPin } from "lucide-react";
+import { LogIn, Package, Mail, Lock, Truck, MapPin, Smartphone, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,11 +11,19 @@ import AuthAnimationWrapper from "@/components/AuthAnimationWrapper";
 
 export default function Login() {
   const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<UserRole>("sender");
-  const [errors, setErrors] = useState({ email: "", password: "" });
-  const { login } = useAuth();
+  const [errors, setErrors] = useState({ email: "", password: "", phone: "" });
+  const { login, user, isLoading } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!isLoading && user) {
+      navigate("/dashboard", { replace: true });
+    }
+  }, [user, isLoading, navigate]);
 
   const validateEmail = (val: string) => {
     const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -29,32 +37,32 @@ export default function Login() {
     if (val.length < 6) return "Password must be at least 6 characters";
     return "";
   };
+  const validatePhone = (val: string) => {
+    if (!val) return "Phone number is required";
+    if (!/^\d{10}$/.test(val)) return "Phone number must be exactly 10 digits";
+    return "";
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const emailErr = validateEmail(email);
+    const emailErr = role === 'receiver' ? "" : validateEmail(email);
     const passwordErr = validatePassword(password);
-    setErrors({ email: emailErr, password: passwordErr });
+    const phoneErr = role === 'receiver' ? validatePhone(phone) : "";
+    setErrors({ email: emailErr, password: passwordErr, phone: phoneErr });
 
-    if (emailErr || passwordErr) {
+    if (emailErr || passwordErr || phoneErr) {
       toast.error("Please fix the errors");
       return;
     }
 
     try {
       // call login with role
-      const result = await login(email, password);
+      const loginEmail = role === 'receiver' ? `${phone}@receiver.carrygo.com` : email;
+      const result = await login(loginEmail, password);
       if (result.success) {
         toast.success("Welcome back!");
-
-        // navigate based on role
-        if (role === "sender") {
-          navigate("/sender");
-        } else if (role === "traveller") {
-          navigate("/traveller");
-        } else if (role === "receiver") {
-          navigate("/receiver");
-        }
+        navigate("/dashboard", { replace: true });
       } else {
         toast.error(result.message || "Invalid email or password");
       }
@@ -138,27 +146,68 @@ export default function Login() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="group space-y-2">
-            <Label
-              htmlFor="email"
-              className="flex items-center gap-2 font-medium text-slate-700 transition-colors group-hover:text-orange-500"
-            >
-              <Mail className="h-4 w-4" /> Email address
-            </Label>
-            <Input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => {
-                setEmail(e.target.value);
-                setErrors(prev => ({ ...prev, email: validateEmail(e.target.value) }));
-              }}
-              placeholder="Enter your email"
-              required
-              className={`border-slate-200 bg-slate-50/50 text-slate-900 placeholder:text-slate-400 focus:border-orange-500/50 focus:ring-orange-500/20 transition-all ${errors.email ? 'border-red-500' : ''}`}
-            />
-            {errors.email && <p className="text-[10px] text-red-500 font-medium pl-1">{errors.email}</p>}
-          </div>
+          {role !== 'receiver' ? (
+            <div className="group space-y-2">
+              <Label
+                htmlFor="email"
+                className="flex items-center gap-2 font-medium text-slate-700 transition-colors group-hover:text-orange-500"
+              >
+                <Mail className="h-4 w-4" /> Email address
+              </Label>
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setErrors(prev => ({ ...prev, email: validateEmail(e.target.value) }));
+                }}
+                placeholder="Enter your email"
+                required
+                className={`border-slate-200 bg-slate-50/50 text-slate-900 placeholder:text-slate-400 focus:border-orange-500/50 focus:ring-orange-500/20 transition-all ${errors.email ? 'border-red-500' : ''}`}
+              />
+              {errors.email && <p className="text-[10px] text-red-500 font-medium pl-1">{errors.email}</p>}
+            </div>
+          ) : (
+            <>
+              <div className="group space-y-2">
+                <Label htmlFor="name" className="flex items-center gap-2 font-medium text-slate-700 transition-colors group-hover:text-blue-500">
+                  <User className="h-4 w-4" /> Full Name
+                </Label>
+                <Input
+                  id="name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Your full name"
+                  required
+                  className="border-slate-200 bg-slate-50/50 text-slate-900 placeholder:text-slate-400 focus:border-blue-500/50 focus:ring-blue-500/20 transition-all duration-300"
+                />
+              </div>
+              <div className="group space-y-2">
+                <Label htmlFor="phone" className="flex items-center gap-2 font-medium text-slate-700 transition-colors group-hover:text-blue-500">
+                  <Smartphone className="h-4 w-4" /> Phone Number
+                </Label>
+                <div className="flex gap-0 overflow-hidden rounded-md border border-slate-200 transition-all duration-300 focus-within:border-blue-500/50 focus-within:ring-2 focus-within:ring-blue-500/20">
+                  <div className="flex items-center justify-center bg-slate-100 px-3 text-sm font-bold text-slate-600 border-r border-slate-200">
+                    +91
+                  </div>
+                  <Input
+                    id="phone"
+                    value={phone}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, "").slice(0, 10);
+                      setPhone(val);
+                      setErrors(prev => ({ ...prev, phone: validatePhone(val) }));
+                    }}
+                    placeholder="10-digit number"
+                    required
+                    className="border-0 bg-slate-50/50 text-slate-900 placeholder:text-slate-400 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                  />
+                </div>
+                {errors.phone && <p className="text-[10px] text-red-500 font-medium pl-1">{errors.phone}</p>}
+              </div>
+            </>
+          )}
           <div className="group space-y-2">
             <Label
               htmlFor="password"

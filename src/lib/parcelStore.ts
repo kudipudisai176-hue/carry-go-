@@ -188,3 +188,13 @@ export async function searchParcels(from?: string, to?: string): Promise<Parcel[
   return data.map(mapParcel);
 }
 
+export async function submitReview(parcelId: string, revieweeId: string, rating: number, comment: string) {
+  const { data } = await api.post('/reviews', {
+    parcel: parcelId,
+    reviewee: revieweeId,
+    rating,
+    comment
+  });
+  return data;
+}
+

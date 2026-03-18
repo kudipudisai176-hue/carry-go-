@@ -173,8 +173,8 @@ export default function Sender() {
           // Traveller started transit
           if (oldParcel.status !== 'in-transit' && newParcel.status === 'in-transit') {
             setTrackingModal(newParcel);
-            toast.success(`🚚 Traveller has picked up and started transit!`, { duration: 6000 });
-            sendBrowserNotification('CarryGo – Transit Started! 🚚', 'Your parcel is now in transit. Tracking is live!');
+            toast.success(`🚚 Your order is confirmed! Traveller has picked up and started transit!`, { duration: 6000 });
+            sendBrowserNotification('CarryGo – Order Confirmed! 🚚', 'Your order is confirmed and parcel is now in transit. Tracking is live!');
           }
 
           // Parcel delivered
@@ -203,8 +203,13 @@ export default function Sender() {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
+    if (!user?.id) {
+      toast.error("You must be logged in to create a parcel.");
+      return;
+    }
+
     const parcelData = {
-      senderName: user?.name || "Me",
+      senderName: user.name || "Me",
       receiverName: fd.get("receiverName") as string,
       receiverPhone: `+91${fd.get("receiverPhone")}`,
       fromLocation: fd.get("fromLocation") as string,
@@ -216,7 +221,7 @@ export default function Sender() {
       paymentMethod: paymentMethod,
       paymentStatus: (editingParcel ? editingParcel.paymentStatus : 'unpaid') as any,
       description: fd.get("description") as string,
-      senderId: user?.id || "",
+      senderId: user.id,
     };
 
     if (editingParcel) {
