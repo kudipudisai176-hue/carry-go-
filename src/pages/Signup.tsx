@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { UserPlus, Package, Truck, MapPin, User, Mail, Lock, Bike, Bus, Car, Smartphone, Camera, FileText, ShieldCheck, Upload } from "lucide-react";
@@ -43,8 +43,14 @@ export default function Signup() {
     phone: "",
     idNumber: ""
   });
-  const { signup } = useAuth();
+  const { signup, user, isLoading } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!isLoading && user) {
+      navigate("/dashboard", { replace: true });
+    }
+  }, [user, isLoading, navigate]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, setter: (val: string) => void) => {
     const file = e.target.files?.[0];
@@ -87,7 +93,7 @@ export default function Signup() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const emailErr = validateEmail(email);
+    const emailErr = role === 'receiver' ? "" : validateEmail(email);
     const passwordErr = validatePassword(password);
     const phoneErr = validatePhone(phone);
     const idErr = role === 'traveller' ? validateId(adharNumber, idType) : "";
@@ -120,7 +126,11 @@ export default function Signup() {
     }
 
     const signupData = {
-      name, email, password, role, phone: `+91${phone}`,
+      name, 
+      email: role === 'receiver' ? `${phone}@receiver.carrygo.com` : email, 
+      password, 
+      role, 
+      phone: `+91${phone}`,
       vehicleType: vehicle || undefined,
       identificationType: role === 'traveller' ? idType : undefined,
       adharNumber: role === 'traveller' ? adharNumber : undefined,
@@ -130,8 +140,8 @@ export default function Signup() {
 
     const result = await signup(signupData);
     if (result.success) {
-      toast.success("Account created! Welcome to CarryGo 🎉");
-      navigate(role === 'sender' ? "/sender" : role === 'traveller' ? "/traveller" : "/receiver");
+      toast.success("Account created! Redirecting to your dashboard... 🎉");
+      navigate("/dashboard", { replace: true });
     } else {
       toast.error(result.message || "Registration failed. Please try again.");
     }
@@ -168,24 +178,26 @@ export default function Signup() {
                 className="border-slate-200 bg-slate-50/50 text-slate-900 placeholder:text-slate-400 focus:border-orange-500/50 focus:ring-orange-500/20 transition-all duration-300"
               />
             </div>
-            <div className="group space-y-2">
-              <Label htmlFor="email" className="flex items-center gap-2 text-sm font-medium text-slate-700 transition-colors group-hover:text-orange-500">
-                <Mail className="h-4 w-4" /> Email address
-              </Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => {
-                  setEmail(e.target.value);
-                  setErrors(prev => ({ ...prev, email: validateEmail(e.target.value) }));
-                }}
-                placeholder="Enter your email"
-                required
-                className={`border-slate-200 bg-slate-50/50 text-slate-900 placeholder:text-slate-400 focus:border-orange-500/50 focus:ring-orange-500/20 transition-all duration-300 ${errors.email ? 'border-red-500 focus:border-red-500 focus:ring-red-200' : ''}`}
-              />
-              {errors.email && <p className="text-[10px] text-red-500 font-medium pl-1">{errors.email}</p>}
-            </div>
+            {role !== 'receiver' && (
+              <div className="group space-y-2">
+                <Label htmlFor="email" className="flex items-center gap-2 text-sm font-medium text-slate-700 transition-colors group-hover:text-orange-500">
+                  <Mail className="h-4 w-4" /> Email address
+                </Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    setErrors(prev => ({ ...prev, email: validateEmail(e.target.value) }));
+                  }}
+                  placeholder="Enter your email"
+                  required
+                  className={`border-slate-200 bg-slate-50/50 text-slate-900 placeholder:text-slate-400 focus:border-orange-500/50 focus:ring-orange-500/20 transition-all duration-300 ${errors.email ? 'border-red-500 focus:border-red-500 focus:ring-red-200' : ''}`}
+                />
+                {errors.email && <p className="text-[10px] text-red-500 font-medium pl-1">{errors.email}</p>}
+              </div>
+            )}
           </div>
           <div className="group space-y-2">
             <Label htmlFor="password" className="flex items-center gap-2 text-sm font-medium text-slate-700 transition-colors group-hover:text-orange-500">

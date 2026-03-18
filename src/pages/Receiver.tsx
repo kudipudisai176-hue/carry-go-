@@ -1,32 +1,47 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { MapPin, Search, PackageCheck, Handshake, CheckCircle2, KeyRound, Bell } from "lucide-react";
+import { MapPin, PackageCheck, Handshake, CheckCircle2, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import StatusBadge from "@/components/StatusBadge";
 import RouteMap from "@/components/RouteMap";
-import { getParcelsByPhone, markReceived, type Parcel, type UserData } from "@/lib/parcelStore";
+import { getParcelsByPhone, markReceived, submitReview, type Parcel, type UserData } from "@/lib/parcelStore";
 import { toast } from "sonner";
 import UserProfileModal from "@/components/UserProfileModal";
+import { useAuth } from "@/lib/authContext";
 
 export default function Receiver() {
-  const [phone, setPhone] = useState("");
+  const { user } = useAuth();
   const [parcels, setParcels] = useState<Parcel[]>([]);
-  const [searched, setSearched] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [profileUser, setProfileUser] = useState<UserData | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const handleSearch = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
+  // Review states
+  const [reviewParcel, setReviewParcel] = useState<Parcel | null>(null);
+  const [rating, setRating] = useState(5);
+  const [comment, setComment] = useState("");
+  const [submittingReview, setSubmittingReview] = useState(false);
+  const [reviewedParcels, setReviewedParcels] = useState<string[]>([]);
+
+  const fetchParcels = useCallback(async () => {
+    if (!user?.phone) return;
     try {
-      const formattedPhone = phone.startsWith("+91") ? phone : `+91${phone}`;
+      const formattedPhone = user.phone.startsWith("+91") ? user.phone : `+91${user.phone.replace(/\D/g, '')}`;
       const data = await getParcelsByPhone(formattedPhone);
       setParcels(data);
-      setSearched(true);
     } catch (err) {
       toast.error("Failed to fetch parcels");
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [user?.phone]);
+
+  useEffect(() => {
+    fetchParcels();
+  }, [fetchParcels]);
 
   const sendBrowserNotification = useCallback((title: string, body: string) => {
     if ('Notification' in window && Notification.permission === 'granted') {
@@ -43,8 +58,8 @@ export default function Receiver() {
 
   // Polling for updates (Simulating real-time)
   useEffect(() => {
-    if (!phone || !searched) return;
-    const formattedPhone = phone.startsWith("+91") ? phone : `+91${phone}`;
+    if (!user?.phone) return;
+    const formattedPhone = user.phone.startsWith("+91") ? user.phone : `+91${user.phone.replace(/\D/g, '')}`;
 
     let previousParcels: Parcel[] = [];
 
@@ -61,7 +76,7 @@ export default function Receiver() {
             const statusMsgs: Record<string, string> = {
               'requested': '📦 A traveller has requested your parcel. Order is being confirmed!',
               'accepted': 'Your parcel has been accepted and is ready for pickup!',
-              'in-transit': '🚚 Your parcel is now in transit!',
+              'in-transit': '🚚 Your order is confirmed! Your parcel is now in transit!',
               'delivered': '📦 Your parcel has been delivered! Please confirm receipt.',
             };
 
@@ -84,44 +99,49 @@ export default function Receiver() {
     checkUpdates(); // Initial check
 
     return () => clearInterval(interval);
-  }, [phone, searched, sendBrowserNotification]);
+  }, [user?.phone, sendBrowserNotification]);
 
 
   const handleReceive = async (id: string) => {
     await markReceived(id);
     toast.success("Parcel marked as received! Sender will be notified of payment.");
-    handleSearch();
+    fetchParcels();
+  };
+
+  const handleSubmitReview = async () => {
+    if (!reviewParcel || !reviewParcel.travellerId) return;
+    setSubmittingReview(true);
+    try {
+      await submitReview(reviewParcel.id, reviewParcel.travellerId, rating, comment);
+      toast.success("Feedback submitted! Thank you.");
+      setReviewedParcels(prev => [...prev, reviewParcel.id]);
+      setReviewParcel(null);
+      setRating(5);
+      setComment("");
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to submit feedback");
+    } finally {
+      setSubmittingReview(false);
+    }
   };
 
   return (
     <div className="mx-auto max-w-4xl px-4 pb-20 pt-24">
-      <div className="mb-8">
-        <h1 className="font-heading text-3xl font-bold text-foreground">Track Your Parcel</h1>
-        <p className="text-muted-foreground">Enter your phone number to see your parcels</p>
+      <div className="mb-8 border-b border-border pb-6 flex items-center gap-4">
+        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-secondary/10">
+          <PackageCheck className="h-7 w-7 text-secondary" />
+        </div>
+        <div>
+          <h1 className="font-heading text-3xl font-bold text-foreground">Your Incoming Parcels</h1>
+          <p className="text-muted-foreground mt-1">Track and confirm delivery for your incoming packages</p>
+        </div>
       </div>
 
-      <form onSubmit={handleSearch} className="mb-8 flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 shadow-card sm:flex-row sm:items-center">
-        <div className="flex flex-1 gap-0 overflow-hidden rounded-md border border-border transition-all focus-within:border-secondary focus-within:ring-2 focus-within:ring-secondary/20">
-          <div className="flex items-center justify-center bg-muted px-4 text-sm font-bold text-muted-foreground border-r border-border">
-            +91
-          </div>
-          <Input
-            value={phone}
-            onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
-            placeholder="10-digit phone number"
-            className="border-0 bg-background transition-all focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
-            required
-          />
-        </div>
-        <Button type="submit" className="bg-secondary text-secondary-foreground hover:bg-secondary/90 h-10 px-8">
-          <Search className="mr-2 h-4 w-4" /> Track Parcel
-        </Button>
-      </form>
-
-      {searched && parcels.length === 0 && (
-        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border py-20 text-center">
-          <MapPin className="mb-4 h-12 w-12 text-muted-foreground/50" />
-          <p className="text-muted-foreground">No parcels found for this phone number.</p>
+      {!loading && parcels.length === 0 && (
+        <div className="flex flex-col items-center justify-center rounded-3xl border-2 border-dashed border-border py-20 text-center bg-card shadow-sm mt-6">
+          <MapPin className="mb-5 h-16 w-16 text-muted-foreground/30" />
+          <h2 className="text-xl font-bold text-foreground mb-2">No incoming parcels</h2>
+          <p className="text-muted-foreground max-w-sm">When someone sends a parcel to your registered phone number, it will automatically appear here.</p>
         </div>
       )}
 
@@ -207,9 +227,26 @@ export default function Receiver() {
             )}
 
             {p.status === "received" && (
-              <div className="mt-4 flex items-center gap-2 rounded-lg bg-indigo-500/10 p-3">
-                <PackageCheck className="h-5 w-5 text-indigo-500" />
-                <p className="text-sm font-medium text-indigo-500">Delivery confirmed and received!</p>
+              <div className="mt-4 flex flex-col gap-3 rounded-lg bg-indigo-500/5 p-4 border border-indigo-500/20">
+                <div className="flex items-center gap-2">
+                  <PackageCheck className="h-5 w-5 text-indigo-500" />
+                  <p className="text-sm font-medium text-indigo-500">Delivery confirmed and received!</p>
+                </div>
+                {p.travellerId && !reviewedParcels.includes(p.id) && (
+                  <Button
+                    variant="outline"
+                    className="w-full border-indigo-200 text-indigo-600 hover:bg-indigo-50 transition-colors"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setReviewParcel(p);
+                    }}
+                  >
+                    <Star className="mr-2 h-4 w-4" /> Leave Feedback for Traveller
+                  </Button>
+                )}
+                {reviewedParcels.includes(p.id) && (
+                  <p className="text-xs text-indigo-600 font-medium">✨ Feedback left for traveller.</p>
+                )}
               </div>
             )}
 
@@ -228,6 +265,49 @@ export default function Receiver() {
         isOpen={!!profileUser} 
         onClose={() => setProfileUser(null)} 
       />
+
+      {/* Review Modal */}
+      <Dialog open={!!reviewParcel} onOpenChange={(open) => !open && setReviewParcel(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Rate your Traveller</DialogTitle>
+            <DialogDescription>
+              How was your experience with {reviewParcel?.travellerName}? Your feedback helps keep CarryGo safe.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="flex justify-center gap-2">
+              {[1, 2, 3, 4, 5].map((starIdx) => (
+                <button
+                  key={starIdx}
+                  onClick={() => setRating(starIdx)}
+                  className="transition-transform hover:scale-110 focus:outline-none"
+                >
+                  <Star 
+                    className={`h-8 w-8 ${starIdx <= rating ? 'fill-yellow-400 text-yellow-400' : 'text-slate-200'}`} 
+                  />
+                </button>
+              ))}
+            </div>
+            <div className="space-y-2">
+              <Label>Comment (optional)</Label>
+              <Textarea 
+                placeholder="Share your experience..." 
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                className="resize-none"
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReviewParcel(null)}>Cancel</Button>
+            <Button onClick={handleSubmitReview} disabled={submittingReview} className="bg-indigo-600 text-white hover:bg-indigo-700">
+              {submittingReview ? "Submitting..." : "Submit Review"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

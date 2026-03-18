@@ -23,10 +23,10 @@ export default function AuthAnimationWrapper({ children, role }: { children: Rea
         // 4: Show form (rest)
 
         const timers = [
-            setTimeout(() => setStep(1), 1800),
-            setTimeout(() => setStep(2), 2400),
-            setTimeout(() => setStep(3), 3000),
-            setTimeout(() => setStep(4), 3800),
+            setTimeout(() => setStep(1), 1000),
+            setTimeout(() => setStep(2), 1400),
+            setTimeout(() => setStep(3), 1800),
+            setTimeout(() => setStep(4), 2400),
         ];
 
         return () => timers.forEach(t => clearTimeout(t));

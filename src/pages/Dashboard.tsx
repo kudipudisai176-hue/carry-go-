@@ -18,6 +18,7 @@ export default function Dashboard() {
     case "receiver":
       return <Receiver />;
     default:
+      console.warn("User has unknown role:", user.role);
       return <Navigate to="/" replace />;
   }
 }
