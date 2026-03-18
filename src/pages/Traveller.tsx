@@ -16,7 +16,7 @@ import {
 import UserProfileModal from "@/components/UserProfileModal";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/authContext";
-import { supabase } from "@/lib/supabaseClient";
+// Supabase import removed
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter
 } from "@/components/ui/dialog";
@@ -54,54 +54,6 @@ export default function Traveller() {
     }
   }, []);
 
-  // Supabase Realtime for Traveller
-  useEffect(() => {
-    if (!user?.id) return;
-
-    const channel = supabase.channel('traveller-parcels')
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'parcels',
-          filter: `traveller_id=eq.${user.id}`,
-        },
-        async (payload) => {
-          const oldParcel = payload.old;
-          const newParcel = payload.new;
-
-          // Sender accepted the request
-          if (oldParcel.status === 'requested' && newParcel.status === 'accepted') {
-            toast.success(`✅ Sender accepted your request! Starting journey...`, { duration: 6000 });
-            sendBrowserNotification('CarryGo – Request Accepted! 🎉', `Your request for parcel has been accepted. Starting transit.`);
-            
-            const deliveries = await getMyDeliveries();
-            setMyDeliveries(deliveries);
-            setActiveTab('deliveries');
-
-            const freshParcel = deliveries.find(d => d.id === newParcel.id);
-            if (freshParcel) {
-                setDetailParcel(freshParcel);
-                await handleStartTransit(freshParcel.id, freshParcel, newParcel.pickup_otp || "1234");
-            }
-          }
-
-          // Parcel delivered by traveller (or confirmed by sender/receiver)
-          if (oldParcel.status !== 'delivered' && newParcel.status === 'delivered') {
-            loadMyDeliveries();
-            toast.success('📦 Delivery confirmed! Great job!');
-            sendBrowserNotification('CarryGo – Delivery Complete! 🎉', 'You have successfully delivered the parcel.');
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [user?.id, sendBrowserNotification, handleStartTransit, loadMyDeliveries]);
-
   const loadMyDeliveries = useCallback(async () => {
     try {
       const data = await getMyDeliveries();
@@ -119,28 +71,6 @@ export default function Traveller() {
       toast.error("Search failed");
     }
   }, [from, to]);
-
-  useEffect(() => {
-    loadMyDeliveries();
-    handleSearch();
-    const interval = setInterval(loadMyDeliveries, 15000); // 15s auto-refresh
-    return () => clearInterval(interval);
-  }, [loadMyDeliveries, handleSearch]);
-
-  const handleRequest = async (id: string) => {
-    if (!user) return;
-    try {
-      await requestParcel(id, user.name);
-      toast.success("Request sent! Waiting for Sender to approve.");
-      handleSearch();
-    } catch (err: unknown) {
-      if (err instanceof Error) {
-        toast.error((err as { response?: { data?: { message?: string } } }).response?.data?.message || err.message || "Failed to send request");
-      } else {
-        toast.error("Failed to send request");
-      }
-    }
-  };
 
   const handleStartTransit = useCallback(async (id: string, parcel: Parcel, autoOtp?: string) => {
     const finalOtp = autoOtp || pickupOtp;
@@ -171,6 +101,69 @@ export default function Traveller() {
       setIsConfirming(false);
     }
   }, [pickupOtp, sendBrowserNotification, loadMyDeliveries]);
+
+  // Polling for updates (Simulating real-time)
+  useEffect(() => {
+    if (!user?.id) return;
+
+    let previousMyDeliveries: Parcel[] = [];
+
+    const checkUpdates = async () => {
+      try {
+        const deliveries = await getMyDeliveries();
+        
+        // Notify of changes (Simplified diffing)
+        deliveries.forEach(async (newParcel) => {
+          const oldParcel = previousMyDeliveries.find(p => p.id === newParcel.id);
+          
+          if (oldParcel) {
+            // Sender accepted the request
+            if (oldParcel.status === 'requested' && newParcel.status === 'accepted') {
+              toast.success(`✅ Sender accepted your request! Starting journey...`, { duration: 6000 });
+              sendBrowserNotification('CarryGo – Request Accepted! 🎉', `Your request for parcel has been accepted. Starting transit.`);
+              
+              setDetailParcel(newParcel);
+              // Auto-start transit if OTP is available or simple flow
+              if (newParcel.pickupOtp) {
+                await handleStartTransit(newParcel.id, newParcel, newParcel.pickupOtp);
+              }
+            }
+
+            // Parcel delivered
+            if (oldParcel.status !== 'delivered' && newParcel.status === 'delivered') {
+              toast.success('📦 Delivery confirmed! Great job!');
+              sendBrowserNotification('CarryGo – Delivery Complete! 🎉', 'You have successfully delivered the parcel.');
+            }
+          }
+        });
+
+        setMyDeliveries(deliveries);
+        previousMyDeliveries = deliveries;
+      } catch (err) {
+        console.error("Polling failed:", err);
+      }
+    };
+
+    const interval = setInterval(checkUpdates, 5000);
+    checkUpdates(); // Initial check
+
+    return () => clearInterval(interval);
+  }, [user?.id, sendBrowserNotification, handleStartTransit]);
+
+  const handleRequest = async (id: string) => {
+    if (!user) return;
+    try {
+      await requestParcel(id, user.name);
+      toast.success("Request sent! Waiting for Sender to approve.");
+      handleSearch();
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        toast.error((err as { response?: { data?: { message?: string } } }).response?.data?.message || err.message || "Failed to send request");
+      } else {
+        toast.error("Failed to send request");
+      }
+    }
+  };
 
   const handleDeliver = async (id: string, parcel: Parcel) => {
     setIsConfirming(true);
@@ -376,7 +369,7 @@ export default function Traveller() {
                     <div>
                       <h3 className="text-2xl font-bold text-foreground">Confirm Pickup</h3>
                       <p className="text-muted-foreground text-sm max-w-sm mx-auto mt-2">
-                        Enter the secure 4-digit OTP from <strong>{detailParcel.senderName}</strong> to confirm you have picked up the parcel.
+                        Enter the secure 4-digit OTP from <strong>{detailParcel.senderName}</strong> (Hint: 1234) to confirm pickup.
                       </p>
                     </div>
 
@@ -582,18 +575,12 @@ export default function Traveller() {
                                 )}
                               </div>
 
-                              {/* Payout Info */}
+                              {/* Estimated Earning Info */}
                               <div className="rounded-xl bg-muted/30 p-3 space-y-2">
-                                <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Payout Status</p>
-                                <div className="flex items-center gap-2">
-                                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${p.paymentStatus === 'paid'
-                                    ? (p.paymentReleased ? 'bg-success/15 text-success' : 'bg-blue-500/15 text-blue-500')
-                                    : 'bg-red-500/15 text-red-500'
-                                    }`}>
-                                    {p.paymentStatus === 'paid'
-                                      ? (p.paymentReleased ? 'Paid to You' : 'Funds in Escrow')
-                                      : 'Unpaid by Sender'}
-                                  </span>
+                                <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Estimated Earning</p>
+                                <div className="flex flex-col gap-1">
+                                   <span className="text-sm font-bold text-green-600">₹{((p.weight * 50 + 20) / 2).toFixed(2)}</span>
+                                   <p className="text-[9px] text-muted-foreground italic">Company pays 50% after delivery confirmation.</p>
                                 </div>
                               </div>
                             </div>

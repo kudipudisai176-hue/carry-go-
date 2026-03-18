@@ -43,7 +43,7 @@ export default function Login() {
 
     try {
       // call login with role
-      const result = await login(email, password, role);
+      const result = await login(email, password);
       if (result.success) {
         toast.success("Welcome back!");
 
@@ -153,7 +153,7 @@ export default function Login() {
                 setEmail(e.target.value);
                 setErrors(prev => ({ ...prev, email: validateEmail(e.target.value) }));
               }}
-              placeholder="you@example.com"
+              placeholder="Enter your email"
               required
               className={`border-slate-200 bg-slate-50/50 text-slate-900 placeholder:text-slate-400 focus:border-orange-500/50 focus:ring-orange-500/20 transition-all ${errors.email ? 'border-red-500' : ''}`}
             />

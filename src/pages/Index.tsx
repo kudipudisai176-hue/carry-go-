@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Package, Truck, MapPin, ArrowRight, Shield, Zap, Globe, Users, Star } from "lucide-react";
+import { Package, Truck, MapPin, ArrowRight, Shield, Zap, Globe, Users, Star, User } from "lucide-react";
 import { motion, useScroll, useTransform, type Variants } from "framer-motion";
 import { useRef } from "react";
 import { Button } from "@/components/ui/button";
@@ -153,6 +153,7 @@ export default function Index() {
             </motion.span>
           </motion.p>
 
+
           {/* CTA Buttons */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -161,11 +162,55 @@ export default function Index() {
             className="flex flex-col items-center gap-4 sm:flex-row sm:justify-center"
           >
             {user ? (
-              <Button asChild size="lg" className="btn-glow rounded-full bg-secondary px-8 text-secondary-foreground hover:bg-secondary/90">
-                <Link to="/dashboard">
-                  Go to Dashboard <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
-              </Button>
+              <div className="flex flex-col items-center gap-6">
+                <Button asChild size="lg" className="btn-glow rounded-full bg-secondary px-8 text-secondary-foreground hover:bg-secondary/90 shadow-xl shadow-secondary/20 h-14 text-lg font-bold">
+                  <Link to="/dashboard">
+                    Go to Dashboard <ArrowRight className="ml-2 h-5 w-5" />
+                  </Link>
+                </Button>
+                
+                {/* Profile Dashboard Preview */}
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 1, type: "spring" }}
+                  className="w-full max-w-sm overflow-hidden rounded-[2rem] border border-white/20 bg-white/10 p-6 shadow-2xl backdrop-blur-xl"
+                >
+                  <div className="flex items-center gap-4 mb-6">
+                    <div className="h-16 w-16 overflow-hidden rounded-2xl border-2 border-secondary/50 bg-secondary/10 p-0.5">
+                      {user.profilePhoto ? (
+                        <img src={user.profilePhoto} alt={user.name} className="h-full w-full rounded-[0.85rem] object-cover" />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-secondary">
+                          <User className="h-8 w-8" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="text-left">
+                      <h3 className="text-xl font-bold text-white leading-tight">{user.name}</h3>
+                      <p className="text-xs font-bold uppercase tracking-widest text-secondary/80">{user.role}</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 mb-6">
+                    <div className="rounded-2xl bg-white/5 p-4 border border-white/10">
+                      <p className="text-[10px] font-bold text-white/50 uppercase mb-1">Wallet</p>
+                      <p className="text-lg font-black text-white">₹{user.walletBalance || 0}</p>
+                    </div>
+                    <div className="rounded-2xl bg-white/5 p-4 border border-white/10">
+                      <p className="text-[10px] font-bold text-white/50 uppercase mb-1">Trips</p>
+                      <p className="text-lg font-black text-white">{user.totalTrips || 0}</p>
+                    </div>
+                  </div>
+
+                  <Link 
+                    to="/profile" 
+                    className="flex items-center justify-center w-full py-3 rounded-xl bg-white text-black text-sm font-bold hover:bg-secondary hover:text-white transition-all shadow-lg"
+                  >
+                    View Full Dashboard
+                  </Link>
+                </motion.div>
+              </div>
             ) : (
               <Button asChild size="lg" className="btn-glow rounded-full bg-[#000080] border border-white/20 px-8 text-white hover:bg-[#000080]/90">
                 <Link to="/signup">

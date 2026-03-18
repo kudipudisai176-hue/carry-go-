@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/lib/authContext";
-import { supabase } from "@/lib/supabaseClient";
 import { 
   User, 
   Mail, 
@@ -61,23 +60,22 @@ export default function Profile() {
     }
   };
 
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = error => reject(error);
+    });
+  };
+
   const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setIsSaving(true);
       try {
-        const fileName = `${user.id}-${Date.now()}-${file.name}`;
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from('profile-photos')
-          .upload(fileName, file);
-
-        if (uploadError) throw uploadError;
-
-        const { data: { publicUrl } } = supabase.storage
-          .from('profile-photos')
-          .getPublicUrl(uploadData.path);
-
-        const success = await updateUser({ profilePhoto: publicUrl });
+        const base64 = await fileToBase64(file);
+        const success = await updateUser({ profilePhoto: base64 });
         if (success) {
           toast.success("Profile photo updated!");
         } else {
@@ -90,8 +88,6 @@ export default function Profile() {
       }
     }
   };
-
-
 
   return (
     <div className="min-h-screen bg-slate-50/50 pt-24 pb-12 transition-all">
@@ -263,13 +259,19 @@ export default function Profile() {
 
                 {/* Other Options placeholders */}
                 <div className="space-y-2 pt-2">
-                  <button className="flex w-full items-center justify-between rounded-xl p-3 text-left text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors">
+                  <button 
+                    onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                    className="flex w-full items-center justify-between rounded-xl p-3 text-left text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+                  >
                     <div className="flex items-center gap-3">
                       <Settings className="h-4 w-4 text-slate-400" />
                       <span>Account Settings</span>
                     </div>
                   </button>
-                  <button className="flex w-full items-center justify-between rounded-xl p-3 text-left text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors">
+                  <button 
+                    onClick={() => navigate('/dashboard')}
+                    className="flex w-full items-center justify-between rounded-xl p-3 text-left text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+                  >
                     <div className="flex items-center gap-3">
                       <Clock className="h-4 w-4 text-slate-400" />
                       <span>Order History</span>

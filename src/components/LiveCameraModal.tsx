@@ -34,10 +34,16 @@ export default function LiveCameraModal({ isOpen, onClose, onCapture }: LiveCame
     const startCamera = async () => {
         try {
             setError(null);
+            console.log("Starting camera with facingMode:", facingMode);
 
             // 1. Basic check for browser support
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                setError("Your browser doesn't support camera access. Please use Chrome, Safari or Firefox.");
+                const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+                if (!isSecure) {
+                    setError("Camera requires a secure connection (HTTPS). Please try using localhost or a secure URL.");
+                } else {
+                    setError("Your browser doesn't support camera access. Please use Chrome, Safari or Firefox.");
+                }
                 return;
             }
 
@@ -48,26 +54,35 @@ export default function LiveCameraModal({ isOpen, onClose, onCapture }: LiveCame
 
             // 2. Try with ideal constraints first
             try {
-                const mediaStream = await navigator.mediaDevices.getUserMedia({
+                const constraints: MediaStreamConstraints = {
                     video: {
-                        facingMode,
+                        facingMode: facingMode,
                         width: { ideal: 1280 },
                         height: { ideal: 720 }
                     }
-                });
+                };
+                
+                const mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+                console.log("Camera started successfully with ideal constraints");
                 setStream(mediaStream);
                 if (videoRef.current) {
                     videoRef.current.srcObject = mediaStream;
                 }
-            } catch (innerErr) {
+            } catch (innerErr: any) {
                 console.warn("Ideal constraints failed, trying basic video:", innerErr);
-                // 3. Fallback to basic video access
-                const fallbackStream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode }
-                });
-                setStream(fallbackStream);
-                if (videoRef.current) {
-                    videoRef.current.srcObject = fallbackStream;
+                
+                // If ideal failed, try even simpler constraints
+                try {
+                    const fallbackStream = await navigator.mediaDevices.getUserMedia({
+                        video: true // Most permissive: just get any video
+                    });
+                    console.log("Camera started successfully with basic constraints");
+                    setStream(fallbackStream);
+                    if (videoRef.current) {
+                        videoRef.current.srcObject = fallbackStream;
+                    }
+                } catch (finalErr: any) {
+                    throw finalErr;
                 }
             }
         } catch (err: any) {
@@ -75,9 +90,13 @@ export default function LiveCameraModal({ isOpen, onClose, onCapture }: LiveCame
             if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
                 setError("Camera access was blocked. Please click the camera icon in your browser address bar and choose 'Allow'.");
             } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-                setError("No camera was found on this device.");
+                setError("No camera was found on this device. Please ensure your camera is plugged in.");
+            } else if (err.name === 'OverconstrainedError') {
+                setError("Your camera cannot satisfy the requested quality. Try another camera if available.");
+            } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+                setError("Camera is already in use by another application. Please close other apps and try again.");
             } else {
-                setError("Camera error: " + (err.message || "Unknown error"));
+                setError("Camera error: " + (err.message || "Could not start video source"));
             }
         }
     };
@@ -171,12 +190,21 @@ export default function LiveCameraModal({ isOpen, onClose, onCapture }: LiveCame
                                     className="h-full w-full object-cover grayscale-0"
                                 />
                                 {error && (
-                                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/90 text-center p-4">
-                                        <AlertCircle className="mb-2 h-10 w-10 text-red-500" />
-                                        <p className="text-sm font-medium text-white">{error}</p>
-                                        <Button onClick={startCamera} variant="secondary" className="mt-4">
-                                            Try Again
-                                        </Button>
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/90 text-center p-6 transition-all duration-300">
+                                        <div className="mb-4 rounded-full bg-red-500/10 p-4">
+                                            <AlertCircle className="h-10 w-10 text-red-500" />
+                                        </div>
+                                        <p className="mb-2 text-lg font-bold text-white">Camera Issue</p>
+                                        <p className="mb-6 text-sm text-slate-300 max-w-[250px]">{error}</p>
+                                        
+                                        <div className="flex flex-col gap-3 w-full max-w-[200px]">
+                                            <Button onClick={startCamera} className="bg-purple-600 hover:bg-purple-500 text-white font-bold py-5 rounded-xl shadow-lg shadow-purple-600/20">
+                                                <RefreshCw className="mr-2 h-4 w-4" /> Try Again
+                                            </Button>
+                                            <p className="text-[10px] text-slate-500">
+                                                Tip: Check if another app is using your camera or if permissions are blocked in your browser settings.
+                                            </p>
+                                        </div>
                                     </div>
                                 )}
                                 <div className="absolute inset-0 pointer-events-none border-[3px] border-dashed border-white/20 m-8 rounded-[40px]" />

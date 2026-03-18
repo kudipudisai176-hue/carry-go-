@@ -163,7 +163,7 @@ export default function Signup() {
                 id="name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="John Doe"
+                placeholder="Your full name"
                 required
                 className="border-slate-200 bg-slate-50/50 text-slate-900 placeholder:text-slate-400 focus:border-orange-500/50 focus:ring-orange-500/20 transition-all duration-300"
               />
@@ -180,7 +180,7 @@ export default function Signup() {
                   setEmail(e.target.value);
                   setErrors(prev => ({ ...prev, email: validateEmail(e.target.value) }));
                 }}
-                placeholder="you@example.com"
+                placeholder="Enter your email"
                 required
                 className={`border-slate-200 bg-slate-50/50 text-slate-900 placeholder:text-slate-400 focus:border-orange-500/50 focus:ring-orange-500/20 transition-all duration-300 ${errors.email ? 'border-red-500 focus:border-red-500 focus:ring-red-200' : ''}`}
               />

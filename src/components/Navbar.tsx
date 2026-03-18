@@ -22,12 +22,15 @@ const publicNavItems = [
 const roleNavItems = {
   sender: [
     { path: "/dashboard", label: "Dashboard", icon: Package },
+    { path: "/profile", label: "Profile", icon: User },
   ],
   traveller: [
     { path: "/dashboard", label: "Dashboard", icon: Truck },
+    { path: "/profile", label: "Profile", icon: User },
   ],
   receiver: [
     { path: "/dashboard", label: "Dashboard", icon: MapPin },
+    { path: "/profile", label: "Profile", icon: User },
   ],
 };
 

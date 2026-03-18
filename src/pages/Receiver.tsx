@@ -7,7 +7,6 @@ import StatusBadge from "@/components/StatusBadge";
 import RouteMap from "@/components/RouteMap";
 import { getParcelsByPhone, markReceived, type Parcel, type UserData } from "@/lib/parcelStore";
 import { toast } from "sonner";
-import { supabase } from "@/lib/supabaseClient";
 import UserProfileModal from "@/components/UserProfileModal";
 
 export default function Receiver() {
@@ -42,45 +41,51 @@ export default function Receiver() {
     }
   }, []);
 
-  // Supabase Realtime for updates
+  // Polling for updates (Simulating real-time)
   useEffect(() => {
     if (!phone || !searched) return;
     const formattedPhone = phone.startsWith("+91") ? phone : `+91${phone}`;
 
-    const channel = supabase.channel('receiver-updates')
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'parcels',
-          filter: `receiver_phone=eq.${formattedPhone}`,
-        },
-        async (payload) => {
-          const newStatus = payload.new.status;
-          
-          // Refresh list
-          handleSearch();
+    let previousParcels: Parcel[] = [];
 
-          const statusMsgs: Record<string, string> = {
-            'requested': '📦 A traveller has requested your parcel. Order is being confirmed!',
-            'accepted': 'Your parcel has been accepted and is ready for pickup!',
-            'in-transit': '🚚 Your parcel is now in transit!',
-            'delivered': '📦 Your parcel has been delivered! Please confirm receipt.',
-          };
+    const checkUpdates = async () => {
+      try {
+        const fresh = await getParcelsByPhone(formattedPhone);
+        
+        // Notify of changes (Simplified diffing)
+        fresh.forEach(newParcel => {
+          const oldParcel = previousParcels.find(p => p.id === newParcel.id);
+          if (!oldParcel) return;
 
-          if (statusMsgs[newStatus]) {
-            toast.info(statusMsgs[newStatus]);
-            sendBrowserNotification('CarryGo Update', statusMsgs[newStatus]);
+          if (oldParcel.status !== newParcel.status) {
+            const statusMsgs: Record<string, string> = {
+              'requested': '📦 A traveller has requested your parcel. Order is being confirmed!',
+              'accepted': 'Your parcel has been accepted and is ready for pickup!',
+              'in-transit': '🚚 Your parcel is now in transit!',
+              'delivered': '📦 Your parcel has been delivered! Please confirm receipt.',
+            };
+
+            const msg = statusMsgs[newParcel.status];
+            if (msg) {
+              toast.info(msg);
+              sendBrowserNotification('CarryGo Update', msg);
+            }
           }
-        }
-      )
-      .subscribe();
+        });
 
-    return () => {
-      supabase.removeChannel(channel);
+        setParcels(fresh);
+        previousParcels = fresh;
+      } catch (err) {
+        console.error("Polling failed:", err);
+      }
     };
-  }, [phone, searched, sendBrowserNotification, handleSearch]);
+
+    const interval = setInterval(checkUpdates, 5000);
+    checkUpdates(); // Initial check
+
+    return () => clearInterval(interval);
+  }, [phone, searched, sendBrowserNotification]);
+
 
   const handleReceive = async (id: string) => {
     await markReceived(id);

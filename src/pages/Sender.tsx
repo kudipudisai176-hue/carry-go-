@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Package, Plus, Check, Trash2, MapPin, Weight, ArrowRight, Sparkles, Box, Bike, Bus, Car, Truck, Info, Layers, CreditCard, QrCode, Smartphone, ExternalLink, X, KeyRound, Navigation, Bell, CheckCircle2, Camera, RefreshCw
+  Package, Plus, Check, Trash2, MapPin, Weight, ArrowRight, Sparkles, Box, Bike, Bus, Car, Truck, Info, Layers, CreditCard, QrCode, Smartphone, ExternalLink, X, KeyRound, Navigation, Bell, CheckCircle2, Camera, RefreshCw, Edit2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,11 +13,10 @@ import RouteMap from "@/components/RouteMap";
 import RouteMap3D from "@/components/RouteMap3D";
 import {
   createParcel, getAllParcels, updateParcelStatus, deleteParcel,
-  updateParcelPayment, acceptRequest, releaseParcelPayment, type Parcel
+  updateParcelPayment, acceptRequest, releaseParcelPayment, updateParcel, type Parcel
 } from "@/lib/parcelStore";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/authContext";
-import { supabase } from "@/lib/supabaseClient";
 import UserProfileModal from "@/components/UserProfileModal";
 import { UserData } from "@/lib/parcelStore";
 
@@ -33,6 +32,7 @@ export default function Sender() {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "pending" | "inTransit" | "delivered">("all");
   const [profileUser, setProfileUser] = useState<UserData | null>(null);
+  const [editingParcel, setEditingParcel] = useState<Parcel | null>(null);
 
   // New form fields
   const [weight, setWeight] = useState("");
@@ -48,12 +48,39 @@ export default function Sender() {
   const startCamera = async () => {
     try {
       setIsCameraOpen(true);
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
+      
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error("Browser doesn't support camera access");
       }
-    } catch (err) {
-      toast.error("Could not access camera");
+
+      // Stop any existing tracks
+      if (videoRef.current && videoRef.current.srcObject) {
+        const stream = videoRef.current.srcObject as MediaStream;
+        stream.getTracks().forEach(track => track.stop());
+      }
+
+      // Try with environment facing mode first (better for parcels)
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { 
+            facingMode: "environment",
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          } 
+        });
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+      } catch (innerErr) {
+        // Fallback to basic video
+        const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        if (videoRef.current) {
+          videoRef.current.srcObject = fallbackStream;
+        }
+      }
+    } catch (err: any) {
+      console.error("Camera error:", err);
+      toast.error(err.name === 'NotAllowedError' ? "Camera permission denied" : "Could not access camera");
       setIsCameraOpen(false);
     }
   };
@@ -122,54 +149,54 @@ export default function Sender() {
     }
   }, []);
 
-  // Supabase Realtime for Parcel Status Updates
+  // Polling for updates (Simulating real-time)
   useEffect(() => {
     if (!user?.id) return;
 
-    const channel = supabase.channel('sender-parcels')
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'parcels',
-          filter: `sender_id=eq.${user.id}`,
-        },
-        async (payload) => {
-          const oldParcel = payload.old;
-          const newParcel = payload.new;
+    let previousParcels: Parcel[] = [];
+
+    const checkUpdates = async () => {
+      try {
+        const fresh = await getAllParcels();
+        
+        // Notify of changes (Simplified diffing)
+        fresh.forEach(newParcel => {
+          const oldParcel = previousParcels.find(p => p.id === newParcel.id);
+          if (!oldParcel) return;
 
           // Someone requested your parcel
           if (oldParcel.status === 'pending' && newParcel.status === 'requested') {
-            toast.info(`📦 ${newParcel.traveller_name || 'A traveller'} requested your parcel! Go accept it.`, { duration: 7000 });
-            sendBrowserNotification('CarryGo – New Request! 🚚', `${newParcel.traveller_name || 'A traveller'} wants to carry your parcel.`);
-            refresh();
+            toast.info(`📦 ${newParcel.travellerName || 'A traveller'} requested your parcel! Go accept it.`, { duration: 7000 });
+            sendBrowserNotification('CarryGo – New Request! 🚚', `${newParcel.travellerName || 'A traveller'} wants to carry your parcel.`);
           }
 
           // Traveller started transit
           if (oldParcel.status !== 'in-transit' && newParcel.status === 'in-transit') {
-            await refresh();
-            const fresh = await getAllParcels();
-            const updated = fresh.find(p => p.id === newParcel.id);
-            if (updated) setTrackingModal(updated);
+            setTrackingModal(newParcel);
             toast.success(`🚚 Traveller has picked up and started transit!`, { duration: 6000 });
             sendBrowserNotification('CarryGo – Transit Started! 🚚', 'Your parcel is now in transit. Tracking is live!');
           }
 
           // Parcel delivered
           if (oldParcel.status !== 'delivered' && newParcel.status === 'delivered') {
-            await refresh();
             toast.success('🎉 Your parcel has been delivered!');
             sendBrowserNotification('CarryGo – Delivered! 📦', 'Your parcel has been successfully delivered.');
           }
-        }
-      )
-      .subscribe();
+        });
 
-    return () => {
-      supabase.removeChannel(channel);
+        setParcels(fresh);
+        previousParcels = fresh;
+      } catch (err) {
+        console.error("Polling failed:", err);
+      }
     };
+
+    const interval = setInterval(checkUpdates, 5000);
+    checkUpdates(); // Initial check
+
+    return () => clearInterval(interval);
   }, [user?.id, sendBrowserNotification]);
+
 
   useEffect(() => { refresh(); }, []);
 
@@ -187,26 +214,28 @@ export default function Sender() {
       itemCount: itemCount,
       vehicleType: selectedVehicle,
       paymentMethod: paymentMethod,
-      paymentStatus: 'unpaid' as const,
+      paymentStatus: (editingParcel ? editingParcel.paymentStatus : 'unpaid') as any,
       description: fd.get("description") as string,
       senderId: user?.id || "",
     };
 
-    if (paymentMethod === 'pay-now') {
-      setCheckoutParcel(parcelData);
-    } else {
+    if (editingParcel) {
       setLoading(true);
       try {
-        const resp = await createParcel(parcelData, parcelPhoto || undefined);
-        toast.success("Parcel created with Pay on Delivery!");
-        setLatestCreated(resp);
+        await updateParcel(editingParcel.id, parcelData, parcelPhoto || undefined);
+        toast.success("Parcel updated successfully!");
+        setEditingParcel(null);
         resetForm();
       } catch (err: any) {
-        toast.error("Failed to create parcel: " + (err.response?.data?.message || err.message));
+        toast.error("Failed to update parcel: " + (err.response?.data?.message || err.message));
       } finally {
         setLoading(false);
       }
+      return;
     }
+
+    // Always go to checkout for payment to company
+    setCheckoutParcel(parcelData);
   };
 
   const finalizePayment = async () => {
@@ -221,7 +250,8 @@ export default function Sender() {
         setLatestCreated(resp);
         resetForm();
       } catch (err: any) {
-        toast.error("Payment successful but parcel creation failed");
+        console.error("Create parcel error:", err);
+        toast.error(`Parcel creation failed: ${err.response?.data?.message || err.message}`);
       } finally {
         setLoading(false);
       }
@@ -245,6 +275,19 @@ export default function Sender() {
     refresh();
   };
 
+  const handleEdit = (p: Parcel) => {
+    setEditingParcel(p);
+    setWeight(p.weight.toString());
+    setSize(p.size);
+    setItemCount(p.itemCount);
+    setSelectedVehicle(p.vehicleType || "");
+    setPaymentMethod(p.paymentMethod);
+    if (p.parcelPhoto) {
+      setPhotoPreview(`http://localhost:5000/${p.parcelPhoto}`);
+    }
+    setShowForm(true);
+  };
+
 
   const resetForm = () => {
     setShowForm(false);
@@ -257,6 +300,7 @@ export default function Sender() {
     setParcelPhoto(null);
     setPhotoPreview(null);
     stopCamera();
+    setEditingParcel(null);
     refresh();
   };
 
@@ -346,7 +390,12 @@ export default function Sender() {
               </motion.div>
               <h1 className="font-heading text-2xl font-bold text-white">Sender Dashboard</h1>
             </div>
-            <p className="text-sm text-white/60">Create and manage your parcels</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-sm text-white/60">Create and manage your parcels</p>
+              <span className="inline-flex items-center rounded-full bg-white/10 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-widest text-white/80 border border-white/10 backdrop-blur-sm">
+                Fixed OTP: 1234
+              </span>
+            </div>
           </div>
 
           <motion.button
@@ -418,7 +467,9 @@ export default function Sender() {
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-secondary/15">
                 <Sparkles className="h-4 w-4 text-secondary" />
               </div>
-              <h2 className="font-heading text-lg font-semibold text-foreground">New Parcel</h2>
+              <h2 className="font-heading text-lg font-semibold text-foreground">
+                {editingParcel ? 'Edit Parcel' : 'New Parcel'}
+              </h2>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
@@ -428,7 +479,8 @@ export default function Sender() {
                   id="receiverName"
                   name="receiverName"
                   required
-                  placeholder="John Doe"
+                  placeholder="Receiver's name"
+                  defaultValue={editingParcel?.receiverName || ""}
                   className="mt-1 border-border transition-all focus:border-secondary focus:ring-secondary/20"
                 />
               </div>
@@ -443,6 +495,7 @@ export default function Sender() {
                     name="receiverPhone"
                     required
                     placeholder="10-digit number"
+                    defaultValue={editingParcel?.receiverPhone?.replace('+91', '') || ""}
                     onChange={(e) => {
                       e.target.value = e.target.value.replace(/\D/g, "").slice(0, 10);
                     }}
@@ -456,7 +509,8 @@ export default function Sender() {
                   id="fromLocation"
                   name="fromLocation"
                   required
-                  placeholder="Mumbai"
+                  defaultValue={editingParcel?.fromLocation || ""}
+                  placeholder="Pickup city/area"
                   className="mt-1 border-border transition-all focus:border-secondary focus:ring-secondary/20"
                 />
               </div>
@@ -466,7 +520,8 @@ export default function Sender() {
                   id="toLocation"
                   name="toLocation"
                   required
-                  placeholder="Delhi"
+                  defaultValue={editingParcel?.toLocation || ""}
+                  placeholder="Delivery city/area"
                   className="mt-1 border-border transition-all focus:border-secondary focus:ring-secondary/20"
                 />
               </div>
@@ -482,7 +537,7 @@ export default function Sender() {
                     value={weight}
                     onChange={(e) => setWeight(e.target.value)}
                     required
-                    placeholder="2.5"
+                    placeholder="Enter weight"
                     step="0.1"
                     className="border-border transition-all focus:border-secondary"
                   />
@@ -563,42 +618,27 @@ export default function Sender() {
 
               <div className="group sm:col-span-2">
                 <Label className="mb-3 block text-sm font-semibold text-foreground">Payment Method</Label>
-                <div className="grid grid-cols-2 gap-4">
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMethod('pay-now')}
-                    className={`flex items-center justify-between rounded-xl border-2 p-4 transition-all ${paymentMethod === 'pay-now' ? 'border-secondary bg-secondary/5' : 'border-border'
-                      }`}
+                <div className="grid grid-cols-1">
+                  <div
+                    className="flex items-center justify-between rounded-xl border-2 border-secondary bg-secondary/5 p-4 transition-all"
                   >
                     <div className="flex items-center gap-3">
-                      <div className={`rounded-lg p-2 ${paymentMethod === 'pay-now' ? 'bg-secondary text-white' : 'bg-muted'}`}>
-                        <CreditCard className="h-5 w-5" />
+                      <div className="rounded-lg p-2 bg-secondary text-white">
+                        <QrCode className="h-5 w-5" />
                       </div>
                       <div className="text-left">
-                        <p className="text-sm font-bold">Pay Now</p>
-                        <p className="text-[10px] text-muted-foreground">Prepaid Delivery</p>
+                        <p className="text-sm font-bold">Pay to Company (UPI/QR)</p>
+                        <p className="text-[10px] text-muted-foreground">Secure payment to CarryGo platform</p>
                       </div>
                     </div>
-                    {paymentMethod === 'pay-now' && <Check className="h-4 w-4 text-secondary" />}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMethod('pay-on-delivery')}
-                    className={`flex items-center justify-between rounded-xl border-2 p-4 transition-all ${paymentMethod === 'pay-on-delivery' ? 'border-indigo-500 bg-indigo-500/5' : 'border-border'
-                      }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`rounded-lg p-2 ${paymentMethod === 'pay-on-delivery' ? 'bg-indigo-500 text-white' : 'bg-muted'}`}>
-                        <Smartphone className="h-5 w-5" />
-                      </div>
-                      <div className="text-left">
-                        <p className="text-sm font-bold">Pay on Delivery</p>
-                        <p className="text-[10px] text-muted-foreground">Receiver Pays</p>
-                      </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold text-secondary uppercase tracking-widest bg-secondary/10 px-2 py-0.5 rounded-full">Secure</span>
+                      <Check className="h-4 w-4 text-secondary" />
                     </div>
-                    {paymentMethod === 'pay-on-delivery' && <Check className="h-4 w-4 text-indigo-500" />}
-                  </button>
+                  </div>
+                  <p className="mt-2 text-[10px] text-muted-foreground flex items-center gap-1 italic">
+                    <Info className="h-3 w-3" /> Note: Only prepaid company payments are allowed. The company pays 50% of this fee to your traveller after delivery.
+                  </p>
                 </div>
               </div>
 
@@ -677,6 +717,7 @@ export default function Sender() {
                 <Textarea
                   id="description"
                   name="description"
+                  defaultValue={editingParcel?.description || ""}
                   placeholder="What are you sending?"
                   className="mt-1 border-border transition-all focus:border-secondary focus:ring-secondary/20"
                 />
@@ -698,7 +739,7 @@ export default function Sender() {
                     Processing...
                   </>
                 ) : (
-                  paymentMethod === 'pay-now' ? 'Proceed to Payment' : 'Create Parcel'
+                  'Proceed to Payment (UPI/QR)'
                 )}
               </motion.button>
               <Button type="button" variant="ghost" onClick={() => setShowForm(false)} className="rounded-full font-semibold">
@@ -735,11 +776,9 @@ export default function Sender() {
                   <div className="absolute bottom-2 left-2 h-6 w-6 border-b-4 border-l-4 border-secondary" />
                   <div className="absolute bottom-2 right-2 h-6 w-6 border-b-4 border-r-4 border-secondary" />
 
-                  {/* Faux QR Code - Stylized UI instead of image for speed */}
-                  <div className="grid h-full w-full grid-cols-4 gap-1 opacity-90">
-                    {[...Array(64)].map((_, i) => (
-                      <div key={i} className={`rounded-[1px] ${Math.random() > 0.4 ? 'bg-slate-900' : 'bg-transparent'}`} />
-                    ))}
+                  {/* Real QR Code */}
+                  <div className="h-full w-full overflow-hidden rounded-xl">
+                    <img src="/qr.jpg" alt="Company Payment QR" className="h-full w-full object-cover" />
                   </div>
 
                   {/* Scanner line animation */}
@@ -755,8 +794,12 @@ export default function Sender() {
                     <span className="text-muted-foreground">Amount to Pay:</span>
                     <span className="font-bold text-foreground">₹{(checkoutParcel.weight * 50 + 20).toFixed(2)}</span>
                   </div>
-                  <div className="mt-1 flex justify-between text-xs">
-                    <span className="text-muted-foreground text-[10px] uppercase">Service Tax Included</span>
+                  <div className="mt-1 flex justify-between text-[10px] items-center">
+                    <span className="text-muted-foreground uppercase">Recipient:</span>
+                    <span className="font-bold text-secondary">CarryGo Official</span>
+                  </div>
+                  <div className="mt-2 text-[9px] text-muted-foreground border-t border-border/50 pt-2 italic">
+                    * Company will pay 50% to traveller upon delivery confirmation.
                   </div>
                 </div>
 
@@ -1146,6 +1189,17 @@ export default function Sender() {
                               onClick={(e) => { e.stopPropagation(); handleReleasePayment(p.id); }}
                             >
                               <CheckCircle2 className="h-3 w-3" /> Release Payout
+                            </motion.button>
+                          )}
+
+                          {p.status === "pending" && (
+                            <motion.button
+                              whileHover={{ scale: 1.1, color: "hsl(28 100% 55%)" }}
+                              whileTap={{ scale: 0.9 }}
+                              className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground/60 transition-colors hover:bg-secondary/10 hover:text-secondary"
+                              onClick={(e) => { e.stopPropagation(); handleEdit(p); }}
+                            >
+                              <Edit2 className="h-3.5 w-3.5" />
                             </motion.button>
                           )}
 

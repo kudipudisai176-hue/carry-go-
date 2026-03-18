@@ -62,11 +62,12 @@ export default function UserProfileModal({ user: initialUser, isOpen, onClose }:
     
     setIsSaving(true);
     try {
-      // Use updateUser from AuthContext which has Supabase logic
       const success = await updateUser({
         name,
-        profilePhoto: photo
+        profilePhoto: photo,
+        bio
       });
+
 
       if (success) {
         toast.success("Profile updated successfully!");
