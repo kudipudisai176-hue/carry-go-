@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import ParticleCanvas from "./ParticleCanvas";
 import { type UserRole } from "@/lib/authContext";
 
-export default function AuthAnimationWrapper({ children, role }: { children: React.ReactNode; role?: UserRole | null }) {
+export default function AuthAnimationWrapper({ children, role }: { children: React.ReactNode; role?: string | null }) {
     // Check if this is the first visit — skip animation if not
     const isFirstVisit = !localStorage.getItem("carrygo_signup_visited");
     const [step, setStep] = useState(isFirstVisit ? 0 : 4);
@@ -35,7 +35,7 @@ export default function AuthAnimationWrapper({ children, role }: { children: Rea
     return (
         <motion.div
             animate={{
-                backgroundColor: role === 'traveller' ? "#f5f3ff" : role === 'receiver' ? "#fffbeb" : "#ffffff"
+                backgroundColor: role === 'traveller' ? "#f5f3ff" : "#ffffff"
             }}
             className="relative min-h-screen w-full overflow-hidden transition-colors duration-700"
         >
@@ -45,9 +45,7 @@ export default function AuthAnimationWrapper({ children, role }: { children: Rea
                     animate={{
                         background: role === 'traveller'
                             ? "radial-gradient(circle_at_20%_30%, rgba(124, 58, 237, 0.1) 0%, transparent 50%)"
-                            : role === 'receiver'
-                                ? "radial-gradient(circle_at_20%_30%, rgba(253, 224, 71, 0.3) 0%, transparent 50%)"
-                                : "radial-gradient(circle_at_20%_30%, rgba(249, 115, 22, 0.05) 0%, transparent 50%)"
+                            : "radial-gradient(circle_at_20%_30%, rgba(249, 115, 22, 0.05) 0%, transparent 50%)"
                     }}
                     className="absolute top-0 left-0 w-full h-full"
                 />
@@ -55,9 +53,7 @@ export default function AuthAnimationWrapper({ children, role }: { children: Rea
                     animate={{
                         background: role === 'traveller'
                             ? "radial-gradient(circle_at_80%_70%, rgba(139, 92, 246, 0.12) 0%, transparent 50%)"
-                            : role === 'receiver'
-                                ? "radial-gradient(circle_at_80%_70%, rgba(59, 130, 246, 0.15) 0%, transparent 50%)"
-                                : "radial-gradient(circle_at_80%_70%, rgba(249, 115, 22, 0.08) 0%, transparent 50%)"
+                            : "radial-gradient(circle_at_80%_70%, rgba(249, 115, 22, 0.08) 0%, transparent 50%)"
                     }}
                     className="absolute bottom-0 right-0 w-full h-full"
                 />
@@ -66,7 +62,7 @@ export default function AuthAnimationWrapper({ children, role }: { children: Rea
                 <motion.div
                     animate={{
                         opacity: role ? 0.04 : 0.02,
-                        backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23${role === 'traveller' ? '7c3aed' : role === 'receiver' ? '3b82f6' : 'f97316'}' fill-opacity='0.4'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6zM36 4V0h-2v4h-4v2h4v4h2V6h4V4h-4z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
+                        backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23${role === 'traveller' ? '7c3aed' : 'f97316'}' fill-opacity='0.4'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6zM36 4V0h-2v4h-4v2h4v4h2V6h4V4h-4z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
                     }}
                     className="absolute inset-0 transition-opacity duration-700"
                 />
@@ -92,7 +88,7 @@ export default function AuthAnimationWrapper({ children, role }: { children: Rea
                                 repeat: Infinity,
                                 ease: "easeInOut",
                             }}
-                            className={`absolute w-2 h-2 rounded-full blur-[1px] ${role === 'traveller' ? 'bg-purple-200/50' : role === 'receiver' ? 'bg-blue-200/50' : 'bg-orange-200/50'}`}
+                            className={`absolute w-2 h-2 rounded-full blur-[1px] ${role === 'traveller' ? 'bg-purple-200/50' : 'bg-orange-200/50'}`}
                         />
                     ))}
                 </div>
@@ -103,7 +99,7 @@ export default function AuthAnimationWrapper({ children, role }: { children: Rea
                         animate={{
                             scale: [1, 1.1, 1],
                             opacity: role ? 0.5 : 0.3,
-                            backgroundColor: role === 'traveller' ? "#ddd6fe" : role === 'receiver' ? "#fef08a" : "#ffedd5"
+                            backgroundColor: role === 'traveller' ? "#ddd6fe" : "#ffedd5"
                         }}
                         transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
                         className="absolute -top-1/4 -left-1/4 w-full h-full blur-[120px] rounded-full"
@@ -112,7 +108,7 @@ export default function AuthAnimationWrapper({ children, role }: { children: Rea
                         animate={{
                             scale: [1.1, 1, 1.1],
                             opacity: role ? 0.4 : 0.2,
-                            backgroundColor: role === 'traveller' ? "#ede9fe" : role === 'receiver' ? "#bfdbfe" : "#fff7ed"
+                            backgroundColor: role === 'traveller' ? "#ede9fe" : "#fff7ed"
                         }}
                         transition={{ duration: 18, repeat: Infinity, ease: "linear" }}
                         className="absolute -bottom-1/4 -right-1/4 w-full h-full blur-[120px] rounded-full"

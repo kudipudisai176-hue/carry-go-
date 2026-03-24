@@ -10,6 +10,7 @@ interface RouteMap3DProps {
     from: string;
     to: string;
     animate?: boolean;
+    parcel?: any;
 }
 
 // ─── Geocode city name → [lng, lat] ──────────────────────────────────────────
@@ -52,8 +53,8 @@ function buildCurvedPath(
     return pts;
 }
 
-// ─── SVG truck icon used as animated marker ───────────────────────────────────
-function makeTruckEl() {
+// ─── SVG vehicle icon used as animated marker ───────────────────────────────────
+function makeTruckEl(vehicleType: string = 'van') {
     const el = document.createElement("div");
     el.style.cssText = `
     width:52px;height:52px;border-radius:50%;display:flex;align-items:center;
@@ -61,11 +62,24 @@ function makeTruckEl() {
     box-shadow:0 0 0 4px rgba(255,124,42,0.35),0 0 24px rgba(255,124,42,0.6);
     animation:pulse3d 1.6s ease-in-out infinite;cursor:pointer;
   `;
-    el.innerHTML = `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M1 3h15v13H1zM16 8h4l3 3v5h-7V8z" stroke="white" stroke-width="1.8" stroke-linejoin="round" fill="rgba(255,255,255,0.15)"/>
-    <circle cx="5.5" cy="18.5" r="2.5" stroke="white" stroke-width="1.8" fill="rgba(255,255,255,0.2)"/>
-    <circle cx="18.5" cy="18.5" r="2.5" stroke="white" stroke-width="1.8" fill="rgba(255,255,255,0.2)"/>
-  </svg>`;
+    
+    let iconSvg = "";
+    if (vehicleType === 'bike') {
+        iconSvg = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg>`;
+    } else if (vehicleType === 'car') {
+        iconSvg = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>`;
+    } else if (vehicleType === 'bus') {
+        iconSvg = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6v6"/><path d="M15 6v6"/><path d="M2 12h19.6"/><path d="M18 18h3s.5-1.7.8-2.8c.1-.4.2-.8.2-1.2V6c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v8c0 .4.1.8.2 1.2.3 1.1.8 2.8.8 2.8h3"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg>`;
+    } else {
+        // Default Truck/Van icon
+        iconSvg = `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M1 3h15v13H1zM16 8h4l3 3v5h-7V8z" stroke="white" stroke-width="1.8" stroke-linejoin="round" fill="rgba(255,255,255,0.15)"/>
+          <circle cx="5.5" cy="18.5" r="2.5" stroke="white" stroke-width="1.8" fill="rgba(255,255,255,0.2)"/>
+          <circle cx="18.5" cy="18.5" r="2.5" stroke="white" stroke-width="1.8" fill="rgba(255,255,255,0.2)"/>
+        </svg>`;
+    }
+
+    el.innerHTML = iconSvg;
     return el;
 }
 
@@ -93,7 +107,7 @@ function makePinEl(color: string, label: string) {
     return el;
 }
 
-export default function RouteMap3D({ from, to, animate }: RouteMap3DProps) {
+export default function RouteMap3D({ from, to, animate, parcel }: RouteMap3DProps) {
     const mapContainer = useRef<HTMLDivElement>(null);
     const mapRef = useRef<mapboxgl.Map | null>(null);
     const truckMarkerRef = useRef<mapboxgl.Marker | null>(null);
@@ -105,6 +119,7 @@ export default function RouteMap3D({ from, to, animate }: RouteMap3DProps) {
     const [error, setError] = useState(false);
     const [isVoiceEnabled, setIsVoiceEnabled] = useState(true);
     const [progress, setProgress] = useState(0); // 0-100
+    const [eta, setEta] = useState<string | null>(null);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
 
@@ -300,7 +315,7 @@ export default function RouteMap3D({ from, to, animate }: RouteMap3DProps) {
 
             // ── Truck marker ──────────────────────────────────────────────────────
             if (truckMarkerRef.current) truckMarkerRef.current.remove();
-            const truckEl = makeTruckEl();
+            const truckEl = makeTruckEl(parcel?.vehicleType);
             const truckMarker = new mapboxgl.Marker({ element: truckEl, anchor: "center" })
                 .setLngLat(fc)
                 .addTo(map);
@@ -329,10 +344,10 @@ export default function RouteMap3D({ from, to, animate }: RouteMap3DProps) {
             stepRef.current = 0;
 
             const totalSteps = path.length;
-            const speed = 1; // steps per frame
+            const speed = 0.1; // Slowed down for better simulation feel
 
             const tick = () => {
-                const idx = Math.min(stepRef.current, totalSteps - 1);
+                const idx = Math.min(Math.floor(stepRef.current), totalSteps - 1);
                 const pos = path[idx];
 
                 // Move truck
@@ -354,8 +369,15 @@ export default function RouteMap3D({ from, to, animate }: RouteMap3DProps) {
                 const pct = Math.round((idx / (totalSteps - 1)) * 100);
                 setProgress(pct);
 
+                // ETA Calculation (Simulated)
+                const remainingSteps = totalSteps - idx;
+                const estimatedSeconds = Math.ceil(remainingSteps / (speed * 60)); // frames per sec
+                const mins = Math.floor(estimatedSeconds / 60);
+                const secs = estimatedSeconds % 60;
+                setEta(mins > 0 ? `${mins}m ${secs}s` : `${secs}s`);
+
                 // Smooth camera follow
-                if (idx % 8 === 0 && idx < totalSteps - 10) {
+                if (Math.floor(stepRef.current) % 8 === 0 && idx < totalSteps - 10) {
                     map.easeTo({
                         center: pos,
                         duration: 800,
@@ -492,7 +514,14 @@ export default function RouteMap3D({ from, to, animate }: RouteMap3DProps) {
                                     <span className="text-[10px] font-black uppercase tracking-widest text-orange-400">
                                         Journey Progress
                                     </span>
-                                    <span className="text-xs font-bold text-white">{progress}%</span>
+                                    <div className="flex items-center gap-3">
+                                        {eta && (
+                                            <span className="text-[10px] font-bold text-white/40 uppercase bg-white/5 px-2 py-0.5 rounded-full border border-white/5">
+                                               ETA: {eta}
+                                            </span>
+                                        )}
+                                        <span className="text-xs font-bold text-white">{progress}%</span>
+                                    </div>
                                 </div>
                                 <div className="h-2 rounded-full bg-white/10 overflow-hidden">
                                     <div

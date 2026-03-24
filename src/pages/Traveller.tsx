@@ -1,9 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Search, Truck, Package, ArrowRight, Bike, Bus, Car, Box, Layers, Weight,
-  Phone, User, MapPin, CheckCircle2, Navigation, ChevronDown, ChevronUp,
-  PackageCheck, Info, Bell
+  Package, Plus, Check, Trash2, MapPin, Weight, ArrowRight, ArrowLeft, Sparkles, Box, Bike, Bus, Car, Truck, Info, Layers, CreditCard, RefreshCw, Navigation, History, Search, Handshake, ChevronRight, CheckCircle2, Navigation2, Zap, Clock, Star, Phone, ShieldCheck, Map, LayoutDashboard, User, PackageCheck, ChevronUp, ChevronDown, Bell
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +14,7 @@ import {
 import UserProfileModal from "@/components/UserProfileModal";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/authContext";
+import { useNavigate } from "react-router-dom";
 // Supabase import removed
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter
@@ -23,6 +22,7 @@ import {
 
 export default function Traveller() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [results, setResults] = useState<Parcel[]>([]);
@@ -33,6 +33,7 @@ export default function Traveller() {
 
   const [isConfirming, setIsConfirming] = useState(false);
   const [pickupOtp, setPickupOtp] = useState("");
+  const [timer, setTimer] = useState(0);
   const [trackingParcel, setTrackingParcel] = useState<Parcel | null>(null); // auto-opens after OTP
 
   // Navigation map state: shows full-screen map after OTP confirmed
@@ -47,6 +48,26 @@ export default function Traveller() {
       Notification.requestPermission();
     }
   }, []);
+  
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (timer > 0) {
+      interval = setInterval(() => setTimer(prev => prev - 1), 1000);
+    }
+    return () => clearInterval(interval);
+  }, [timer]);
+
+  const startOtpTimer = useCallback(() => {
+    setTimer(50);
+    toast.info("A new 50-second verification session has started.");
+  }, []);
+
+  useEffect(() => {
+    if (detailParcel?.status === 'accepted' && timer === 0) {
+      startOtpTimer();
+    }
+  }, [detailParcel?.id, detailParcel?.status, startOtpTimer]);
+
 
   const sendBrowserNotification = useCallback((title: string, body: string) => {
     if ('Notification' in window && Notification.permission === 'granted') {
@@ -66,11 +87,13 @@ export default function Traveller() {
   const handleSearch = useCallback(async () => {
     try {
       const data = await searchParcels(from, to);
-      setResults(data);
+      // Security: Filter out own parcels - you cannot be the traveller for your own parcel
+      const filtered = data.filter(p => p.senderId !== user?.id);
+      setResults(filtered);
     } catch {
       toast.error("Search failed");
     }
-  }, [from, to]);
+  }, [from, to, user?.id]);
 
   const handleStartTransit = useCallback(async (id: string, parcel: Parcel, autoOtp?: string) => {
     const finalOtp = autoOtp || pickupOtp;
@@ -88,6 +111,7 @@ export default function Traveller() {
         setDetailParcel(res);
         setTrackingParcel(res);
         setPickupOtp("");
+        setTimer(0);
         await loadMyDeliveries();
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
@@ -123,9 +147,9 @@ export default function Traveller() {
               sendBrowserNotification('CarryGo – Request Accepted! 🎉', `Your request for parcel has been accepted. Starting transit.`);
               
               setDetailParcel(newParcel);
-              // Auto-start transit if OTP is available or simple flow
-              if (newParcel.pickupOtp) {
-                await handleStartTransit(newParcel.id, newParcel, newParcel.pickupOtp);
+              // Auto-start transit if OTP is available
+              if (newParcel.status === 'accepted') {
+                startOtpTimer();
               }
             }
 
@@ -189,13 +213,41 @@ export default function Traveller() {
   return (
     <div className="mx-auto max-w-4xl px-4 pb-20 pt-24">
 
-      {/* ── Header ── */}
-      {!detailParcel && (
-        <div className="mb-6">
-          <h1 className="font-heading text-3xl font-bold text-foreground">Traveller Dashboard</h1>
-          <p className="text-muted-foreground">Manage your deliveries and find new parcels</p>
-        </div>
-      )}
+       {/* ── Header ── */}
+       {!detailParcel && (
+         <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+           <div className="space-y-4">
+              <Button 
+               variant="ghost" 
+               size="sm" 
+               onClick={() => navigate('/dashboard')}
+               className="group -ml-2 text-muted-foreground hover:text-foreground"
+              >
+                <ArrowLeft className="h-4 w-4 mr-2 transition-transform group-hover:-translate-x-1" />
+                Back to Dashboard
+              </Button>
+              <div>
+                 <h1 className="font-heading text-3xl font-bold text-foreground">Traveller Dashboard</h1>
+                 <p className="text-muted-foreground">Manage your deliveries and find new parcels</p>
+              </div>
+           </div>
+           
+           {/* 💰 Wallet Balance Card (Point 14) */}
+           <motion.div 
+             initial={{ opacity: 0, scale: 0.9 }}
+             animate={{ opacity: 1, scale: 1 }}
+             className="bg-green-600/10 border border-green-500/20 rounded-2xl p-4 flex items-center gap-3 backdrop-blur-md"
+           >
+              <div className="h-10 w-10 rounded-xl bg-green-600 flex items-center justify-center text-white shadow-lg shadow-green-600/20">
+                <CreditCard className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-green-700">Earnings Balance</p>
+                <p className="text-xl font-black text-green-600">₹{user?.walletBalance || 0}</p>
+              </div>
+           </motion.div>
+         </div>
+       )}
 
       {/* ── Navigation Map (after OTP verified) ── */}
       <AnimatePresence>
@@ -374,18 +426,27 @@ export default function Traveller() {
                     </div>
 
                     <div className="flex flex-col items-center gap-4">
+                      <div className="flex items-center justify-between w-full max-w-[150px] px-1">
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase">Enter OTP</p>
+                        {timer > 0 ? (
+                          <span className="text-[10px] font-bold text-secondary tabular-nums">{timer}s</span>
+                        ) : (
+                          <span className="text-[10px] font-bold text-red-500 uppercase">Expired</span>
+                        )}
+                      </div>
                       <Input
                         value={pickupOtp}
                         onChange={(e) => setPickupOtp(e.target.value)}
-                        placeholder="Enter 4-Digit OTP"
+                        placeholder="0 0 0 0"
                         maxLength={4}
+                        disabled={timer === 0}
                         className="max-w-[150px] text-center text-lg font-bold tracking-[0.3em] font-mono h-12 rounded-xl"
                       />
                       <Button
                         size="lg"
                         className="w-full max-w-xs bg-secondary text-white font-bold h-14 rounded-2xl shadow-xl shadow-secondary/20 hover:scale-[1.02] transition-transform"
                         onClick={() => handleStartTransit(detailParcel.id, detailParcel)}
-                        disabled={isConfirming || pickupOtp.length !== 4}
+                        disabled={isConfirming || pickupOtp.length !== 4 || timer === 0}
                       >
                         {isConfirming ? "Confirming..." : "Verify & Start Journey"}
                       </Button>
@@ -411,10 +472,10 @@ export default function Traveller() {
                       <div className="flex flex-col items-center gap-4">
                         <Button
                           className="w-full max-w-xs bg-green-600 text-white font-bold h-12 rounded-xl shadow-lg shadow-green-600/20"
-                          onClick={() => handleDeliver(detailParcel.id, detailParcel)}
+                          onClick={() => navigate(`/confirm-delivery/${detailParcel.id}`)}
                           disabled={isConfirming}
                         >
-                          {isConfirming ? "Confirming..." : "Confirm Delivery Complete"}
+                          {isConfirming ? "Navigating..." : "Confirm Delivery Complete"}
                         </Button>
                       </div>
                     </div>
@@ -635,7 +696,7 @@ export default function Traveller() {
                                 </p>
                                 <Button
                                   className="w-full bg-green-600 text-white hover:bg-green-700 shadow-md font-bold"
-                                  onClick={() => handleDeliver(p.id, p)}
+                                  onClick={() => navigate(`/confirm-delivery/${p.id}`)}
                                   disabled={isConfirming}
                                 >
                                   <CheckCircle2 className="h-4 w-4 mr-2" /> Confirm Delivery
@@ -746,7 +807,7 @@ export default function Traveller() {
                             </div>
                             <div className="flex items-center gap-2">
                               <StatusBadge status={p.status} />
-                              {p.status === "pending" && (
+                              {p.status === "open_for_travellers" && (
                                 <Button
                                   size="sm"
                                   className="bg-secondary text-secondary-foreground hover:bg-secondary/90"

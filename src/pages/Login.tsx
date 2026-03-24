@@ -14,9 +14,15 @@ export default function Login() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
+<<<<<<< HEAD
   const [role, setRole] = useState<UserRole>("sender");
   const [errors, setErrors] = useState({ email: "", password: "", phone: "" });
   const { login, user, isLoading } = useAuth();
+=======
+  const [role, setRole] = useState<"sender" | "traveller" | "receiver">("sender");
+  const [errors, setErrors] = useState({ email: "", password: "" });
+  const { login } = useAuth();
+>>>>>>> sender
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -62,7 +68,11 @@ export default function Login() {
       const result = await login(loginEmail, password);
       if (result.success) {
         toast.success("Welcome back!");
+<<<<<<< HEAD
         navigate("/dashboard", { replace: true });
+=======
+        navigate("/dashboard");
+>>>>>>> sender
       } else {
         toast.error(result.message || "Invalid email or password");
       }
@@ -105,47 +115,10 @@ export default function Login() {
           <p className="text-sm text-slate-500">Sign in to your CarryGo account</p>
         </div>
 
-        <div className="mb-6 flex justify-center gap-2">
-          <button
-            type="button"
-            onClick={() => setRole("sender")}
-            className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-[11px] font-bold transition-all ${
-              role === "sender"
-                ? "bg-orange-500 text-white shadow-md"
-                : "bg-slate-100 text-slate-500 hover:bg-slate-200"
-            }`}
-          >
-            <Package className="h-3 w-3" /> Sender
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setRole("traveller");
-            }}
-            className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-[11px] font-bold transition-all ${
-              role === "traveller"
-                ? "bg-purple-600 text-white shadow-md"
-                : "bg-slate-100 text-slate-500 hover:bg-slate-200"
-            }`}
-          >
-            <Truck className="h-3 w-3" /> Traveller
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setRole("receiver");
-            }}
-            className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-[11px] font-bold transition-all ${
-              role === "receiver"
-                ? "bg-indigo-600 text-white shadow-md"
-                : "bg-slate-100 text-slate-500 hover:bg-slate-200"
-            }`}
-          >
-            <MapPin className="h-3 w-3" /> Receiver
-          </button>
-        </div>
+
 
         <form onSubmit={handleSubmit} className="space-y-4">
+<<<<<<< HEAD
           {role !== 'receiver' ? (
             <div className="group space-y-2">
               <Label
@@ -208,6 +181,29 @@ export default function Login() {
               </div>
             </>
           )}
+=======
+          <div className="group space-y-2">
+            <Label
+              htmlFor="email"
+              className="flex items-center gap-2 font-medium text-slate-700 transition-colors group-hover:text-orange-500"
+            >
+              <Mail className="h-4 w-4" /> Email address
+            </Label>
+            <Input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                setErrors(prev => ({ ...prev, email: validateEmail(e.target.value) }));
+              }}
+              placeholder=""
+              required
+              className={`border-slate-200 bg-slate-50/50 text-slate-900 placeholder:text-slate-400 focus:border-orange-500/50 focus:ring-orange-500/20 transition-all ${errors.email ? 'border-red-500' : ''}`}
+            />
+            {errors.email && <p className="text-[10px] text-red-500 font-medium pl-1">{errors.email}</p>}
+          </div>
+>>>>>>> sender
           <div className="group space-y-2">
             <Label
               htmlFor="password"
@@ -223,7 +219,7 @@ export default function Login() {
                 setPassword(e.target.value);
                 setErrors(prev => ({ ...prev, password: validatePassword(e.target.value) }));
               }}
-              placeholder="••••••••"
+              placeholder=""
               required
               className={`border-slate-200 bg-slate-50/50 text-slate-900 placeholder:text-slate-400 focus:border-orange-500/50 focus:ring-orange-500/20 transition-all ${errors.password ? 'border-red-500' : ''}`}
             />
