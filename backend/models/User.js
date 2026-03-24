@@ -18,28 +18,56 @@ const userSchema = mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ['sender', 'traveller', 'receiver'],
+      enum: ['sender', 'traveller', 'receiver', 'sender_receiver'],
       required: true,
+    },
+    sub_role: {
+      type: String,
+      enum: ['sender', 'receiver'],
+      default: 'sender',
     },
     phone: {
       type: String,
       required: true,
     },
-    vehicleType: {
+    dob: {
+      type: Date,
+    },
+    gender: {
+      type: String,
+      enum: ['male', 'female', 'other', ''],
+    },
+    address: {
+      type: String,
+    },
+    city: {
+      type: String,
+    },
+    state: {
+      type: String,
+    },
+    pincode: {
+      type: String,
+    },
+    idProofType: {
+      type: String,
+      enum: ['Aadhaar', 'PAN', 'Passport'],
+    },
+    idNumber: {
+      type: String,
+    },
+    idPhoto: {
+      type: String,
+    },
+    livePhoto: {
+      type: String,
+    },
+    profilePhoto: {
       type: String,
     },
     walletBalance: {
       type: Number,
       default: 0,
-    },
-    adharNumber: {
-      type: String,
-    },
-    adharPhoto: {
-      type: String,
-    },
-    profilePhoto: {
-      type: String,
     },
     bio: {
       type: String,
@@ -51,6 +79,16 @@ const userSchema = mongoose.Schema(
     totalTrips: {
       type: Number,
       default: 0,
+    },
+    personalOtp: {
+      type: String,
+    },
+    personalOtpExpiresAt: {
+      type: Date,
+    },
+    personalOtpUsed: {
+      type: Boolean,
+      default: false,
     },
   },
   {

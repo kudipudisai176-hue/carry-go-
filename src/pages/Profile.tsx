@@ -109,15 +109,12 @@ export default function Profile() {
           className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl shadow-slate-200/50"
         >
           {/* Header/Cover */}
-          <div className={`h-32 w-full transition-colors duration-500 ${
-            user.role === 'traveller' ? 'bg-purple-600' :
-            user.role === 'sender' ? 'bg-orange-500' : 'bg-indigo-600'
-          }`} />
+          <div className="h-32 w-full bg-orange-600" />
 
           <div className="px-8 pb-8">
             {/* Avatar Row */}
             <div className="relative -mt-16 mb-6 flex items-end justify-between">
-              <div className="relative">
+               <div className="relative">
                 <div className="h-32 w-32 overflow-hidden rounded-3xl border-4 border-white bg-slate-100 shadow-lg group/avatar relative">
                   {user.profilePhoto ? (
                     <img 
@@ -154,12 +151,8 @@ export default function Profile() {
                   )}
                 </div>
                 <div className="absolute -bottom-2 -right-2 rounded-2xl bg-white p-1.5 shadow-md">
-                   <div className={`rounded-xl p-1.5 ${
-                     user.role === 'traveller' ? 'bg-purple-100 text-purple-600' :
-                     user.role === 'sender' ? 'bg-orange-100 text-orange-600' : 'bg-indigo-100 text-indigo-600'
-                   }`}>
-                     {user.role === 'traveller' ? <Truck className="h-5 w-5" /> : 
-                      user.role === 'sender' ? <Package className="h-5 w-5" /> : <MapPin className="h-5 w-5" />}
+                   <div className="rounded-xl p-1.5 bg-orange-100 text-orange-600">
+                     <Package className="h-5 w-5" />
                    </div>
                 </div>
               </div>
@@ -194,7 +187,7 @@ export default function Profile() {
                     </>
                   )}
                 </div>
-                <p className="text-sm font-medium text-slate-500 capitalize">{user.role} Account</p>
+                <p className="text-sm font-medium text-slate-500 capitalize">CarryGo Member</p>
               </div>
             </div>
 
@@ -240,8 +233,8 @@ export default function Profile() {
                         <ShieldCheck className="h-4 w-4" />
                       </div>
                       <div>
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Aadhar Verified</p>
-                        <p className="text-sm font-semibold text-slate-700">{user.adharNumber?.replace(/.(?=.{4})/g, '*')}</p>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">ID Verification</p>
+                        <p className="text-sm font-semibold text-slate-700">{user.idNumber?.replace(/.(?=.{4})/g, '*') || 'Verified'}</p>
                       </div>
                     </div>
 
@@ -301,7 +294,7 @@ export default function Profile() {
         </motion.div>
 
         {/* Identity Documents (Only for travellers) */}
-        {user.role === 'traveller' && user.adharPhoto && (
+        {user.idPhoto && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -309,13 +302,13 @@ export default function Profile() {
             className="mt-8 overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/50"
           >
             <h2 className="mb-4 flex items-center gap-2 text-base font-bold text-slate-900">
-              <ShieldCheck className="h-5 w-5 text-purple-600" />
+              <ShieldCheck className="h-5 w-5 text-orange-600" />
               Verification Documents
             </h2>
             <div className="bg-slate-50 rounded-2xl p-4 flex justify-center">
               <img 
-                src={user.adharPhoto} 
-                alt="Aadhar Card" 
+                src={user.idPhoto} 
+                alt="ID Document" 
                 className="max-h-48 rounded-xl shadow-md"
               />
             </div>

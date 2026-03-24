@@ -1,51 +1,57 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
-import { UserPlus, Package, Truck, MapPin, User, Mail, Lock, Bike, Bus, Car, Smartphone, Camera, FileText, ShieldCheck, Upload } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { useAuth, UserRole } from "@/lib/authContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useAuth, type UserRole } from "@/lib/authContext";
+import { Checkbox } from "@/components/ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { 
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue 
+} from "@/components/ui/select";
+import { 
+  UserPlus, Mail, Lock, Phone, Calendar, MapPin, 
+  Upload, ChevronRight, ChevronLeft, Building2,
+  Package, Truck, CheckCircle2, ShieldCheck, User, Camera, Check, Map as MapIcon
+} from "lucide-react";
 import { toast } from "sonner";
-import AuthAnimationWrapper from "@/components/AuthAnimationWrapper";
 import LiveCameraModal from "@/components/LiveCameraModal";
+import AuthAnimationWrapper from "@/components/AuthAnimationWrapper";
 
-const roles: { value: UserRole; label: string; icon: typeof Package; desc: string }[] = [
-  { value: "sender", label: "Sender", icon: Package, desc: "Send parcels to anyone, anywhere" },
-  { value: "traveller", label: "Traveller", icon: Truck, desc: "Carry parcels along your route & earn" },
-  { value: "receiver", label: "Receiver", icon: MapPin, desc: "Track incoming parcels in real-time" },
-];
-
-const vehicleTypes = [
-  { value: "bike", label: "Bike", icon: Bike },
-  { value: "car", label: "Car", icon: Car },
-  { value: "van", label: "Van", icon: Truck },
-  { value: "bus", label: "Bus", icon: Bus },
-];
+const idTypes = ["Aadhaar", "PAN", "Passport"];
 
 export default function Signup() {
+  const [step, setStep] = useState(1);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const { signup, isLoading } = useAuth();
+  const navigate = useNavigate();
+
+  // Unified State
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<UserRole>("sender");
-  const [vehicle, setVehicle] = useState<string | null>(null);
   const [phone, setPhone] = useState("");
-  const [idType, setIdType] = useState<"aadhar" | "pan">("aadhar");
-  const [adharNumber, setAdharNumber] = useState("");
-  const [adharPhoto, setAdharPhoto] = useState<string | null>(null);
+
+  const [dob, setDob] = useState("");
+  const [gender, setGender] = useState("");
+  const [address, setAddress] = useState("");
+  const [city, setCity] = useState("");
+  const [state, setStateName] = useState("");
+  const [pincode, setPincode] = useState("");
+  const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
+
+  const [idType, setIdType] = useState("Aadhaar");
+  const [idNumber, setIdNumber] = useState("");
+  const [idPhoto, setIdPhoto] = useState<string | null>(null);
   const [livePhoto, setLivePhoto] = useState<string | null>(null);
+  const [agreedTerms, setAgreedTerms] = useState(false);
+
+  // Modals & UI status
   const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  // Validation States
-  const [errors, setErrors] = useState({
-    email: "",
-    password: "",
-    phone: "",
-    idNumber: ""
-  });
-  const { signup } = useAuth();
-  const navigate = useNavigate();
-
+  // File to Base64
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, setter: (val: string) => void) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -55,376 +61,296 @@ export default function Signup() {
     }
   };
 
-  const validateEmail = (val: string) => {
-    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!val) return "Email is required";
-    if (!re.test(val)) return "Please enter a valid email address";
-    return "";
-  };
-
-  const validatePassword = (val: string) => {
-    if (!val) return "Password is required";
-    if (val.length < 6) return "Password must be at least 6 characters";
-    return "";
-  };
-
-  const validatePhone = (val: string) => {
-    if (!val) return "Phone number is required";
-    if (!/^\d{10}$/.test(val)) return "Phone number must be exactly 10 digits";
-    return "";
-  };
-
-  const validateId = (val: string, type: "aadhar" | "pan") => {
-    if (!val) return `${type === 'aadhar' ? 'Aadhaar' : 'PAN'} number is required`;
-    if (type === 'aadhar') {
-      if (!/^\d{12}$/.test(val)) return "Aadhaar must be 12 digits";
-    } else {
-      if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(val.toUpperCase())) return "Invalid PAN format (e.g. ABCDE1234F)";
-    }
-    return "";
-  };
+  const handleNext = () => setStep((s) => Math.min(s + 1, 3));
+  const handlePrev = () => setStep((s) => Math.max(s - 1, 1));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!agreedTerms) {
+      toast.error("Please agree to the Terms & Conditions");
+      return;
+    }
 
-    const emailErr = validateEmail(email);
-    const passwordErr = validatePassword(password);
-    const phoneErr = validatePhone(phone);
-    const idErr = role === 'traveller' ? validateId(adharNumber, idType) : "";
+    setSubmitting(true);
+    const finalRole: UserRole = "sender_receiver";
 
-    setErrors({
-      email: emailErr,
-      password: passwordErr,
-      phone: phoneErr,
-      idNumber: idErr
+    const res = await signup({
+      name, email, password, phone,
+      role: finalRole,
+      dob, gender, address, city, state, pincode,
+      idProofType: idType,
+      idNumber, idPhoto: idPhoto || undefined, livePhoto: livePhoto || undefined, profilePhoto: profilePhoto || undefined
     });
 
-    if (emailErr || passwordErr || phoneErr || idErr) {
-      toast.error("Please fix the errors in the form");
-      return;
-    }
-
-    if (!role) {
-      toast.error("Please select your role");
-      return;
-    }
-    if (role === "traveller") {
-      if (!vehicle) {
-        toast.error("Please select your vehicle type");
-        return;
-      }
-      if (!adharNumber || !adharPhoto || !livePhoto) {
-        toast.error("All verification fields are required for Travellers");
-        return;
-      }
-    }
-
-    const signupData = {
-      name, email, password, role, phone: `+91${phone}`,
-      vehicleType: vehicle || undefined,
-      identificationType: role === 'traveller' ? idType : undefined,
-      adharNumber: role === 'traveller' ? adharNumber : undefined,
-      adharPhoto: role === 'traveller' ? adharPhoto : undefined,
-      livePhoto: role === 'traveller' ? livePhoto : undefined,
-    };
-
-    const result = await signup(signupData);
-    if (result.success) {
-      toast.success("Account created! Welcome to CarryGo 🎉");
-      navigate(role === 'sender' ? "/sender" : role === 'traveller' ? "/traveller" : "/receiver");
+    setSubmitting(false);
+    if (res.success) {
+      setIsSuccess(true);
+      setTimeout(() => {
+        navigate("/dashboard", { replace: true });
+      }, 2500);
     } else {
-      toast.error(result.message || "Registration failed. Please try again.");
+      toast.error(res.message || "Signup failed");
     }
   };
 
-  return (
-    <AuthAnimationWrapper role={role}>
-      <div className="w-full max-w-lg rounded-3xl border border-orange-100 bg-white/80 p-8 shadow-2xl backdrop-blur-xl transition-all duration-500 hover:border-orange-500/30 hover:shadow-[0_0_50px_rgba(249,115,22,0.1)]">
-        <div className="mb-8 text-center text-slate-800">
-          <motion.div
-            whileHover={{ rotate: 360, scale: 1.1 }}
-            transition={{ duration: 0.8, type: "spring" }}
-            className={`mx-auto mb-4 flex h-14 w-14 cursor-pointer items-center justify-center rounded-2xl shadow-lg transition-all duration-300 ${role === 'traveller' ? 'bg-purple-600 shadow-purple-600/20' : role === 'receiver' ? 'bg-indigo-600 shadow-indigo-600/20' : 'bg-orange-500 shadow-orange-500/20'
-              }`}
-          >
-            {role === 'traveller' ? <Truck className="h-7 w-7 text-white" /> : role === 'receiver' ? <MapPin className="h-7 w-7 text-white" /> : <Package className="h-7 w-7 text-white" />}
-          </motion.div>
-          <h1 className="font-heading text-3xl font-bold tracking-tight text-slate-900">Create account</h1>
-          <p className="mt-2 text-slate-500">Join the CarryGo global network</p>
+  if (isSuccess) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-purple-50 to-indigo-50 px-4">
+        <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="flex flex-col items-center justify-center rounded-3xl bg-white p-12 text-center shadow-2xl border border-white/60">
+           <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.2, type: 'spring' }} className="mb-6 flex h-24 w-24 items-center justify-center rounded-full bg-green-500 text-white shadow-xl shadow-green-500/30">
+             <CheckCircle2 className="h-12 w-12" />
+           </motion.div>
+           <h1 className="mb-4 text-3xl font-black text-slate-800">Account Created!</h1>
+           <p className="text-slate-500 font-medium max-w-sm mb-6">Welcome to CarryGo. Redirecting you to your personalized dashboard...</p>
+           <div className="h-2 w-32 bg-muted rounded-full overflow-hidden">
+             <motion.div initial={{ width: "0%" }} animate={{ width: "100%" }} transition={{ duration: 2.5 }} className="h-full bg-green-500" />
+           </div>
+        </motion.div>
+      </div>
+    );
+  }
+
+  const renderStepOne = () => (
+    <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="space-y-6">
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <Label className="font-semibold text-slate-600">Full Name</Label>
+          <div className="relative">
+            <User className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Input required value={name} onChange={(e) => setName(e.target.value)} placeholder="" className="h-12 pl-11 rounded-xl bg-slate-50 border-slate-200 focus:bg-white focus:ring-purple-500 font-medium" />
+          </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="group space-y-2">
-              <Label htmlFor="name" className="flex items-center gap-2 text-sm font-medium text-slate-700 transition-colors group-hover:text-orange-500">
-                <User className="h-4 w-4" /> Full Name
-              </Label>
-              <Input
-                id="name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Your full name"
-                required
-                className="border-slate-200 bg-slate-50/50 text-slate-900 placeholder:text-slate-400 focus:border-orange-500/50 focus:ring-orange-500/20 transition-all duration-300"
-              />
-            </div>
-            <div className="group space-y-2">
-              <Label htmlFor="email" className="flex items-center gap-2 text-sm font-medium text-slate-700 transition-colors group-hover:text-orange-500">
-                <Mail className="h-4 w-4" /> Email address
-              </Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => {
-                  setEmail(e.target.value);
-                  setErrors(prev => ({ ...prev, email: validateEmail(e.target.value) }));
-                }}
-                placeholder="Enter your email"
-                required
-                className={`border-slate-200 bg-slate-50/50 text-slate-900 placeholder:text-slate-400 focus:border-orange-500/50 focus:ring-orange-500/20 transition-all duration-300 ${errors.email ? 'border-red-500 focus:border-red-500 focus:ring-red-200' : ''}`}
-              />
-              {errors.email && <p className="text-[10px] text-red-500 font-medium pl-1">{errors.email}</p>}
-            </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+             <Label className="font-semibold text-slate-600">Email Address</Label>
+             <div className="relative">
+               <Mail className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+               <Input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="" className="h-12 pl-11 rounded-xl bg-slate-50 border-slate-200 focus:bg-white font-medium" />
+             </div>
           </div>
-          <div className="group space-y-2">
-            <Label htmlFor="password" className="flex items-center gap-2 text-sm font-medium text-slate-700 transition-colors group-hover:text-orange-500">
-              <Lock className="h-4 w-4" /> Secure Password
-            </Label>
-            <Input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => {
-                setPassword(e.target.value);
-                setErrors(prev => ({ ...prev, password: validatePassword(e.target.value) }));
-              }}
-              placeholder="••••••••"
-              required
-              className={`border-slate-200 bg-slate-50/50 text-slate-900 placeholder:text-slate-400 focus:border-orange-500/50 focus:ring-orange-500/20 transition-all duration-300 ${errors.password ? 'border-red-500 focus:border-red-500 focus:ring-red-200' : ''}`}
+          <div className="space-y-2">
+             <Label className="font-semibold text-slate-600">Phone Number</Label>
+             <div className="relative">
+               <Phone className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+               <Input required value={phone} onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))} placeholder="" className="h-12 pl-11 rounded-xl bg-slate-50 border-slate-200 focus:bg-white font-medium" />
+             </div>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label className="font-semibold text-slate-600">Secure Password</Label>
+          <div className="relative">
+            <Lock className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Input required type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="" className="h-12 pl-11 rounded-xl bg-slate-50 border-slate-200 focus:bg-white font-medium" />
+          </div>
+        </div>
+      </div>
+      <Button type="button" onClick={handleNext} disabled={!name || !email || !password || phone.length < 10} className="w-full h-12 mt-6 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-lg shadow-lg shadow-purple-600/20">Next Step <ChevronRight className="ml-2 h-5 w-5" /></Button>
+    </motion.div>
+  );
+
+  const renderStepTwo = () => (
+    <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="space-y-5">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label className="font-semibold text-slate-600">Date of Birth</Label>
+          <div className="relative">
+            <Calendar className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Input type="date" value={dob} onChange={(e) => setDob(e.target.value)} className="h-12 pl-11 rounded-xl bg-slate-50 border-slate-200" />
+          </div>
+        </div>
+        <div className="space-y-2">
+          <Label className="font-semibold text-slate-600">Gender</Label>
+          <Select value={gender} onValueChange={setGender}>
+            <SelectTrigger className="h-12 rounded-xl bg-slate-50 border-slate-200"><SelectValue placeholder="Select Gender" /></SelectTrigger>
+            <SelectContent className="rounded-xl">
+              <SelectItem value="male">Male</SelectItem>
+              <SelectItem value="female">Female</SelectItem>
+              <SelectItem value="other">Other</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+         <Label className="font-semibold text-slate-600">Full Address</Label>
+         <div className="relative">
+           <MapPin className="absolute left-4 top-4 h-4 w-4 text-slate-400" />
+           <textarea value={address} onChange={(e) => setAddress(e.target.value)} rows={2} placeholder="Building, Street Name, Area" className="w-full pl-11 py-3 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+         </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="space-y-2">
+          <Label className="font-semibold text-slate-600">City</Label>
+          <Input value={city} onChange={(e) => setCity(e.target.value)} className="h-12 rounded-xl bg-slate-50 border-slate-200" />
+        </div>
+        <div className="space-y-2">
+          <Label className="font-semibold text-slate-600">State</Label>
+          <Input value={state} onChange={(e) => setStateName(e.target.value)} className="h-12 rounded-xl bg-slate-50 border-slate-200" />
+        </div>
+        <div className="space-y-2">
+          <Label className="font-semibold text-slate-600">Pincode</Label>
+          <Input value={pincode} onChange={(e) => setPincode(e.target.value.replace(/\D/g, "").slice(0, 6))} className="h-12 rounded-xl bg-slate-50 border-slate-200" />
+        </div>
+      </div>
+
+      <div className="space-y-2">
+         <Label className="font-semibold text-slate-600">Profile Photo (Optional)</Label>
+         <Label className="flex w-full cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 p-6 hover:bg-slate-100 transition-colors">
+            {profilePhoto ? (
+               <div className="flex items-center gap-4">
+                 <img src={profilePhoto} alt="Profile" className="h-16 w-16 rounded-full object-cover shadow-sm border" />
+                 <span className="text-sm font-bold text-slate-600">Change Photo</span>
+               </div>
+            ) : (
+               <div className="text-center text-slate-500">
+                 <Upload className="mx-auto mb-2 h-6 w-6 text-slate-400" />
+                 <span className="text-sm font-semibold">Click to upload photo</span>
+               </div>
+            )}
+            <Input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileChange(e, setProfilePhoto)} />
+         </Label>
+      </div>
+
+      <div className="flex gap-3 pt-4">
+        <Button type="button" variant="outline" onClick={handlePrev} className="h-12 rounded-xl w-1/3 text-slate-600 border-slate-200 font-bold hover:bg-slate-50"><ChevronLeft className="mr-2 h-5 w-5" /> Back</Button>
+        <Button type="button" onClick={handleNext} disabled={!dob || !address || !city} className="h-12 rounded-xl flex-1 bg-purple-600 hover:bg-purple-700 text-white font-bold shadow-lg shadow-purple-600/20">Next Step <ChevronRight className="ml-2 h-5 w-5" /></Button>
+      </div>
+    </motion.div>
+  );
+
+  const renderStepThree = () => (
+    <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label className="font-semibold text-slate-600">ID Proof Type</Label>
+          <Select value={idType} onValueChange={setIdType}>
+            <SelectTrigger className="h-12 rounded-xl bg-slate-50 border-slate-200"><SelectValue placeholder="Select ID Type" /></SelectTrigger>
+            <SelectContent className="rounded-xl">
+              {idTypes.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label className="font-semibold text-slate-600">ID Number</Label>
+          <Input value={idNumber} onChange={(e) => setIdNumber(e.target.value.toUpperCase())} placeholder={`Enter ${idType} Number`} className="h-12 rounded-xl bg-slate-50 border-slate-200 font-mono tracking-wide" />
+        </div>
+      </div>
+
+      <div className="space-y-2">
+         <Label className="font-semibold text-slate-600">Upload ID Document (Front Image)</Label>
+         <Label className="flex w-full cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 p-6 hover:bg-slate-100 transition-colors">
+            {idPhoto ? (
+               <div className="flex flex-col items-center gap-2">
+                 <CheckCircle2 className="h-8 w-8 text-green-500" />
+                 <span className="text-sm font-bold text-slate-600">Document Uploaded Successfully</span>
+               </div>
+            ) : (
+               <div className="text-center text-slate-500">
+                 <Upload className="mx-auto mb-2 h-6 w-6 text-slate-400" />
+                 <span className="text-sm font-semibold">Upload clear image of {idType}</span>
+               </div>
+            )}
+            <Input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileChange(e, setIdPhoto)} />
+         </Label>
+      </div>
+
+      <div className="space-y-2">
+         <Label className="font-semibold text-slate-600">Live Identity Check (Selfie)</Label>
+         <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            {livePhoto ? (
+               <div className="flex items-center justify-between">
+                 <div className="flex items-center gap-4">
+                   <img src={livePhoto} alt="Live" className="h-12 w-12 rounded-xl object-cover" />
+                   <span className="text-sm font-bold text-slate-600">Identity Verified</span>
+                 </div>
+                 <Button type="button" variant="outline" size="sm" onClick={() => setIsCameraOpen(true)} className="rounded-full">Retake</Button>
+               </div>
+            ) : (
+               <div className="flex flex-col items-center text-center p-4">
+                 <ShieldCheck className="mx-auto mb-3 h-10 w-10 text-slate-400" />
+                 <p className="mb-4 text-sm font-medium text-slate-500">We require a live selfie to verify your identity.</p>
+                 <Button type="button" onClick={() => setIsCameraOpen(true)} className="rounded-xl bg-slate-800 text-white hover:bg-slate-900 font-bold px-6">
+                   <Camera className="mr-2 h-4 w-4" /> Take Selfie
+                 </Button>
+               </div>
+            )}
+         </div>
+      </div>
+
+      <div className="flex items-center space-x-3 pt-4 border-t border-slate-100">
+         <Checkbox id="terms" checked={agreedTerms} onCheckedChange={(val) => setAgreedTerms(val as boolean)} className="rounded-md border-slate-300 text-purple-600" />
+         <Label htmlFor="terms" className="text-sm font-medium text-slate-600 leading-tight">
+           I agree to CarryGo's <a href="#" className="font-bold text-purple-600 hover:underline">Terms of Service</a> and <a href="#" className="font-bold text-purple-600 hover:underline">Privacy Policy</a>.
+         </Label>
+      </div>
+
+      <div className="flex gap-3 pt-2">
+        <Button type="button" variant="outline" onClick={handlePrev} className="h-12 rounded-xl w-1/3 text-slate-600 border-slate-200 font-bold hover:bg-slate-50"><ChevronLeft className="mr-2 h-5 w-5" /> Back</Button>
+        <Button type="submit" onClick={handleSubmit} disabled={!idNumber || !idPhoto || !livePhoto || !agreedTerms || submitting} className="h-12 flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black tracking-wide shadow-lg shadow-emerald-600/20">
+          {submitting ? "Processing..." : "Create Account"}
+        </Button>
+      </div>
+    </motion.div>
+  );
+
+  return (
+    <AuthAnimationWrapper role="sender_receiver">
+       <div className="w-full max-w-xl overflow-hidden rounded-[2.5rem] border border-slate-100 bg-white/80 p-6 sm:p-10 shadow-2xl backdrop-blur-xl">
+          <div className="mb-8">
+             <h1 className="text-3xl font-black text-slate-900 tracking-tight">Create your account</h1>
+             <p className="text-slate-500 font-medium mt-2">Sign up to CarryGo. It is quick and hassle-free.</p>
+          </div>
+
+          {/* Stepper Header */}
+          <div className="mb-10 relative">
+             <div className="h-1.5 w-full bg-slate-100 rounded-full absolute top-1/2 -translate-y-1/2" />
+             <motion.div 
+                initial={false}
+                animate={{ width: `${(step / 3) * 100}%` }}
+                className="h-1.5 absolute top-1/2 -translate-y-1/2 left-0 bg-purple-600 rounded-full shadow-[0_0_10px_rgba(147,51,234,0.3)]"
+             />
+             <div className="flex justify-between relative z-10 px-1">
+               {[1, 2, 3].map((s) => (
+                  <div key={s} className={`flex items-center justify-center h-10 w-10 rounded-full font-black text-sm border-4 border-white transition-all duration-300 ${s <= step ? 'bg-purple-600 text-white shadow-lg' : 'bg-slate-200 text-slate-400'}`}>
+                     {s < step ? <Check className="h-5 w-5" /> : s}
+                  </div>
+               ))}
+             </div>
+             <div className="flex justify-between mt-3 px-1">
+                <span className={`text-[9px] font-black uppercase tracking-[0.2em] ${step >= 1 ? 'text-purple-600' : 'text-slate-400'}`}>Account</span>
+                <span className={`text-[9px] font-black uppercase tracking-[0.2em] ${step >= 2 ? 'text-purple-600' : 'text-slate-400'}`}>Personal</span>
+                <span className={`text-[9px] font-black uppercase tracking-[0.2em] ${step === 3 ? 'text-purple-600' : 'text-slate-400'}`}>Verify</span>
+             </div>
+          </div>
+
+          {/* Form Steps */}
+          <form onSubmit={e => e.preventDefault()} className="relative">
+             <AnimatePresence mode="wait">
+               {step === 1 && <motion.div key="step1">{renderStepOne()}</motion.div>}
+               {step === 2 && <motion.div key="step2">{renderStepTwo()}</motion.div>}
+               {step === 3 && <motion.div key="step3">{renderStepThree()}</motion.div>}
+             </AnimatePresence>
+          </form>
+
+          <div className="mt-8 pt-6 border-t border-slate-100">
+            <p className="text-center text-sm font-semibold text-slate-500">
+               Already have an account?{" "}
+               <Link to="/login" className="font-bold text-purple-600 hover:text-purple-700 hover:underline">Log in securely</Link>
+            </p>
+          </div>
+
+          {isCameraOpen && (
+            <LiveCameraModal 
+              isOpen={isCameraOpen}
+              onCapture={(photoStr) => { setLivePhoto(photoStr); setIsCameraOpen(false); }} 
+              onClose={() => setIsCameraOpen(false)} 
             />
-            {errors.password && <p className="text-[10px] text-red-500 font-medium pl-1">{errors.password}</p>}
-          </div>
-
-          <div className="group space-y-2">
-            <Label htmlFor="phone" className="flex items-center gap-2 text-sm font-medium text-slate-700 transition-colors group-hover:text-orange-500">
-              <Smartphone className="h-4 w-4" /> Phone Number
-            </Label>
-            <div className="flex gap-0 overflow-hidden rounded-md border border-slate-200 transition-all duration-300 focus-within:border-orange-500/50 focus-within:ring-2 focus-within:ring-orange-500/20">
-              <div className="flex items-center justify-center bg-slate-100 px-3 text-sm font-bold text-slate-600 border-r border-slate-200">
-                +91
-              </div>
-              <Input
-                id="phone"
-                value={phone}
-                onChange={(e) => {
-                  const val = e.target.value.replace(/\D/g, "").slice(0, 10);
-                  setPhone(val);
-                  setErrors(prev => ({ ...prev, phone: validatePhone(val) }));
-                }}
-                placeholder="10-digit number"
-                required
-                className="border-0 bg-slate-50/50 text-slate-900 placeholder:text-slate-400 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
-              />
-            </div>
-            {errors.phone && <p className="text-[10px] text-red-500 font-medium pl-1">{errors.phone}</p>}
-          </div>
-
-          <div>
-            <Label className="mb-4 block text-sm font-semibold text-slate-700">Choose your role</Label>
-            <div className="grid gap-3 sm:grid-cols-3">
-              {roles.map((r) => {
-                const isSelected = role === r.value;
-                const Icon = r.icon;
-                return (
-                  <motion.button
-                    key={r.value}
-                    type="button"
-                    whileHover={{ y: -4, scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => {
-                      setRole(r.value);
-                      if (r.value !== 'traveller') setVehicle(null);
-                    }}
-                    className={`group relative flex flex-col items-center rounded-2xl border-2 p-4 text-center transition-all ${isSelected
-                      ? r.value === 'traveller'
-                        ? "border-purple-500 bg-purple-500/5 shadow-lg shadow-purple-500/10"
-                        : r.value === 'receiver'
-                          ? "border-blue-500 bg-blue-500/5 shadow-lg shadow-blue-500/10"
-                          : "border-orange-500 bg-orange-500/5 shadow-lg shadow-orange-500/10"
-                      : "border-slate-100 bg-slate-50/50 hover:border-orange-500/40 hover:bg-slate-100"
-                      }`}
-                  >
-                    <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-xl transition-all ${isSelected
-                      ? r.value === 'traveller' ? "bg-purple-500 text-white" : r.value === 'receiver' ? "bg-blue-600 text-white" : "bg-orange-500 text-white"
-                      : "bg-slate-100 text-slate-400 group-hover:text-orange-500"
-                      }`}>
-                      <Icon className="h-5 w-5" />
-                    </div>
-                    <span className={`text-sm font-bold transition-colors ${isSelected
-                      ? r.value === 'traveller' ? "text-purple-600" : r.value === 'receiver' ? "text-blue-600" : "text-orange-600"
-                      : "text-slate-600"}`}>
-                      {r.label}
-                    </span>
-                    <span className="mt-1 text-[10px] leading-tight text-slate-500">{r.desc}</span>
-                  </motion.button>
-                );
-              })}
-            </div>
-          </div>
-
-          {role === 'traveller' && (
-            <motion.div
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="space-y-6 pt-2 border-t border-purple-100"
-            >
-              <div className="flex items-center gap-2 text-purple-600 font-bold">
-                <ShieldCheck className="h-5 w-5" />
-                <span>Verification Details</span>
-              </div>
-
-              <div className="space-y-4">
-                <div className="flex p-1 bg-slate-100 rounded-xl">
-                  {["aadhar", "pan"].map((type) => (
-                    <button
-                      key={type}
-                      type="button"
-                      onClick={() => {
-                        setIdType(type as "aadhar" | "pan");
-                        setErrors(prev => ({ ...prev, idNumber: validateId(adharNumber, type as any) }));
-                      }}
-                      className={`flex-1 py-2 text-[10px] font-bold uppercase tracking-wider transition-all rounded-lg ${idType === type ? 'bg-white shadow-sm text-purple-600' : 'text-slate-500'}`}
-                    >
-                      {type === 'aadhar' ? 'Aadhaar Card' : 'PAN Card'}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label className="flex items-center gap-2 text-slate-700">
-                      <FileText className="h-4 w-4" /> {idType === 'aadhar' ? 'Aadhaar Number' : 'PAN Number'}
-                    </Label>
-                    <Input
-                      value={adharNumber}
-                      onChange={(e) => {
-                        const val = e.target.value.toUpperCase();
-                        setAdharNumber(val);
-                        setErrors(prev => ({ ...prev, idNumber: validateId(val, idType) }));
-                      }}
-                      placeholder={idType === 'aadhar' ? "12-digit number" : "ABCDE1234F"}
-                      className={`border-slate-200 focus:border-purple-500 focus:ring-purple-200 ${errors.idNumber ? 'border-red-500 focus:border-red-500 focus:ring-red-200' : ''}`}
-                    />
-                    {errors.idNumber && <p className="text-[10px] text-red-500 font-medium pl-1">{errors.idNumber}</p>}
-                  </div>
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2 text-slate-700">
-                    <Upload className="h-4 w-4" /> Aadhaar Photo
-                  </Label>
-                  <div className="relative">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => handleFileChange(e, setAdharPhoto)}
-                      className="hidden"
-                      id="adhar-upload"
-                    />
-                    <label
-                      htmlFor="adhar-upload"
-                      className="flex h-10 w-full cursor-pointer items-center justify-center rounded-md border-2 border-dashed border-slate-200 bg-slate-50 text-[10px] hover:bg-slate-100 transition-all font-medium text-slate-500 overflow-hidden"
-                    >
-                      {adharPhoto ? <img src={adharPhoto} className="h-full w-full object-cover" /> : "Upload Aadhaar PNG/JPG"}
-                    </label>
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2 text-slate-700">
-                    <Camera className="h-4 w-4" /> Live Selfie
-                  </Label>
-                  <div className="relative">
-                    <button
-                      type="button"
-                      onClick={() => setIsCameraOpen(true)}
-                      className="flex h-24 w-full cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-purple-200 bg-purple-50/30 text-[10px] hover:bg-purple-50 transition-all font-medium text-purple-500 overflow-hidden group/camera"
-                    >
-                      {livePhoto ? (
-                        <div className="relative h-full w-full">
-                          <img src={livePhoto} className="h-full w-full object-cover" />
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover/camera:opacity-100 transition-opacity">
-                            <span className="text-white text-[9px] font-bold">Retake Photo</span>
-                          </div>
-                        </div>
-                      ) : (
-                        <>
-                          <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-purple-100/50 transition-transform group-hover/camera:scale-110">
-                            <Camera className="h-5 w-5" />
-                          </div>
-                          <span>Access Live Camera</span>
-                        </>
-                      )}
-                    </button>
-                    <LiveCameraModal
-                      isOpen={isCameraOpen}
-                      onClose={() => setIsCameraOpen(false)}
-                      onCapture={setLivePhoto}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="mb-2 block text-sm font-semibold text-slate-700">Vehicle Type</Label>
-                  <div className="grid gap-2 grid-cols-2">
-                    {vehicleTypes.map((v) => {
-                      const isSelected = vehicle === v.value;
-                      const Icon = v.icon;
-                      return (
-                        <motion.button
-                          key={v.value}
-                          type="button"
-                          whileHover={{ y: -2, scale: 1.05 }}
-                          whileTap={{ scale: 0.95 }}
-                          onClick={() => setVehicle(v.value)}
-                          className={`flex flex-col items-center gap-1 rounded-xl border-2 p-1.5 text-center transition-all ${isSelected
-                            ? "border-purple-500 bg-purple-500/10 shadow-lg"
-                            : "border-slate-100 bg-slate-50 hover:border-purple-500/40"
-                            }`}
-                        >
-                          <Icon className={`h-4 w-4 ${isSelected ? "text-purple-600" : "text-slate-400"}`} />
-                          <span className={`text-[9px] font-bold uppercase tracking-wider ${isSelected ? "text-purple-600" : "text-slate-500"}`}>
-                            {v.label}
-                          </span>
-                        </motion.button>
-                      );
-                    })}
-                  </div>
-                </div>
-                </div>
-              </div>
-            </motion.div>
           )}
 
-          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-            <Button
-              type="submit"
-              className={`w-full font-bold text-white shadow-xl transition-all duration-300 ${role === 'traveller' ? 'bg-purple-600 hover:bg-purple-500 shadow-purple-600/20' : role === 'receiver' ? 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-600/20' : 'bg-orange-600 hover:bg-orange-500 shadow-orange-600/20'
-                }`}
-            >
-              <UserPlus className="mr-2 h-4 w-4" /> Get Started
-            </Button>
-          </motion.div>
-        </form>
-
-        <p className="mt-8 text-center text-sm text-slate-500">
-          Already a member?{" "}
-          <Link to="/login" className="font-semibold text-orange-600 hover:text-orange-500 hover:underline underline-offset-4 decoration-2">
-            Sign In
-          </Link>
-        </p>
-      </div>
+       </div>
     </AuthAnimationWrapper>
   );
 }

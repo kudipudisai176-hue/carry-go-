@@ -12,7 +12,7 @@ interface Particle {
   color: string;
 }
 
-export default function ParticleCanvas({ role }: { role?: UserRole | null }) {
+export default function ParticleCanvas({ role }: { role?: string | null }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {

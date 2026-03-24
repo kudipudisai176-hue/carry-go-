@@ -1,12 +1,15 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { User, Star, Package, X, Camera, Save, Loader2, PenLine } from "lucide-react";
+import { User, Star, Package, X, Camera, Save, Loader2, PenLine, Phone, MessageSquare, Truck, Scan, LifeBuoy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { UserData } from "@/lib/parcelStore";
 import { useAuth } from "@/lib/authContext";
 import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
+
+import * as Portal from "@radix-ui/react-portal";
 
 interface UserProfileModalProps {
   user: UserData | null;
@@ -15,7 +18,8 @@ interface UserProfileModalProps {
 }
 
 export default function UserProfileModal({ user: initialUser, isOpen, onClose }: UserProfileModalProps) {
-  const { user: loggedInUser, updateUser } = useAuth();
+  const { user: loggedInUser, updateUser, deleteUser } = useAuth();
+  const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -24,6 +28,10 @@ export default function UserProfileModal({ user: initialUser, isOpen, onClose }:
   const [name, setName] = useState("");
   const [bio, setBio] = useState("");
   const [photo, setPhoto] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [adharNumber, setAdharNumber] = useState("");
+  const [vehicleType, setVehicleType] = useState("");
 
   // Sync state when modal opens or user changes
   useEffect(() => {
@@ -31,6 +39,10 @@ export default function UserProfileModal({ user: initialUser, isOpen, onClose }:
       setName(initialUser.name);
       setBio(initialUser.bio || "");
       setPhoto(initialUser.profilePhoto || "");
+      setEmail(initialUser.email || "");
+      setPhone(initialUser.phone || "");
+      setAdharNumber(initialUser.adharNumber || "");
+      setVehicleType(initialUser.vehicleType || "");
       setIsEditing(false); // Reset editing mode when opening/switching
     }
   }, [initialUser, isOpen]);
@@ -64,8 +76,12 @@ export default function UserProfileModal({ user: initialUser, isOpen, onClose }:
     try {
       const success = await updateUser({
         name,
+        email,
+        phone,
         profilePhoto: photo,
-        bio
+        bio,
+        adharNumber,
+        vehicleType,
       });
 
 
@@ -82,10 +98,30 @@ export default function UserProfileModal({ user: initialUser, isOpen, onClose }:
     }
   };
 
+  const handleDelete = async () => {
+    if (!window.confirm("CRITICAL: This will permanently delete your CarryGo account and all active delivery data. Are you sure?")) return;
+    
+    setIsSaving(true);
+    try {
+      const success = await deleteUser();
+      if (success) {
+        toast.success("Account deleted. See you again soon!");
+        onClose();
+      } else {
+        toast.error("Failed to delete account");
+      }
+    } catch (err) {
+      toast.error("An error occurred during deletion");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 overflow-y-auto bg-black/40 backdrop-blur-md">
+        <Portal.Root>
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 overflow-y-auto bg-black/60 backdrop-blur-md">
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -175,6 +211,36 @@ export default function UserProfileModal({ user: initialUser, isOpen, onClose }:
                       />
                     </div>
                     
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1 flex items-center gap-1.5">
+                          Phone
+                        </label>
+                        <Input value={phone} onChange={e => setPhone(e.target.value)} className="rounded-2xl bg-muted/30 border-none h-11" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1 flex items-center gap-1.5">
+                          Email
+                        </label>
+                        <Input value={email} onChange={e => setEmail(e.target.value)} className="rounded-2xl bg-muted/30 border-none h-11" />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1 flex items-center gap-1.5">
+                          Aadhaar
+                        </label>
+                        <Input value={adharNumber} onChange={e => setAdharNumber(e.target.value)} className="rounded-2xl bg-muted/30 border-none h-11" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1 flex items-center gap-1.5">
+                          Vehicle Type
+                        </label>
+                        <Input value={vehicleType} onChange={e => setVehicleType(e.target.value)} className="rounded-2xl bg-muted/30 border-none h-11" />
+                      </div>
+                    </div>
+
                     <div className="space-y-1.5">
                       <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1 flex items-center gap-1.5">
                         <PenLine className="h-3 w-3" /> About Me (Bio)
@@ -182,28 +248,39 @@ export default function UserProfileModal({ user: initialUser, isOpen, onClose }:
                       <Textarea 
                         value={bio}
                         onChange={(e) => setBio(e.target.value)}
-                        placeholder="Tell the community about verified trips and your experience..."
-                        className="rounded-2xl border-border bg-muted/30 min-h-[120px] focus:ring-secondary/20 resize-none p-4"
+                        placeholder="Tell the community about verified trips..."
+                        className="rounded-2xl border-border bg-muted/30 min-h-[100px] focus:ring-secondary/20 resize-none p-4"
                       />
                     </div>
 
-                    <div className="flex gap-3 pt-4">
-                       <Button 
-                        variant="ghost" 
-                        onClick={() => setIsEditing(false)}
-                        disabled={isSaving}
-                        className="flex-1 rounded-2xl h-12 text-muted-foreground hover:bg-muted"
-                      >
-                        Cancel
-                      </Button>
+                    <div className="flex flex-col gap-3 pt-4">
                        <Button 
                         onClick={handleSave}
                         disabled={isSaving}
-                        className="flex-3 rounded-2xl bg-secondary text-white font-bold h-12 gap-2 shadow-lg shadow-secondary/20 hover:scale-[1.02] active:scale-95 transition-all"
+                        className="w-full rounded-2xl bg-secondary text-white font-black h-14 gap-2 shadow-xl shadow-secondary/30 hover:scale-[1.02] active:scale-95 transition-all"
                       >
-                        {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                        Save Changes
+                        {isSaving ? <Loader2 className="h-5 w-5 animate-spin" /> : <Save className="h-5 w-5" />}
+                        SAVE PROFILE DATA
                       </Button>
+                      
+                      <div className="flex gap-3">
+                         <Button 
+                          variant="ghost" 
+                          onClick={() => setIsEditing(false)}
+                          disabled={isSaving}
+                          className="flex-1 rounded-2xl h-12 text-muted-foreground hover:bg-muted font-bold"
+                        >
+                          Cancel
+                        </Button>
+                         <Button 
+                          variant="ghost" 
+                          onClick={handleDelete}
+                          disabled={isSaving}
+                          className="flex-1 rounded-2xl h-12 text-red-500 hover:bg-red-500/10 font-bold"
+                        >
+                          Delete Account
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 ) : (
@@ -216,9 +293,53 @@ export default function UserProfileModal({ user: initialUser, isOpen, onClose }:
                       </div>
                     </div>
                     
-                    <p className="text-sm text-muted-foreground mb-8 leading-relaxed">
+                    <p className="text-sm text-muted-foreground mb-6 leading-relaxed">
                       {initialUser.bio || "This user is a trusted member of the CarryGo community with a focus on safe and timely deliveries."}
                     </p>
+
+                    {/* Contact & Verification Grid (Point 13) */}
+                    <div className="grid grid-cols-1 gap-2.5 mb-8">
+                       <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-muted/30 border border-border/50 text-sm">
+                          <div className="h-8 w-8 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500 flex-shrink-0">
+                             <Phone className="h-4 w-4" />
+                          </div>
+                          <div>
+                             <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60 leading-none mb-1">Phone Number</p>
+                             <p className="font-bold text-foreground">{initialUser.phone || "Not provided"}</p>
+                          </div>
+                       </div>
+                       <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-muted/30 border border-border/50 text-sm">
+                          <div className="h-8 w-8 rounded-full bg-secondary/10 flex items-center justify-center text-secondary flex-shrink-0">
+                             <MessageSquare className="h-4 w-4" />
+                          </div>
+                          <div>
+                             <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60 leading-none mb-1">Email Address</p>
+                             <p className="font-bold text-foreground">{initialUser.email || "Not provided"}</p>
+                          </div>
+                       </div>
+                       <div className="grid grid-cols-2 gap-2.5">
+                          <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-muted/30 border border-border/50 text-sm">
+                             <div className="h-8 w-8 rounded-full bg-green-500/10 flex items-center justify-center text-green-500 flex-shrink-0">
+                                <Truck className="h-4 w-4" />
+                             </div>
+                             <div>
+                                <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60 leading-none mb-1">Vehicle</p>
+                                <p className="font-bold text-foreground truncate">{initialUser.vehicleType || "None"}</p>
+                             </div>
+                          </div>
+                          <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-muted/30 border border-border/50 text-sm">
+                             <div className="h-8 w-8 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-500 flex-shrink-0">
+                                <Scan className="h-4 w-4" />
+                             </div>
+                             <div>
+                                <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60 leading-none mb-1">Aadhaar</p>
+                                <p className="font-bold text-foreground">
+                                   {initialUser.adharNumber ? `•••• •••• ${initialUser.adharNumber.slice(-4)}` : "Unverified"}
+                                </p>
+                             </div>
+                          </div>
+                       </div>
+                    </div>
 
                     {/* Stats */}
                     <div className="grid grid-cols-2 gap-4 mb-8">
@@ -233,8 +354,38 @@ export default function UserProfileModal({ user: initialUser, isOpen, onClose }:
                         <div className="h-10 w-10 rounded-2xl bg-amber-400/20 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
                           <Star className="h-5 w-5 text-amber-600" />
                         </div>
-                        <p className="text-2xl font-black text-foreground leading-none mb-1">5.0</p>
+                        <p className="text-2xl font-black text-foreground leading-none mb-1">{(initialUser.rating || 5.0).toFixed(1)}</p>
                         <p className="text-[9px] uppercase tracking-widest font-black text-muted-foreground/60">Rating</p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3 mb-8">
+                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60 ml-4">Help & Support</p>
+                      <Button 
+                        onClick={() => { navigate('/support'); onClose(); }}
+                        className="w-full rounded-2xl h-14 gap-3 bg-secondary/10 hover:bg-secondary/20 text-secondary font-black border-2 border-secondary/20 group transition-all mb-1"
+                      >
+                         <LifeBuoy className="h-5 w-5 group-hover:rotate-12 transition-transform" /> 
+                         VISIT SUPPORT CENTER
+                      </Button>
+                      <div className="flex gap-2">
+                        <a href="tel:+919876543210" className="flex-1">
+                          <Button 
+                            variant="outline" 
+                            className="w-full rounded-2xl h-14 gap-2.5 font-bold border-muted-foreground/20 hover:bg-muted text-muted-foreground transition-all"
+                          >
+                            <Phone className="h-4 w-4" />
+                            Direct Call
+                          </Button>
+                        </a>
+                        <Button 
+                          variant="outline" 
+                          onClick={() => { navigate('/support'); onClose(); }}
+                          className="flex-1 rounded-2xl h-14 gap-2.5 font-bold border-blue-500/20 hover:bg-blue-500/5 text-blue-500 transition-all"
+                        >
+                          <MessageSquare className="h-4 w-4" />
+                          Support Chat
+                        </Button>
                       </div>
                     </div>
 
@@ -250,6 +401,7 @@ export default function UserProfileModal({ user: initialUser, isOpen, onClose }:
             </div>
           </motion.div>
         </div>
+      </Portal.Root>
       )}
     </AnimatePresence>
   );

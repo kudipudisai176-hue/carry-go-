@@ -13,6 +13,8 @@ const parcelSchema = mongoose.Schema(
     receiverPhone: { type: String, required: true },
     fromLocation: { type: String, required: true },
     toLocation: { type: String, required: true },
+    city: { type: String }, // Granular location searching
+    village: { type: String }, // Granular location searching
     weight: { type: Number, required: true },
     size: {
       type: String,
@@ -21,7 +23,10 @@ const parcelSchema = mongoose.Schema(
     },
     itemCount: { type: Number, required: true },
     vehicleType: { type: String },
-    price: { type: Number }, // Added price field
+    distance: { type: Number, required: true }, // Added distance field
+    price: { type: Number }, // Added total amount (Total Payable)
+    parcelCharge: { type: Number }, // Internal base tracking
+    platformFee: { type: Number }, // Internal commission tracking
     paymentMethod: {
       type: String,
       enum: ['pay-now', 'pay-on-delivery'],
@@ -29,14 +34,19 @@ const parcelSchema = mongoose.Schema(
     },
     paymentStatus: {
       type: String,
-      enum: ['unpaid', 'paid'],
-      default: 'unpaid',
+      enum: ['pending', 'paid', 'failed', 'unpaid'],
+      default: 'pending',
+    },
+    escrow_status: {
+      type: String,
+      enum: ['held', 'released', 'none'],
+      default: 'held',
     },
     description: { type: String },
     status: {
       type: String,
-      enum: ['pending', 'requested', 'accepted', 'picked-up', 'in-transit', 'delivered', 'received', 'completed', 'cancelled'],
-      default: 'pending',
+      enum: ['pending_payment', 'open_for_travellers', 'pending', 'requested', 'accepted', 'picked-up', 'in-transit', 'delivered', 'received', 'completed', 'cancelled'],
+      default: 'pending_payment',
     },
     traveller: {
       type: mongoose.Schema.Types.ObjectId,
@@ -46,8 +56,15 @@ const parcelSchema = mongoose.Schema(
     travellerPhone: { type: String },
     pickupOtp: { type: String },
     deliveryOtp: { type: String },
+    deliveryOtpExpiry: { type: Date },
     paymentReleased: { type: Boolean, default: false },
     parcelPhoto: { type: String }, // Base64 or URL
+    deliveryPhoto: { type: String }, // Confirmation proof from traveller
+    delivery_proof: { type: String }, // Supabase Storage URL
+    receivedPhoto: { type: String }, // Confirmation proof from receiver
+    receiverRating: { type: Number }, // Rating for the service/website
+    deliveredAt: { type: Date },
+    delivery_location: { type: String },
   },
   {
     timestamps: true,
