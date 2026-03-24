@@ -198,13 +198,6 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
             sendBrowserNotification('CarryGo – New Request! 🚚', `${newParcel.travellerName || 'A traveller'} wants to carry your parcel.`);
           }
 
-<<<<<<< HEAD
-          // Traveller started transit
-          if (oldParcel.status !== 'in-transit' && newParcel.status === 'in-transit') {
-            setTrackingModal(newParcel);
-            toast.success(`🚚 Your order is confirmed! Traveller has picked up and started transit!`, { duration: 6000 });
-            sendBrowserNotification('CarryGo – Order Confirmed! 🚚', 'Your order is confirmed and parcel is now in transit. Tracking is live!');
-=======
           // Traveller started transit (OTP VERIFIED)
           if (oldParcel.status === 'accepted' && (newParcel.status === 'in-transit' || newParcel.status === 'picked-up')) {
             toast.success(`🚀 OTP Verified! Transit has started for your parcel. Tracking is now LIVE.`, { duration: 8000 });
@@ -214,7 +207,6 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
             setTrackingModal(newParcel); 
             setFilter('inTransit');
             window.scrollTo({ top: 0, behavior: 'smooth' });
->>>>>>> sender
           }
 
           // Parcel delivered
@@ -260,12 +252,8 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
       vehicleType: selectedVehicle,
       paymentMethod: paymentMethod,
       description: fd.get("description") as string,
-<<<<<<< HEAD
-      senderId: user.id,
-=======
       distance: 0,
       senderId: user?.id || "",
->>>>>>> sender
     };
 
     if (editingParcel) {
