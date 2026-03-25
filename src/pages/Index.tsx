@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Package, Truck, MapPin, ArrowRight, Shield, Zap, Globe, Users, Star, User } from "lucide-react";
+import { Package, Truck, MapPin, ArrowRight, Shield, Zap, Globe, Users, Star, User, UserPlus } from "lucide-react";
 import { motion, useScroll, useTransform, type Variants } from "framer-motion";
 import { useRef } from "react";
 import { Button } from "@/components/ui/button";
@@ -27,9 +27,9 @@ const testimonials = [
 ];
 
 const steps = [
-  { num: "01", title: "Create a Shipment", desc: "Enter parcel details and destination." },
-  { num: "02", title: "Get Matched", desc: "A traveller heading your way picks it up." },
-  { num: "03", title: "Track & Receive", desc: "Follow your parcel live until delivery." },
+  { num: "01", icon: Package, title: "Create a Shipment", desc: "Enter your parcel details, select a destination, and set your price in seconds." },
+  { num: "02", icon: MapPin, title: "Locate Travellers", desc: "Our smart algorithm matches you with a verified traveller heading to your destination." },
+  { num: "03", icon: Truck, title: "Handover & Earn", desc: "Hand over the parcel with a secure OTP and earn/save as the delivery completes." },
 ];
 
 // Stagger container variant
@@ -208,55 +208,93 @@ export default function Index() {
         </motion.div>
       </section>
 
-      {/* ===================== HOW IT WORKS ===================== */}
-      <section className="py-24 relative overflow-hidden">
-        {/* Subtle bg glow */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_100%,hsl(28_100%_55%/0.05),transparent_60%)] pointer-events-none" />
+      {/* ===================== STEP BY STEP PROCESS (Redesigned) ===================== */}
+      <section className="py-32 relative overflow-hidden bg-white">
+        <div className="absolute top-0 left-0 w-full h-full opacity-5 pointer-events-none">
+           <div className="absolute top-1/2 left-0 w-full h-[1px] bg-orange-500 hidden md:block" />
+        </div>
 
-        <div className="mx-auto max-w-6xl px-4">
+        <div className="mx-auto max-w-6xl px-4 relative z-10">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-            className="mb-16 text-center"
+            className="mb-20 text-center"
           >
-            <span className="mb-3 inline-block rounded-full bg-secondary/10 px-4 py-1 text-sm font-medium text-secondary">
-              Simple & Fast
+            <span className="mb-4 inline-block rounded-full bg-orange-100 px-6 py-2 text-xs font-black uppercase tracking-widest text-orange-600">
+               Step-by-Step Process
             </span>
-            <h2 className="mb-4 font-heading text-3xl font-bold text-foreground md:text-5xl">
-              How CarryGo Works
+            <h2 className="mb-6 font-heading text-4xl font-black text-slate-900 md:text-6xl tracking-tight">
+               How CarryGo Works
             </h2>
-            <p className="mx-auto max-w-xl text-muted-foreground">
-              Three simple steps to send or carry a parcel anywhere in the world
+            <p className="mx-auto max-w-xl text-slate-500 font-medium">
+               A seamless, secure, and peer-to-peer delivery journey designed for the modern world.
             </p>
           </motion.div>
 
-          <motion.div
-            variants={containerVariants}
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, margin: "-60px" }}
-            className="grid gap-8 md:grid-cols-3"
-          >
+          <div className="grid gap-12 md:grid-cols-3 relative">
             {steps.map((s, i) => (
               <motion.div
                 key={i}
-                variants={itemVariants}
-                className="step-card rounded-2xl border border-border bg-card p-8 shadow-card"
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.2 }}
+                className="group relative flex flex-col items-center text-center px-6"
               >
-                <motion.span
-                  whileHover={{ scale: 1.15, color: "hsl(28 100% 55%)" }}
-                  className="font-heading text-5xl font-bold text-secondary/20 inline-block transition-colors duration-300"
-                >
-                  {s.num}
-                </motion.span>
-                <h3 className="mt-2 font-heading text-xl font-semibold text-foreground">{s.title}</h3>
-                <p className="mt-2 text-muted-foreground">{s.desc}</p>
+                {/* Step Circle */}
+                <div className="relative mb-10">
+                   <div className="h-24 w-24 rounded-[2rem] bg-orange-50 border-2 border-orange-100 flex items-center justify-center transition-all duration-500 group-hover:bg-orange-500 group-hover:rotate-12 group-hover:scale-110 shadow-xl shadow-orange-500/5 group-hover:shadow-orange-500/30">
+                      <s.icon className="h-10 w-10 text-orange-500 group-hover:text-white transition-colors" />
+                   </div>
+                   <div className="absolute -top-4 -right-4 h-10 w-10 border-4 border-white rounded-2xl bg-slate-900 flex items-center justify-center text-white font-black text-sm shadow-xl">
+                      {s.num}
+                   </div>
+                </div>
+
+                <h3 className="mb-4 font-heading text-2xl font-black text-slate-900 group-hover:text-orange-500 transition-colors">
+                   {s.title}
+                </h3>
+                <p className="text-slate-500 font-medium leading-relaxed">
+                   {s.desc}
+                </p>
+                
+                {/* Visual Connector Line (for desktop) */}
+                {i < 2 && (
+                   <div className="absolute top-12 left-[80%] w-[40%] h-[2px] border-t-2 border-dashed border-orange-100 hidden md:block" />
+                )}
               </motion.div>
             ))}
-          </motion.div>
+          </div>
         </div>
+      </section>
+
+      {/* ===================== JOIN SECTION (Add Signup) ===================== */}
+      <section className="py-24 bg-slate-50 border-y border-slate-100">
+         <div className="mx-auto max-w-6xl px-4 text-center">
+            <div className="bg-white rounded-[3rem] p-12 shadow-2xl shadow-slate-200/50 border border-slate-100 relative overflow-hidden group">
+               <div className="absolute top-0 right-0 w-64 h-64 bg-orange-500/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
+               <div className="absolute bottom-0 left-0 w-48 h-48 bg-orange-500/5 rounded-full translate-y-1/2 -translate-x-1/2 blur-2xl" />
+               
+               <div className="relative z-10 max-w-2xl mx-auto">
+                  <h2 className="text-4xl font-black text-slate-900 mb-6 font-heading tracking-tight">Join the CarryGo movement</h2>
+                  <p className="text-slate-500 font-bold mb-10">Create your account today and start sending or carrying parcels within minutes. It's free to join!</p>
+                  
+                  <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                     <Button asChild size="lg" className="h-16 px-10 rounded-2xl bg-orange-500 text-white font-black hover:bg-orange-600 shadow-xl shadow-orange-500/30 transition-all hover:scale-105 uppercase tracking-widest text-xs">
+                        <Link to="/signup">
+                           <UserPlus className="h-5 w-5 mr-2" /> Sign Up Now
+                        </Link>
+                     </Button>
+                     <Button asChild variant="outline" size="lg" className="h-16 px-10 rounded-2xl border-2 border-slate-200 text-slate-600 font-black hover:bg-slate-50 transition-all uppercase tracking-widest text-xs">
+                        <Link to="/login">
+                           Member Login
+                        </Link>
+                     </Button>
+                  </div>
+               </div>
+            </div>
+         </div>
       </section>
 
       {/* ===================== FEATURES ===================== */}

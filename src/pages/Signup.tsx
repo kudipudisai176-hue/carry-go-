@@ -14,6 +14,7 @@ import {
 import { toast } from "sonner";
 import LiveCameraModal from "@/components/LiveCameraModal";
 import AuthAnimationWrapper from "@/components/AuthAnimationWrapper";
+import ProcessFlow from "@/components/ProcessFlow";
 
 const idTypes = ["Aadhaar", "PAN", "Passport"];
 
@@ -121,46 +122,47 @@ export default function Signup() {
   }
 
   const renderStepOne = () => (
-    <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="space-y-6">
-      <div className="space-y-4">
-        <div className="space-y-2">
-          <Label className="font-semibold text-slate-600">Full Name</Label>
-          <div className="relative">
-            <User className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <Input required value={name} onChange={(e) => setName(e.target.value)} placeholder="" className="h-12 pl-11 rounded-xl bg-slate-50 border-slate-200 focus:bg-white focus:ring-purple-500 font-medium" />
-          </div>
-        </div>
+    <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="space-y-8">
+      <div className="space-y-6">
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="space-y-2">
+          <Label className="font-semibold text-slate-600 ml-1">Full Name</Label>
+          <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }} className="relative group">
+            <User className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-orange-500" />
+            <Input required value={name} onChange={(e) => setName(e.target.value)} placeholder="Enter your full name" className="h-14 pl-11 rounded-2xl bg-slate-50 border-slate-200 focus:bg-white focus-visible:ring-orange-500/20 focus-visible:border-orange-500 transition-all font-bold text-slate-700 shadow-sm" />
+          </motion.div>
+        </motion.div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-2">
-             <Label className="font-semibold text-slate-600">Email Address</Label>
-             <div className="relative">
-               <Mail className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-               <Input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="" className="h-12 pl-11 rounded-xl bg-slate-50 border-slate-200 focus:bg-white font-medium" />
-             </div>
-          </div>
-          <div className="space-y-2">
-             <Label className="font-semibold text-slate-600">Phone Number</Label>
-             <div className="relative">
-               <Phone className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-               <Input required value={phone} onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))} placeholder="" className="h-12 pl-11 rounded-xl bg-slate-50 border-slate-200 focus:bg-white font-medium" />
-             </div>
-          </div>
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="space-y-2">
+             <Label className="font-semibold text-slate-600 ml-1">Email Address</Label>
+             <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }} className="relative group">
+               <Mail className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-orange-500" />
+               <Input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" className="h-14 pl-11 rounded-2xl bg-slate-50 border-slate-200 focus:bg-white focus-visible:ring-orange-500/20 focus-visible:border-orange-500 transition-all font-bold text-slate-700 shadow-sm" />
+             </motion.div>
+          </motion.div>
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="space-y-2">
+             <Label className="font-semibold text-slate-600 ml-1">Phone Number</Label>
+             <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }} className="relative group">
+               <Phone className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-orange-500" />
+               <Input required value={phone} onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))} placeholder="1234567890" className="h-14 pl-11 rounded-2xl bg-slate-50 border-slate-200 focus:bg-white focus-visible:ring-orange-500/20 focus-visible:border-orange-500 transition-all font-bold text-slate-700 shadow-sm" />
+             </motion.div>
+          </motion.div>
         </div>
 
-        <div className="space-y-2">
-          <Label className="font-semibold text-slate-600">Secure Password</Label>
-          <div className="relative">
-            <Lock className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <Input required type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="" className="h-12 pl-11 rounded-xl bg-slate-50 border-slate-200 focus:bg-white font-medium" />
-          </div>
-        </div>
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="space-y-2">
+          <Label className="font-semibold text-slate-600 ml-1">Secure Password</Label>
+          <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }} className="relative group">
+            <Lock className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-orange-500" />
+            <Input required type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="h-14 pl-11 rounded-2xl bg-slate-50 border-slate-200 focus:bg-white focus-visible:ring-orange-500/20 focus-visible:border-orange-500 transition-all font-bold text-slate-700 shadow-sm" />
+          </motion.div>
+        </motion.div>
       </div>
 
-      <Button onClick={handleNext} className="w-full h-14 rounded-2xl bg-orange-500 hover:bg-orange-600 text-white shadow-xl shadow-orange-500/20 font-black text-lg group">
-        Next Step
-        <ChevronRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
-      </Button>
+      <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.5 }}>
+        <Button onClick={handleNext} className="w-full h-16 rounded-[1.5rem] bg-orange-500 hover:bg-orange-600 text-white font-black text-xl shadow-xl shadow-orange-500/30 transition-all hover:scale-[1.02] hover:-translate-y-1 flex items-center justify-center gap-3">
+          Next Step <ChevronRight className="h-6 w-6" />
+        </Button>
+      </motion.div>
     </motion.div>
   );
 
@@ -273,44 +275,38 @@ export default function Signup() {
     <AuthAnimationWrapper fullWidth={true}>
       <div className="flex w-full min-h-screen flex-col overflow-hidden bg-white lg:flex-row shadow-2xl">
         {/* Left Side: Brand & Visuals - Absolute positioning fix for split */}
-        <div className="relative hidden flex-col justify-between bg-[#0F172A] p-16 text-white lg:flex lg:w-[45%] xl:w-[40%] overflow-hidden border-r border-white/5">
-          <div className="absolute inset-0 opacity-20">
-            <div className="absolute left-[-10%] top-[-10%] h-[50%] w-[50%] rounded-full bg-orange-500 blur-[120px]" />
-            <div className="absolute bottom-[-10%] right-[-10%] h-[50%] w-[50%] rounded-full bg-purple-500 blur-[120px]" />
-          </div>
+        <div className="relative hidden lg:flex lg:flex-col justify-start bg-[#0F172A] p-12 text-white lg:w-[45%] xl:w-[40%] overflow-y-auto custom-scrollbar border-r border-white/5 scroll-smooth">
+          <div className="absolute inset-x-0 top-0 h-[30%] bg-gradient-to-b from-orange-500/10 to-transparent blur-3xl pointer-events-none" />
 
-          <div className="relative z-10">
-            <Link to="/" className="flex items-center gap-2">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-500 shadow-lg shadow-orange-500/20">
-                <Package className="h-6 w-6 text-white" />
+          <div className="relative z-10 mb-12">
+            <Link to="/" className="flex items-center gap-3 hover:scale-105 transition-transform duration-300">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-500 shadow-2xl shadow-orange-500/30">
+                <Package className="h-7 w-7 text-white" />
               </div>
-              <span className="text-2xl font-black tracking-tight">CarryGo</span>
+              <span className="text-3xl font-black tracking-tight font-heading">CarryGo</span>
             </Link>
           </div>
 
-          <div className="relative z-10 mb-20 space-y-8">
-            <div className="inline-flex rounded-full bg-orange-500/20 px-4 py-1 text-xs font-bold uppercase tracking-widest text-orange-400">
-               Unified Platform
+          <div className="relative z-10 mb-12 space-y-4">
+            <div className="inline-flex rounded-full bg-orange-500/10 px-6 py-2 text-xs font-black uppercase tracking-widest text-orange-500 border border-orange-500/20">
+               Secure Handover Ecosystem
             </div>
-            <h1 className="text-4xl font-black leading-tight text-white xl:text-6xl 2xl:text-7xl">
-              One account.<br />
-              <span className="text-orange-500">Infinite</span> ways <br />to earn and <br />send.
+            <h1 className="text-4xl font-black leading-tight text-white xl:text-5xl tracking-tighter">
+               Simple. Secure.<br />
+               <span className="text-shimmer bg-gradient-to-r from-orange-400 to-orange-600 bg-clip-text text-transparent">Smart Delivery.</span>
             </h1>
-            <p className="max-w-xs text-base font-medium text-slate-400/80 leading-relaxed">
-              Join thousands of users who trust CarryGo for secure, peer-to-peer logistics. No roles, no barriers.
-            </p>
           </div>
 
-          <div className="relative z-10">
-            <div className="flex items-center gap-4 rounded-3xl bg-white/5 p-4 backdrop-blur-sm border border-white/10">
-               <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-500/20 text-orange-500">
-                  <ShieldCheck className="h-6 w-6" />
-               </div>
-               <div>
-                  <p className="text-sm font-bold text-white">Bank-level Security</p>
-                  <p className="text-xs text-slate-400">Your data and identity are protected.</p>
-               </div>
-            </div>
+          <div className="relative z-10 flex-1 flex flex-col items-center">
+             <ProcessFlow />
+             <div className="mt-12 text-center">
+                <p className="text-xs font-black uppercase tracking-[0.3em] text-slate-500 mb-6">Built for speed, trusted for reliability</p>
+                <div className="flex justify-center gap-3">
+                   <div className="h-1.5 w-12 rounded-full bg-orange-500/30 transition-all hover:bg-orange-500" />
+                   <div className="h-1.5 w-4 rounded-full bg-slate-800 transition-all hover:bg-orange-500" />
+                   <div className="h-1.5 w-4 rounded-full bg-slate-800 transition-all hover:bg-orange-500" />
+                </div>
+             </div>
           </div>
         </div>
 
@@ -337,14 +333,16 @@ export default function Signup() {
                </div>
                <div className="relative flex justify-between">
                   {[1, 2, 3].map((s) => (
-                    <div 
+                    <motion.div 
                       key={s} 
-                      className={`h-10 w-10 rounded-full flex items-center justify-center text-xs font-black transition-all duration-500 relative z-10 ${
-                        step >= s ? 'bg-orange-500 text-white shadow-xl shadow-orange-500/40 scale-110' : 'bg-white border-2 border-slate-100 text-slate-300'
+                      whileHover={{ scale: 1.2, rotate: 5 }}
+                      whileTap={{ scale: 0.9 }}
+                      className={`h-10 w-10 rounded-full flex items-center justify-center text-xs font-black transition-all duration-500 relative z-10 cursor-default ${
+                        step >= s ? 'bg-orange-500 text-white shadow-xl shadow-orange-500/40' : 'bg-white border-2 border-slate-100 text-slate-300'
                       }`}
                     >
                       {step > s ? <Check className="h-5 w-5" /> : s}
-                    </div>
+                    </motion.div>
                   ))}
                </div>
             </div>
