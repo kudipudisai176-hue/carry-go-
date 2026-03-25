@@ -221,7 +221,7 @@ export default function Traveller() {
                 Close Map
               </Button>
             </div>
-            <div className="p-4 h-[400px] overflow-hidden rounded-2xl">
+            <div className="p-4 h-[500px] overflow-hidden rounded-2xl">
               <SnapMap from={navParcel.fromLocation} to={navParcel.toLocation} />
             </div>
           </motion.div>
@@ -418,7 +418,7 @@ export default function Traveller() {
                         <Button size="sm" variant="outline" onClick={() => setNavParcel(detailParcel)} className="text-[10px] uppercase font-bold rounded-xl">Full Screen 3D</Button>
                       </div>
                     </div>
-                    <div className="h-[400px] rounded-[2.5rem] overflow-hidden border border-border">
+                    <div className="h-[500px] rounded-[2.5rem] overflow-hidden border border-border">
                        <SnapMap from={detailParcel.fromLocation} to={detailParcel.toLocation} />
                     </div>
 
@@ -681,7 +681,7 @@ export default function Traveller() {
                                   exit={{ opacity: 0, height: 0 }}
                                   className="mt-4 overflow-hidden"
                                 >
-                                  <div className="h-[400px] rounded-[2.5rem] overflow-hidden border border-border mt-4">
+                                  <div className="h-[500px] rounded-[2.5rem] overflow-hidden border border-border mt-4">
                                     <SnapMap from={p.fromLocation} to={p.toLocation} />
                                   </div>
                                 </motion.div>
@@ -813,7 +813,7 @@ export default function Traveller() {
                           {expanded === p.id && (
                             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4">
                               {p.description && <p className="mb-3 text-sm text-muted-foreground">{p.description}</p>}
-                              <div className="rounded-[2.5rem] overflow-hidden border border-border mt-4 h-[400px]">
+                              <div className="rounded-[2.5rem] overflow-hidden border border-border mt-4 h-[500px]">
                                 <SnapMap from={p.fromLocation} to={p.toLocation} />
                               </div>
                             </motion.div>

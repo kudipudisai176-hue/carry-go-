@@ -2,7 +2,6 @@ import { Package, Truck, MapPin, User, ChevronRight, Star, ShieldCheck, Clock } 
 import { Link, Navigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useAuth } from "@/lib/authContext";
-import WorkFlowAnimation from "@/components/WorkFlowAnimation";
 
 export default function Dashboard() {
   const { user, isLoading } = useAuth();
@@ -137,9 +136,6 @@ export default function Dashboard() {
             </motion.div>
           ))}
         </div>
-
-        {/* Animated Feature Showcase */}
-        <WorkFlowAnimation />
 
       </div>
     </div>

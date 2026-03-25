@@ -108,7 +108,7 @@ router.get('/', protect, async (req, res) => {
     // 1. If 'mode=sender' is passed (used by Sender Dashboard), always return OWN sent parcels
     if (mode === 'sender') {
       const parcels = await Parcel.find({ sender: userId })
-        .populate('traveller', 'name profilePhoto rating totalTrips bio')
+        .populate('traveller', 'name profilePhoto rating totalTrips bio phone email adharNumber vehicleType idPhoto')
         .sort({ createdAt: -1 });
       return res.json(parcels);
     }
@@ -127,8 +127,8 @@ router.get('/', protect, async (req, res) => {
              { receiverPhone: cleanUserPhone },
              { receiverPhone: prefixedUserPhone }
           ]
-       }).populate('sender', 'name profilePhoto rating totalTrips bio')
-        .populate('traveller', 'name profilePhoto rating totalTrips bio')
+       }).populate('sender', 'name profilePhoto rating totalTrips bio phone email adharNumber vehicleType idPhoto')
+        .populate('traveller', 'name profilePhoto rating totalTrips bio phone email adharNumber vehicleType idPhoto')
         .sort({ createdAt: -1 });
       return res.json(parcels);
     }
@@ -167,8 +167,8 @@ router.get('/', protect, async (req, res) => {
     console.log("📍 [ParcelSearch] Filter applied:", JSON.stringify(query));
 
     const parcels = await Parcel.find(query)
-      .populate('sender', 'name profilePhoto rating totalTrips bio')
-      .populate('traveller', 'name profilePhoto rating totalTrips bio')
+      .populate('sender', 'name profilePhoto rating totalTrips bio phone email adharNumber vehicleType idPhoto')
+      .populate('traveller', 'name profilePhoto rating totalTrips bio phone email adharNumber vehicleType idPhoto')
       .sort({ createdAt: -1 });
     
     console.log(`✅ [ParcelSearch] Found ${parcels.length} matching parcels.`);
@@ -182,8 +182,8 @@ router.get('/', protect, async (req, res) => {
 router.get('/id/:id', protect, async (req, res) => {
   try {
     const parcel = await Parcel.findById(req.params.id)
-      .populate('sender', 'name profilePhoto rating totalTrips bio')
-      .populate('traveller', 'name profilePhoto rating totalTrips bio');
+      .populate('sender', 'name profilePhoto rating totalTrips bio phone email adharNumber vehicleType idPhoto')
+      .populate('traveller', 'name profilePhoto rating totalTrips bio phone email adharNumber vehicleType idPhoto');
     if (!parcel) return res.status(404).json({ message: 'Parcel not found' });
     res.json(parcel);
   } catch (error) {
@@ -210,7 +210,7 @@ router.post('/:id/simulate-payment', protect, async (req, res) => {
 router.get('/mydeliveries', protect, async (req, res) => {
   try {
     const parcels = await Parcel.find({ traveller: req.user._id })
-      .populate('sender', 'name profilePhoto rating totalTrips bio')
+      .populate('sender', 'name profilePhoto rating totalTrips bio phone email adharNumber vehicleType idPhoto')
       .sort({ createdAt: -1 });
     res.json(parcels);
   } catch (error) {
@@ -232,8 +232,8 @@ router.get('/byphone/:phone', protect, async (req, res) => {
     const phoneWithPrefix = `+91${cleanPhone}`;
     const parcels = await Parcel.find({ 
       receiverPhone: { $in: [phone, cleanPhone, phoneWithPrefix] } 
-    }).populate('sender', 'name profilePhoto rating totalTrips bio')
-      .populate('traveller', 'name profilePhoto rating totalTrips bio')
+    }).populate('sender', 'name profilePhoto rating totalTrips bio phone email adharNumber vehicleType idPhoto')
+      .populate('traveller', 'name profilePhoto rating totalTrips bio phone email adharNumber vehicleType idPhoto')
       .sort({ createdAt: -1 });
     res.json(parcels);
   } catch (error) {

@@ -80,6 +80,12 @@ const userSchema = mongoose.Schema(
       type: Number,
       default: 0,
     },
+    adharNumber: {
+      type: String,
+    },
+    vehicleType: {
+      type: String,
+    },
     personalOtp: {
       type: String,
     },

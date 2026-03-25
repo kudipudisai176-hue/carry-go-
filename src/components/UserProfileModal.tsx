@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { User, Star, Package, X, Camera, Save, Loader2, PenLine, Phone, MessageSquare, Truck, Scan, LifeBuoy } from "lucide-react";
+import { User, Star, Package, X, Camera, Save, Loader2, PenLine, Phone, MessageSquare, Truck, Scan, LifeBuoy, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -134,10 +134,10 @@ export default function UserProfileModal({ user: initialUser, isOpen, onClose }:
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
-            className="relative w-full max-w-md overflow-hidden rounded-[2.5rem] border border-white/20 bg-card/95 shadow-2xl backdrop-blur-xl my-auto"
+            className="relative w-full max-w-md overflow-visible rounded-[2.5rem] border border-white/20 bg-card/95 shadow-2xl backdrop-blur-xl my-auto"
           >
             {/* Header / Banner */}
-            <div className="h-32 bg-gradient-to-br from-secondary via-secondary/90 to-primary relative overflow-hidden">
+            <div className="h-32 bg-gradient-to-br from-secondary via-secondary/90 to-primary rounded-t-[2.5rem] relative">
                {/* Decorative Circles */}
                <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-white/10 blur-2xl" />
                <div className="absolute -left-4 -bottom-4 h-24 w-24 rounded-full bg-primary/20 blur-xl" />
@@ -162,14 +162,11 @@ export default function UserProfileModal({ user: initialUser, isOpen, onClose }:
                   Edit Profile
                 </Button>
               )}
-            </div>
 
-            {/* Profile Content Container */}
-            <div className="max-h-[70vh] overflow-y-auto px-6 pb-8 pt-0 relative custom-scrollbar">
-              {/* Avatar */}
-              <div className="absolute -top-12 left-6">
+              {/* Avatar - Attached to Banner but pops out */}
+              <div className="absolute -bottom-10 left-8 z-50">
                 <div 
-                  className={`h-24 w-24 rounded-3xl border-4 border-card bg-muted shadow-[0_8px_30px_rgb(0,0,0,0.12)] overflow-hidden relative group transition-all duration-300 ${isEditing ? 'ring-2 ring-secondary ring-offset-4 cursor-pointer scale-105' : ''}`}
+                  className={`h-24 w-24 rounded-3xl border-4 border-card bg-muted shadow-[0_8px_30px_rgb(0,0,0,0.18)] overflow-hidden relative group transition-all duration-300 ${isEditing ? 'ring-2 ring-secondary ring-offset-4 cursor-pointer scale-105' : ''}`}
                   onClick={handlePhotoClick}
                 >
                   {photo ? (
@@ -195,8 +192,11 @@ export default function UserProfileModal({ user: initialUser, isOpen, onClose }:
                   />
                 </div>
               </div>
+            </div>
 
-              <div className="mt-14">
+            {/* Profile Content Container */}
+            <div className="max-h-[70vh] overflow-y-auto px-6 pb-8 pt-12 relative custom-scrollbar">
+              <div className="mt-2">
                 {isEditing ? (
                   <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
                     <div className="space-y-1.5">
@@ -369,7 +369,7 @@ export default function UserProfileModal({ user: initialUser, isOpen, onClose }:
                          VISIT SUPPORT CENTER
                       </Button>
                       <div className="flex gap-2">
-                        <a href="tel:+919876543210" className="flex-1">
+                        <a href={`tel:${initialUser.phone || "Not provided"}`} className="flex-1">
                           <Button 
                             variant="outline" 
                             className="w-full rounded-2xl h-14 gap-2.5 font-bold border-muted-foreground/20 hover:bg-muted text-muted-foreground transition-all"
@@ -380,7 +380,7 @@ export default function UserProfileModal({ user: initialUser, isOpen, onClose }:
                         </a>
                         <Button 
                           variant="outline" 
-                          onClick={() => { navigate('/support'); onClose(); }}
+                          onClick={() => { window.dispatchEvent(new CustomEvent('open-chat-support')); onClose(); }}
                           className="flex-1 rounded-2xl h-14 gap-2.5 font-bold border-blue-500/20 hover:bg-blue-500/5 text-blue-500 transition-all"
                         >
                           <MessageSquare className="h-4 w-4" />

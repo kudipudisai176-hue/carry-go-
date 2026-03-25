@@ -14,6 +14,7 @@ export interface UserData {
   totalTrips: number;
   adharNumber?: string;
   vehicleType?: string;
+  adharPhoto?: string;
   personalOtp?: string;
   personalOtpExpiresAt?: string;
   personalOtpUsed?: boolean;
@@ -114,16 +115,28 @@ const mapParcel = (p: any): Parcel => {
   senderData: p.sender && typeof p.sender === 'object' ? {
     id: p.sender._id || p.sender.id,
     name: p.sender.name,
+    email: p.sender.email,
+    phone: p.sender.phone,
     profilePhoto: p.sender.profilePhoto,
+    bio: p.sender.bio,
     rating: p.sender.rating || 5,
-    totalTrips: p.sender.totalTrips || 0
+    totalTrips: p.sender.totalTrips || 0,
+    adharNumber: p.sender.adharNumber || p.sender.idNumber,
+    vehicleType: p.sender.vehicleType,
+    adharPhoto: p.sender.idPhoto
   } : undefined,
   travellerData: p.traveller && typeof p.traveller === 'object' ? {
     id: p.traveller._id || p.traveller.id,
     name: p.traveller.name,
+    email: p.traveller.email,
+    phone: p.traveller.phone,
     profilePhoto: p.traveller.profilePhoto,
+    bio: p.traveller.bio,
     rating: p.traveller.rating || 5,
-    totalTrips: p.traveller.totalTrips || 0
+    totalTrips: p.traveller.totalTrips || 0,
+    adharNumber: p.traveller.adharNumber || p.traveller.idNumber,
+    vehicleType: p.traveller.vehicleType,
+    adharPhoto: p.traveller.idPhoto
   } : undefined
   };
 };

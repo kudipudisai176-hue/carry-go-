@@ -814,7 +814,7 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
                                      <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleDelete(p.id); }} className="flex-1 font-bold text-xs uppercase text-red-500 hover:bg-red-50 rounded-full">Cancel Order</Button>
                                   </div>
 
-                                  <div className="mt-6 rounded-[2.5rem] border border-border bg-muted/10 overflow-hidden relative group/map h-[400px]">
+                                  <div className="mt-6 rounded-[2.5rem] border border-border bg-muted/10 overflow-hidden relative group/map h-[500px]">
                                     <SnapMap from={p.fromLocation} to={p.toLocation} />
                                     {(p.status === 'in-transit' || p.status === 'picked-up') && (
                                       <Button 
@@ -962,7 +962,7 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
                                 <Phone className="h-3.5 w-3.5 mr-1.5" /> Call Sender
                              </Button>
                           </a>
-                          <Button variant="outline" size="sm" onClick={() => toast.info('Chat system coming soon!')} className="flex-1 min-w-[100px] bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 hover:text-emerald-700 border-none rounded-xl font-bold uppercase tracking-widest text-[10px]">
+                          <Button variant="outline" size="sm" onClick={() => window.dispatchEvent(new CustomEvent('open-chat-support'))} className="flex-1 min-w-[100px] bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 hover:text-emerald-700 border-none rounded-xl font-bold uppercase tracking-widest text-[10px]">
                              <MessageCircle className="h-3.5 w-3.5 mr-1.5" /> Chat
                           </Button>
                           <Button variant="outline" size="sm" onClick={() => setExpandedIncoming(expandedIncoming === p.id ? null : p.id)} className="flex-1 min-w-[100px] bg-purple-500/10 text-purple-600 hover:bg-purple-500/20 hover:text-purple-700 border-none rounded-xl font-bold uppercase tracking-widest text-[10px]">
@@ -989,7 +989,7 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
                           exit={{ opacity: 0, height: 0 }}
                           className="mt-6 border-t border-border pt-6 overflow-hidden"
                         >
-                            <div className="rounded-[2.5rem] overflow-hidden border border-border mt-4 h-[400px]">
+                            <div className="rounded-[2.5rem] overflow-hidden border border-border mt-4 h-[500px]">
                                <SnapMap from={p.fromLocation} to={p.toLocation} />
                             </div>
                         </motion.div>

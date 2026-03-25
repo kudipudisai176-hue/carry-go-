@@ -79,6 +79,9 @@ export default function SnapMap({
 
     map.current.on("load", async () => {
       if (!map.current) return;
+      
+      // Force an immediate size check once style loaded
+      map.current.resize();
 
       // Geocode locations if provided
       let startCoords = center;
@@ -184,7 +187,19 @@ export default function SnapMap({
       }
     });
 
-    return () => map.current?.remove();
+    // 🌊 Resize observer to fix rendering in dynamic containers (expanding accordions)
+    const resizeObserver = new ResizeObserver(() => {
+        map.current?.resize();
+    });
+
+    if (mapContainer.current) {
+        resizeObserver.observe(mapContainer.current);
+    }
+
+    return () => {
+        resizeObserver.disconnect();
+        map.current?.remove();
+    };
   }, []);
 
   const handleToggle3D = () => {
@@ -196,7 +211,7 @@ export default function SnapMap({
   };
 
   return (
-    <div className="relative w-full h-[600px] rounded-[3rem] overflow-hidden border border-slate-200 shadow-2xl bg-slate-50">
+    <div className="relative w-full h-[500px] rounded-[3rem] overflow-hidden border border-slate-200 shadow-2xl bg-slate-50">
       {/* 🗺️ MAP CONTAINER */}
       <div ref={mapContainer} className="absolute inset-0 w-full h-full" />
 
