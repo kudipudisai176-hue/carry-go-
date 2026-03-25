@@ -2,6 +2,7 @@ import { Package, Truck, MapPin, User, ChevronRight, Star, ShieldCheck, Clock } 
 import { Link, Navigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useAuth } from "@/lib/authContext";
+import WorkFlowAnimation from "@/components/WorkFlowAnimation";
 
 export default function Dashboard() {
   const { user, isLoading } = useAuth();
@@ -137,25 +138,9 @@ export default function Dashboard() {
           ))}
         </div>
 
-        {/* Info Banner */}
-        <motion.div 
-           initial={{ opacity: 0 }}
-           animate={{ opacity: 1 }}
-           transition={{ delay: 0.5 }}
-           className="mt-12 rounded-[2rem] bg-slate-900 p-8 text-white relative overflow-hidden flex flex-col sm:flex-row items-center justify-between gap-6"
-        >
-           <div className="absolute right-0 top-0 opacity-10"><Clock className="h-48 w-48 -rotate-12 translate-x-12 -translate-y-12" /></div>
-           <div className="relative z-10 flex items-center gap-6">
-              <div className="h-14 w-14 rounded-2xl bg-orange-500 flex items-center justify-center shadow-lg shadow-orange-500/20"><ShieldCheck className="h-8 w-8" /></div>
-              <div>
-                 <h4 className="text-xl font-black tracking-tight">Escrow Security Active</h4>
-                 <p className="text-sm font-medium text-slate-400 mt-1 uppercase tracking-widest">Payments are only released upon successful delivery</p>
-              </div>
-           </div>
-           <Link to="/support" className="relative z-10 bg-white/10 hover:bg-white/20 px-8 py-4 rounded-2xl text-xs font-black uppercase tracking-[0.2em] transition-all border border-white/5">
-              Support Center
-           </Link>
-        </motion.div>
+        {/* Animated Feature Showcase */}
+        <WorkFlowAnimation />
+
       </div>
     </div>
   );

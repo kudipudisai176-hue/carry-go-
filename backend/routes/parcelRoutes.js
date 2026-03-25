@@ -15,18 +15,38 @@ router.post('/', protect, async (req, res) => {
     const platformFee = Math.round(parcelCharge * 0.10); // 10% fee rounded
     const totalPrice = parcelCharge + platformFee;
 
+    // 🤝 Link receiver if they are ALREADY a registered user (Correct Architecture)
+    const receiverPhone = req.body.receiverPhone;
+    const cleanPhone = receiverPhone?.replace('+91', '');
+    const phoneWithPrefix = `+91${cleanPhone}`;
+    const receiverUser = await User.findOne({ 
+      phone: { $in: [receiverPhone, cleanPhone, phoneWithPrefix] } 
+    });
+
+    // 🧊 Data Normalization (Point 2)
+    const normalizedBody = {
+       ...(req.body || {}),
+       fromLocation: req.body.fromLocation?.toLowerCase().trim() || "",
+       toLocation: req.body.toLocation?.toLowerCase().trim() || "",
+       village: req.body.village?.toLowerCase().trim() || "",
+       city: req.body.city?.toLowerCase().trim() || "",
+    };
+
     const parcel = new Parcel({
-      ...(req.body || {}),
+      ...normalizedBody,
       parcelCharge: parcelCharge,
       platformFee: platformFee,
       price: totalPrice,
       sender: req.user._id,
+      receiver: receiverUser ? receiverUser._id : undefined,
       senderName: req.user.name,
       senderPhone: req.user.phone,
       paymentMethod: 'pay-now', // Fixed for escrow
       paymentStatus: 'pending',
       status: 'pending_payment',
       escrow_status: 'held',
+      pickupOtp: Math.floor(1000 + Math.random() * 9000).toString(), // 4-digit pickup
+      deliveryOtp: Math.floor(100000 + Math.random() * 900000).toString(), // 6-digit delivery (Point 2)
     });
     const createdParcel = await parcel.save();
 
@@ -79,54 +99,79 @@ router.post('/:id/simulate-payment', protect, async (req, res) => {
   }
 });
 
-// @desc    Get parcels
+// @desc    Get parcels (Role-agnostic Sent vs Search)
 router.get('/', protect, async (req, res) => {
   try {
-    const role = req.user.role ? req.user.role.toLowerCase() : '';
     const userId = req.user._id;
+    const { mode, from, to, city, village, search } = req.query;
 
-    // 1. If Sender-level role: Get sent parcels
-    if (role === 'sender' || role === 'sender_receiver') {
+    // 1. If 'mode=sender' is passed (used by Sender Dashboard), always return OWN sent parcels
+    if (mode === 'sender') {
       const parcels = await Parcel.find({ sender: userId })
         .populate('traveller', 'name profilePhoto rating totalTrips bio')
         .sort({ createdAt: -1 });
       return res.json(parcels);
     }
-    
-    // 2. If Receiver role: Get parcels assigned to their PHONE
-    // (Usually handles by /byphone/:phone, but this is a fallback)
-    if (role === 'receiver') {
-      const parcels = await Parcel.find({ receiverPhone: req.user.phone })
-        .populate('sender', 'name profilePhoto')
+
+    // 1b. If 'mode=receiver' is passed, return parcels assigned to this user (Correct Architecture)
+    if (mode === 'receiver') {
+       // Case: Look for all parcels where current user is receiver (by ID or Phone)
+       const userPhone = req.user.phone || "";
+       const cleanUserPhone = userPhone.replace('+91', '');
+       const prefixedUserPhone = `+91${cleanUserPhone}`;
+
+       const parcels = await Parcel.find({ 
+          $or: [
+             { receiver: req.user._id },
+             { receiverPhone: userPhone },
+             { receiverPhone: cleanUserPhone },
+             { receiverPhone: prefixedUserPhone }
+          ]
+       }).populate('sender', 'name profilePhoto rating totalTrips bio')
         .populate('traveller', 'name profilePhoto rating totalTrips bio')
         .sort({ createdAt: -1 });
       return res.json(parcels);
     }
-
-    // 3. Otherwise: Traveller search logic
-    const { from, to, city, village, search } = req.query;
+    
+    // 2. Otherwise: Traveller search logic (Finding parcels to carry) (Point 1 & 5)
     let query = { 
       status: 'open_for_travellers',
-      sender: { $ne: req.user._id } // Don't show the parcel same user
+      sender: { $ne: req.user._id } // Don't show your own parcels to carry
     };
     
-    // If a general search term is provided (e.g. from the new searchable dropdown)
+    // 🔍 Build Dynamic Query
     if (search) {
+      const searchPattern = search.trim();
       query.$or = [
-        { fromLocation: { $regex: search, $options: 'i' } },
-        { city: { $regex: search, $options: 'i' } },
-        { village: { $regex: search, $options: 'i' } }
+        { fromLocation: { $regex: searchPattern, $options: 'i' } },
+        { toLocation: { $regex: searchPattern, $options: 'i' } },
+        { description: { $regex: searchPattern, $options: 'i' } }
       ];
-    } else {
-      if (from) query.fromLocation = { $regex: from, $options: 'i' };
-      if (to) query.toLocation = { $regex: to, $options: 'i' };
-      if (city) query.city = { $regex: city, $options: 'i' };
-      if (village) query.village = { $regex: village, $options: 'i' };
     }
+
+    // Build Dynamic Query using destuctured variables from line 106
+
+    if (from && from !== 'undefined') {
+       query.fromLocation = { $regex: from.trim(), $options: 'i' };
+    }
+    if (to && to !== 'undefined') {
+       query.toLocation = { $regex: to.trim(), $options: 'i' };
+    }
+    if (city && city !== 'undefined') {
+      query.city = { $regex: city.trim(), $options: 'i' };
+    }
+    if (village && village !== 'undefined') {
+      query.village = { $regex: village.trim(), $options: 'i' };
+    }
+
+    console.log("📍 [ParcelSearch] Filter applied:", JSON.stringify(query));
 
     const parcels = await Parcel.find(query)
       .populate('sender', 'name profilePhoto rating totalTrips bio')
+      .populate('traveller', 'name profilePhoto rating totalTrips bio')
       .sort({ createdAt: -1 });
+    
+    console.log(`✅ [ParcelSearch] Found ${parcels.length} matching parcels.`);
     res.json(parcels);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -227,9 +272,8 @@ router.put('/:id/status', protect, async (req, res) => {
        }
        
        // Removed personalOtpUsed check for Permanent OTP logic (Point 12)
-       if (sender.personalOtpExpiresAt && new Date() > new Date(sender.personalOtpExpiresAt)) {
-          return res.status(400).json({ message: 'OTP expired. Please request a new one.' });
-       }
+       // Removed OTP expiry check for permanent OTP logic (Correct Architecture)
+
 
        // Mark as used immediately upon successful verification
        // sender.personalOtpUsed = true; // Removed as per instruction
@@ -247,16 +291,24 @@ router.put('/:id/status', protect, async (req, res) => {
        }
 
        if (!req.body.otp) {
+          console.warn(`❌ [DeliveryConfirm] Missing OTP for parcel ${req.params.id}`);
           return res.status(400).json({ message: 'OTP is required for delivery' });
        }
+
+       console.log(`🔑 [DeliveryConfirm] Provided OTP: ${req.body.otp} | Required DB OTP: ${parcel.deliveryOtp}`);
 
         if (req.body.otp !== parcel.deliveryOtp) {
            // Fallback: Check if receiver is a user and if their permanent OTP matches
            const receiver = await User.findOne({ phone: parcel.receiverPhone });
-           if (!receiver || req.body.otp !== receiver.personalOtp) {
+           const receiverPersonalOtp = receiver?.personalOtp;
+           console.log(`🔑 [DeliveryConfirm] Fallback Check - Receiver Personal OTP: ${receiverPersonalOtp}`);
+
+           if (!receiver || req.body.otp !== receiverPersonalOtp) {
+              console.error(`❌ [DeliveryConfirm] Invalid OTP for parcel ${req.params.id}`);
               return res.status(400).json({ message: 'Invalid Delivery OTP' });
            }
         }
+        console.log(`✅ [DeliveryConfirm] OTP Verified for parcel ${req.params.id}`);
         
         // Removed expiry check for Permanent OTP logic
        

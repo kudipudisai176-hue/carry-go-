@@ -16,7 +16,6 @@ export default function ConfirmDelivery() {
   console.log("ConfirmDelivery mounted. ID:", id);
   const [parcel, setParcel] = useState<Parcel | null>(null);
   const [otp, setOtp] = useState("");
-  const [timer, setTimer] = useState(50);
   const [isConfirming, setIsConfirming] = useState(false);
   const [image, setImage] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -26,7 +25,6 @@ export default function ConfirmDelivery() {
   useEffect(() => {
     if (id) {
        loadParcel(id);
-       generateOtp(id);
     }
   }, [id]);
 
@@ -39,7 +37,6 @@ export default function ConfirmDelivery() {
     try {
       const res = await generateDeliveryOtp(parcelId);
       if (res) {
-        setTimer(50);
         toast.info("A 6-digit OTP has been generated for authentication.");
         // OTP is normally sent to receiver phone, for demo we can see it
         console.log("New Delivery OTP:", res.otp);
@@ -48,14 +45,6 @@ export default function ConfirmDelivery() {
       toast.error("Failed to generate OTP");
     }
   };
-
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (timer > 0) {
-      interval = setInterval(() => setTimer(prev => prev - 1), 1000);
-    }
-    return () => clearInterval(interval);
-  }, [timer]);
 
   const startCamera = async () => {
     try {
@@ -117,10 +106,7 @@ export default function ConfirmDelivery() {
   }, [user, navigate, authLoading]);
 
   const handleVerify = async () => {
-    if (timer === 0) {
-      toast.error("OTP expired. Please resend.");
-      return;
-    }
+    // 🔐 Client-side validation for Length only. Logic is handled by Backend (Correct Architecture)
     if (otp.length !== 6) {
       toast.error("Please enter the 6-digit OTP provided by the receiver.");
       return;
@@ -134,49 +120,8 @@ export default function ConfirmDelivery() {
     try {
       if (!id) return;
 
-      // 1. Get Location (Bonus Pro Feature)
-      let locationStr = "Not available";
-      try {
-        const pos = await new Promise<GeolocationPosition>((res, rej) => {
-          navigator.geolocation.getCurrentPosition(res, rej, { timeout: 5000 });
-        });
-        locationStr = `${pos.coords.latitude},${pos.coords.longitude}`;
-      } catch (e) {
-        console.warn("Location capture failed", e);
-      }
-
-      // 2. Upload photo to Supabase Storage
-      const { supabase } = await import("@/lib/supabaseClient");
-      const fileName = `delivery-proofs/${id}_${Date.now()}.jpg`;
-      
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('delivery-proofs')
-        .upload(fileName, imageFile);
-
-      if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
-
-      // 3. Get Public URL
-      const { data: urlData } = supabase.storage
-        .from('delivery-proofs')
-        .getPublicUrl(fileName);
-
-      const imageUrl = urlData.publicUrl;
-
-      // 4. Update Parcel in Database (using user's column: delivery_proof)
-      const { error: dbError } = await supabase
-        .from('parcels')
-        .update({
-          status: 'delivered',
-          delivery_proof: imageUrl,
-          deliveredAt: new Date().toISOString(),
-          delivery_location: locationStr
-        })
-        .eq('id', id);
-
-      if (dbError) throw new Error(`Database update failed: ${dbError.message}`);
-
-      // 5. Notify backend for internal business logic (e.g., releasing funds in escrow)
-      try { await updateParcelStatus(id, "delivered", undefined, otp, undefined); } catch(e) {}
+      // 🛡️ [Unified Backend Flow] Secure verification & Payout Release (Point 15)
+      await updateParcelStatus(id, "delivered", user?.name, otp, imageFile);
 
       toast.success("✅ Delivery Confirmed! Payment is being released.", { duration: 5000 });
       setTimeout(() => navigate("/traveller/dashboard"), 1500);
@@ -198,107 +143,104 @@ export default function ConfirmDelivery() {
   );
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] pt-24 pb-20 px-4">
-      <div className="max-w-md mx-auto space-y-8">
+    <div className="min-h-screen bg-slate-50 relative overflow-hidden flex items-center justify-center py-20 px-4">
+      {/* 🔮 Ambient Background Effects (Light Mode) */}
+      <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
+        <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] rounded-full bg-orange-500/10 blur-[120px]" />
+        <div className="absolute top-[20%] -right-[10%] w-[35%] h-[35%] rounded-full bg-orange-600/5 blur-[100px]" />
+        <div className="absolute -bottom-[10%] left-[20%] w-[45%] h-[45%] rounded-full bg-orange-500/10 blur-[130px]" />
+      </div>
+
+      <div className="max-w-md w-full mx-auto relative z-10 space-y-8">
         {/* Header */}
         <div className="flex items-center justify-between">
-           <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="rounded-full hover:bg-white shadow-sm">
+           <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="rounded-full bg-white hover:bg-slate-100 text-slate-600 shadow-sm border border-slate-200">
               <ArrowLeft className="h-5 w-5" />
            </Button>
-           <div className="flex items-center gap-2 bg-secondary/10 px-4 py-1.5 rounded-full border border-secondary/20">
-              <Shield className="h-4 w-4 text-secondary" />
-              <span className="text-xs font-bold text-secondary uppercase tracking-wider">Secure Verification</span>
+           <div className="flex items-center gap-2 bg-orange-500/10 px-4 py-1.5 rounded-full border border-orange-500/20 shadow-sm">
+              <Shield className="h-4 w-4 text-orange-600" />
+              <span className="text-[10px] font-black text-orange-600 uppercase tracking-widest">Secure Verification</span>
            </div>
         </div>
 
-        <div className="space-y-2">
-           <h1 className="text-3xl font-black font-heading text-foreground">Delivery Confirm</h1>
-           <p className="text-muted-foreground text-sm">Collect the 6-digit OTP from the authorized person and capture a handover photo.</p>
+        <div className="space-y-2 text-center">
+            <h1 className="text-4xl font-black font-heading text-slate-900 tracking-tight">Delivery Confirm</h1>
+            <p className="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em] px-4">Finalize handover with secure visual proof</p>
         </div>
 
         <motion.div 
-           initial={{ opacity: 0, y: 20 }}
-           animate={{ opacity: 1, y: 0 }}
-           className="rounded-[2.5rem] border border-white bg-white/70 backdrop-blur-xl p-8 shadow-2xl shadow-secondary/5 space-y-8 border-t-4 border-t-secondary"
+           initial={{ opacity: 0, scale: 0.95 }}
+           animate={{ opacity: 1, scale: 1 }}
+           className="rounded-[3rem] border border-white bg-white/80 backdrop-blur-xl p-8 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.1)] space-y-8"
         >
            {/* Recipient Card */}
            <div className="space-y-4">
-              <div className="flex items-center gap-4 p-4 rounded-2xl bg-muted/30 border border-muted-foreground/10">
-                 <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-secondary to-secondary/80 text-white flex items-center justify-center shadow-lg shadow-secondary/20">
-                    <Smartphone className="h-7 w-7" />
+              <div className="flex items-center gap-4 p-5 rounded-3xl bg-slate-50 border border-slate-100">
+                 <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-orange-500 to-orange-600 text-white flex items-center justify-center shadow-lg shadow-orange-500/30">
+                    <Smartphone className="h-8 w-8" />
                  </div>
                   <div>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-1.5 mb-0.5">
-                       <MapPin className="h-3 w-3" /> Destination Receiver
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-1.5 mb-1.5">
+                       <MapPin className="h-3 w-3" /> Receiver
                     </p>
-                    <p className="font-black text-xl text-foreground font-heading leading-none">{parcel.receiverName}</p>
-                    <p className="text-sm text-secondary font-bold mt-1 inline-block border-b-2 border-secondary/20">{parcel.receiverPhone}</p>
+                    <p className="font-black text-2xl text-slate-900 font-heading leading-none">{parcel.receiverName}</p>
+                    <p className="text-sm text-orange-600 font-black mt-2 inline-block px-3 py-1 bg-orange-500/10 rounded-xl">{parcel.receiverPhone}</p>
                  </div>
               </div>
            </div>
 
            {/* OTP Input Section */}
            <div className="space-y-4">
-              <div className="flex items-center justify-between px-1">
-                 <p className="text-sm font-black uppercase tracking-widest text-foreground/70">Enter 6-Digit OTP</p>
-                 {timer > 0 ? (
-                    <div className="flex items-center gap-2 rounded-lg bg-red-50 px-2 py-1 text-[10px] font-black text-red-500 border border-red-100 tabular-nums">
-                       <RefreshCw className="h-3 w-3 animate-spin-slow" />
-                       EXPIRES IN: {timer}s
-                    </div>
-                 ) : (
-                    <div className="flex items-center gap-2 rounded-lg bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-500 border border-slate-200 tabular-nums uppercase">
-                       OTP Expired
-                    </div>
-                 )}
+              <div className="flex flex-col items-center gap-1">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-2 text-center">Enter 6-Digit Verification OTP</p>
+                <p className="text-[9px] text-orange-500 font-bold uppercase tracking-tight">Ask the receiver for this code</p>
               </div>
               <Input 
                  value={otp}
                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
                  placeholder="0 0 0 0 0 0"
                  maxLength={6}
-                 className="h-20 text-center text-4xl font-black tracking-[0.5em] rounded-3xl border-2 border-secondary/10 bg-muted/10 focus:bg-white focus:border-secondary transition-all shadow-inner font-mono"
-                 disabled={timer === 0}
+                 className="h-24 text-center text-4xl font-black tracking-[0.5em] rounded-3xl border-2 border-slate-100 bg-slate-50 focus:bg-white focus:ring-4 focus:ring-orange-500/10 focus:border-orange-500 transition-all text-slate-900 font-mono shadow-inner"
               />
            </div>
 
            {/* Photo Capture Section */}
            <div className="space-y-4">
-              <p className="text-sm font-black uppercase tracking-widest text-foreground/70 px-1">Receiver Visual Proof</p>
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-2 text-center">Visual Handover Proof</p>
               {image ? (
-                <div className="relative h-56 w-full overflow-hidden rounded-3xl border-4 border-white shadow-xl group">
+                <div className="relative h-64 w-full overflow-hidden rounded-[2.5rem] border-4 border-white shadow-xl group">
                    <img src={image} className="h-full w-full object-cover" />
-                   <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+                   <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                       <Button 
                          onClick={() => { setImage(null); setImageFile(null); startCamera(); }} 
-                         variant="secondary" 
-                         className="rounded-full px-6 font-bold"
+                         className="rounded-full bg-white text-slate-900 font-black uppercase text-xs h-12 px-8 shadow-xl hover:bg-orange-500 hover:text-white transition-colors"
                       >
-                         <RefreshCw className="h-4 w-4 mr-2" /> Retake Photo
+                         <RefreshCw className="h-4 w-4 mr-2" /> Retake
                       </Button>
                    </div>
-                   <div className="absolute top-4 right-4 bg-success text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg">
-                      Captured ✅
+                   <div className="absolute top-4 right-4 bg-green-500 text-white px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest shadow-xl flex items-center gap-2">
+                      <div className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
+                      Proof Ready
                    </div>
                 </div>
               ) : isCameraOpen ? (
-                <div className="relative h-64 w-full overflow-hidden rounded-3xl bg-black border-4 border-white shadow-2xl">
+                <div className="relative h-72 w-full overflow-hidden rounded-[2.5rem] bg-slate-900 border-4 border-white shadow-2xl">
                    <video ref={videoRef} autoPlay playsInline className="h-full w-full object-cover" />
                    <div className="absolute inset-x-0 bottom-6 flex items-center justify-center gap-4">
                       <Button 
                          onClick={capturePhoto} 
-                         className="h-16 w-16 rounded-full bg-white text-black hover:scale-110 shadow-xl border-4 border-white/20 p-0"
+                         className="h-20 w-20 rounded-full bg-white text-slate-900 hover:scale-110 active:scale-95 shadow-2xl border-4 border-slate-900/10 p-0 flex items-center justify-center transition-all"
                       >
-                         <div className="h-12 w-12 rounded-full border-2 border-black/10 flex items-center justify-center">
-                            <Camera className="h-7 w-7" />
+                         <div className="h-16 w-16 rounded-full border-2 border-slate-900/5 flex items-center justify-center">
+                            <Camera className="h-8 w-8 text-orange-500" />
                          </div>
                       </Button>
                       <Button 
                          onClick={stopCamera} 
                          variant="destructive" 
-                         className="h-12 w-12 rounded-full p-0 shadow-xl"
+                         className="h-14 w-14 rounded-full p-0 shadow-2xl"
                       >
-                         <X className="h-6 w-6" />
+                         <X className="h-7 w-7" />
                       </Button>
                    </div>
                 </div>
@@ -306,41 +248,48 @@ export default function ConfirmDelivery() {
                 <Button 
                    onClick={startCamera} 
                    variant="outline" 
-                   className="w-full h-40 rounded-[2rem] border-4 border-dashed border-secondary/20 bg-muted/10 flex-col gap-3 hover:bg-secondary/5 hover:border-secondary/40 transition-all group"
+                   className="w-full h-48 rounded-[2.5rem] border-2 border-dashed border-slate-200 bg-slate-50 flex-col gap-4 hover:bg-orange-500/5 hover:border-orange-500/40 transition-all group"
                 >
-                   <div className="h-14 w-14 rounded-2xl bg-secondary/10 text-secondary flex items-center justify-center group-hover:scale-110 transition-transform">
-                      <Camera className="h-8 w-8" />
+                   <div className="h-16 w-16 rounded-2xl bg-orange-500/10 text-orange-500 flex items-center justify-center group-hover:scale-110 group-hover:bg-orange-500 group-hover:text-white transition-all duration-500 shadow-sm">
+                      <Camera className="h-9 w-9" />
                    </div>
-                   <div className="text-center">
-                      <p className="font-black text-foreground">Open Hand-over Camera</p>
-                      <p className="text-xs text-muted-foreground font-medium">Verify delivery with a quick photo</p>
-                   </div>
+                    <div className="text-center">
+                       <p className="font-black text-slate-900 text-lg tracking-tight">Open Handover Camera</p>
+                       <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1">Proof is required for payout</p>
+                    </div>
                 </Button>
               )}
            </div>
 
            {/* Submit Button */}
-           <div className="pt-4">
+           <div className="pt-2">
               <Button 
-                 className="w-full h-20 rounded-[1.5rem] bg-gradient-to-r from-secondary to-secondary/90 text-white font-black text-xl shadow-2xl shadow-secondary/30 hover:shadow-secondary/50 hover:-translate-y-1 transition-all disabled:opacity-50 disabled:translate-y-0"
+                 className="w-full h-20 rounded-[1.8rem] bg-gradient-to-r from-orange-500 to-orange-600 text-white font-black text-xl shadow-2xl shadow-orange-500/30 hover:shadow-orange-500/50 hover:-translate-y-1 active:translate-y-0 transition-all disabled:opacity-30"
                  onClick={handleVerify}
-                 disabled={isConfirming || otp.length !== 6 || !image || timer === 0}
+                 disabled={isConfirming || otp.length !== 6 || !image}
               >
                  {isConfirming ? (
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-4">
                        <RefreshCw className="h-7 w-7 animate-spin" />
-                       PROCESSING...
+                       <span className="tracking-widest">VERIFYING...</span>
                     </div>
                  ) : (
                     <div className="flex items-center gap-4">
-                       <CheckCircle2 className="h-8 w-8" /> 
-                       COMPLETE DELIVERY
+                       <CheckCircle2 className="h-9 w-9" /> 
+                       <span className="tracking-tight uppercase">Complete Delivery</span>
                     </div>
                  )}
               </Button>
-              <p className="text-center text-[10px] text-muted-foreground font-black uppercase tracking-widest mt-6 bg-muted/30 py-2 rounded-xl">
-                 Secure Handover Powered by CarryGo Verification
-              </p>
+              <div className="flex flex-col items-center gap-2 mt-8">
+                <p className="text-[9px] text-slate-400 font-black uppercase tracking-[0.3em]">
+                   Verified Secure Handover Gateway
+                </p>
+                <div className="flex gap-1">
+                  <div className="h-1 w-4 rounded-full bg-orange-500" />
+                  <div className="h-1 w-1 rounded-full bg-slate-200" />
+                  <div className="h-1 w-1 rounded-full bg-slate-200" />
+                </div>
+              </div>
            </div>
         </motion.div>
       </div>

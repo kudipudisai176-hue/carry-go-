@@ -171,8 +171,9 @@ export async function getParcelById(id: string): Promise<Parcel | null> {
   }
 }
 
-export async function getAllParcels(): Promise<Parcel[]> {
-  const { data } = await api.get('/parcels');
+export async function getAllParcels(mode?: 'sender' | 'search' | 'receiver'): Promise<Parcel[]> {
+  const url = mode ? `/parcels?mode=${mode}` : '/parcels';
+  const { data } = await api.get(url);
   return data.map(mapParcel);
 }
 

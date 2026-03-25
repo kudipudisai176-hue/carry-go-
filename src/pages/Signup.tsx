@@ -270,10 +270,10 @@ export default function Signup() {
   );
 
   return (
-    <AuthAnimationWrapper>
-      <div className="flex min-h-screen flex-col overflow-hidden bg-white lg:flex-row">
-        {/* Left Side: Brand & Visuals */}
-        <div className="relative hidden w-full flex-col justify-between bg-slate-900 p-12 text-white lg:flex lg:w-[40%]">
+    <AuthAnimationWrapper fullWidth={true}>
+      <div className="flex w-full min-h-screen flex-col overflow-hidden bg-white lg:flex-row shadow-2xl">
+        {/* Left Side: Brand & Visuals - Absolute positioning fix for split */}
+        <div className="relative hidden flex-col justify-between bg-[#0F172A] p-16 text-white lg:flex lg:w-[45%] xl:w-[40%] overflow-hidden border-r border-white/5">
           <div className="absolute inset-0 opacity-20">
             <div className="absolute left-[-10%] top-[-10%] h-[50%] w-[50%] rounded-full bg-orange-500 blur-[120px]" />
             <div className="absolute bottom-[-10%] right-[-10%] h-[50%] w-[50%] rounded-full bg-purple-500 blur-[120px]" />
@@ -292,11 +292,11 @@ export default function Signup() {
             <div className="inline-flex rounded-full bg-orange-500/20 px-4 py-1 text-xs font-bold uppercase tracking-widest text-orange-400">
                Unified Platform
             </div>
-            <h1 className="text-5xl font-black leading-tight text-white xl:text-6xl">
+            <h1 className="text-4xl font-black leading-tight text-white xl:text-6xl 2xl:text-7xl">
               One account.<br />
-              <span className="text-orange-500">Infinite</span> ways to earn and send.
+              <span className="text-orange-500">Infinite</span> ways <br />to earn and <br />send.
             </h1>
-            <p className="max-w-md text-lg font-medium text-slate-400">
+            <p className="max-w-xs text-base font-medium text-slate-400/80 leading-relaxed">
               Join thousands of users who trust CarryGo for secure, peer-to-peer logistics. No roles, no barriers.
             </p>
           </div>
@@ -315,10 +315,10 @@ export default function Signup() {
         </div>
 
         {/* Right Side: Form */}
-        <div className="flex flex-1 items-center justify-center p-8 lg:p-12">
-          <div className="w-full max-w-lg">
+        <div className="flex flex-1 items-center justify-center p-8 lg:p-16 xl:p-24 bg-white/95 backdrop-blur-xl">
+          <div className="w-full max-w-lg lg:max-w-md xl:max-w-xl">
             <div className="mb-10 text-center lg:text-left">
-              <h2 className="text-3xl font-black text-slate-900 mb-2">Join the Community</h2>
+              <h2 className="text-3xl font-black text-[#0F172A] mb-3 leading-tight">Join the Community</h2>
               <p className="text-slate-500 font-medium font-heading">
                 Already have an account?{" "}
                 <Link to="/login" className="text-orange-500 underline font-bold hover:text-orange-600">
@@ -339,11 +339,11 @@ export default function Signup() {
                   {[1, 2, 3].map((s) => (
                     <div 
                       key={s} 
-                      className={`h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 relative z-10 ${
-                        step >= s ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/30' : 'bg-white border-2 border-slate-200 text-slate-400'
+                      className={`h-10 w-10 rounded-full flex items-center justify-center text-xs font-black transition-all duration-500 relative z-10 ${
+                        step >= s ? 'bg-orange-500 text-white shadow-xl shadow-orange-500/40 scale-110' : 'bg-white border-2 border-slate-100 text-slate-300'
                       }`}
                     >
-                      {step > s ? <Check className="h-4 w-4" /> : s}
+                      {step > s ? <Check className="h-5 w-5" /> : s}
                     </div>
                   ))}
                </div>

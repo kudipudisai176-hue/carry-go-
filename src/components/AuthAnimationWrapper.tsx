@@ -3,7 +3,15 @@ import { useEffect, useState } from "react";
 import ParticleCanvas from "./ParticleCanvas";
 import { type UserRole } from "@/lib/authContext";
 
-export default function AuthAnimationWrapper({ children, role }: { children: React.ReactNode; role?: string | null }) {
+export default function AuthAnimationWrapper({ 
+  children, 
+  role,
+  fullWidth = false
+}: { 
+  children: React.ReactNode; 
+  role?: string | null;
+  fullWidth?: boolean;
+}) {
     // Check if this is the first visit — skip animation if not
     const isFirstVisit = !localStorage.getItem("carrygo_signup_visited");
     const [step, setStep] = useState(isFirstVisit ? 0 : 4);
@@ -146,7 +154,7 @@ export default function AuthAnimationWrapper({ children, role }: { children: Rea
 
             </div>
 
-            <div className="relative z-10 flex min-h-screen items-center justify-center p-4 pt-20">
+            <div className={`relative z-10 flex min-h-screen ${fullWidth ? 'items-stretch' : 'items-center justify-center p-4 pt-20'}`}>
                 {/* The Bike Character */}
                 {step < 4 && (
                     <motion.div
@@ -254,7 +262,8 @@ export default function AuthAnimationWrapper({ children, role }: { children: Rea
                         stiffness: 100,
                         duration: 0.8
                     }}
-                    className="w-full max-w-[95%] sm:max-w-md"
+                    className={fullWidth ? "w-full h-full" : "w-full max-w-[95%] sm:max-w-md px-4"}
+                    style={fullWidth ? { display: 'flex', minHeight: '100vh', width: '100%' } : {}}
                 >
                     {children}
                 </motion.div>

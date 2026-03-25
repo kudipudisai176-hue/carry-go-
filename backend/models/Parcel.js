@@ -9,6 +9,10 @@ const parcelSchema = mongoose.Schema(
     },
     senderName: { type: String, required: true },
     senderPhone: { type: String },
+    receiver: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+    },
     receiverName: { type: String, required: true },
     receiverPhone: { type: String, required: true },
     fromLocation: { type: String, required: true },

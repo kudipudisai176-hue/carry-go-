@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import {
-  Package, Plus, Check, Trash2, MapPin, Weight, ArrowRight, ArrowLeft, Sparkles, Box, Bike, Bus, Car, Truck, Info, Layers, CreditCard, QrCode, Smartphone, ExternalLink, X, KeyRound, Navigation, Bell, CheckCircle2, Camera, RefreshCw, Edit2, Search, PackageCheck, Handshake, User, Phone, MessageCircle, Navigation2, Lock, ShieldCheck, ChevronDown, Loader2
+  Package, Plus, Check, Trash2, MapPin, Weight, ArrowRight, ArrowLeft, Sparkles, Box, Bike, Bus, Car, Truck, Info, Layers, CreditCard, QrCode, Smartphone, ExternalLink, X, KeyRound, Navigation, Bell, CheckCircle2, Camera, RefreshCw, Edit2, Search, PackageCheck, Handshake, User, Phone, MessageCircle, Navigation2, Lock, ShieldCheck, ChevronDown, Loader2, Zap
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -157,7 +157,7 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
 
   const refresh = async () => {
     try {
-      const data = await getAllParcels();
+      const data = await getAllParcels('sender');
       setParcels(data);
     } catch (err) {
       console.error("Failed to load parcels:", err);
@@ -177,60 +177,11 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
     }
   }, []);
 
-  // Polling for updates (Simulating real-time)
-  useEffect(() => {
-    if (!user?.id) return;
-
-    let previousParcels: Parcel[] = [];
-
-    const checkUpdates = async () => {
-      try {
-        const fresh = await getAllParcels();
-        
-        // Notify of changes (Simplified diffing)
-        fresh.forEach(newParcel => {
-          const oldParcel = previousParcels.find(p => p.id === newParcel.id);
-          if (!oldParcel) return;
-
-          // Someone requested your parcel
-          if (oldParcel.status === 'pending' && newParcel.status === 'requested') {
-            toast.info(`📦 ${newParcel.travellerName || 'A traveller'} requested your parcel! Go accept it.`, { duration: 7000 });
-            sendBrowserNotification('CarryGo – New Request! 🚚', `${newParcel.travellerName || 'A traveller'} wants to carry your parcel.`);
-          }
-
-          // Traveller started transit (OTP VERIFIED)
-          if (oldParcel.status === 'accepted' && (newParcel.status === 'in-transit' || newParcel.status === 'picked-up')) {
-            toast.success(`🚀 OTP Verified! Transit has started for your parcel. Tracking is now LIVE.`, { duration: 8000 });
-            sendBrowserNotification('CarryGo – Transit Started! 🚚', `Your parcel to ${newParcel.toLocation} is now in transit.`);
-            
-            // AUTO-OPEN TRACKING MAP (Point 13)
-            setTrackingModal(newParcel); 
-            setFilter('inTransit');
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-          }
-
-          // Parcel delivered
-          if (oldParcel.status !== 'delivered' && newParcel.status === 'delivered') {
-            toast.success('🎉 Your parcel has been delivered!');
-            sendBrowserNotification('CarryGo – Delivered! 📦', 'Your parcel has been successfully delivered.');
-          }
-        });
-
-        setParcels(fresh);
-        previousParcels = fresh;
-      } catch (err) {
-        console.error("Polling failed:", err);
-      }
-    };
-
-    const interval = setInterval(checkUpdates, 5000);
-    checkUpdates(); // Initial check
-
+  useEffect(() => { 
+    refresh(); 
+    const interval = setInterval(refresh, 5000); 
     return () => clearInterval(interval);
-  }, [user?.id, sendBrowserNotification]);
-
-
-  useEffect(() => { refresh(); }, []);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -299,6 +250,11 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
       setLatestCreated(updated);
       setShowPaymentModal(false);
       setPendingPaymentParcel(null);
+      if (updated.deliveryOtp) {
+        toast.success(`💳 Payment Success! Delivery OTP: ${updated.deliveryOtp}`, { duration: 10000 });
+      } else {
+        toast.success("💳 Payment Success! Parcel is now open for travellers.");
+      }
       refresh();
     } catch (err: any) {
       toast.error("Payment failed: " + (err.response?.data?.message || err.message));
@@ -369,7 +325,7 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
     toast.success("Traveller request accepted! Share the OTP with them.");
     await refresh();
     // Re-fetch the fresh parcel with OTP from backend list
-    const fresh = await getAllParcels();
+    const fresh = await getAllParcels('sender');
     const updated = fresh.find(p => p.id === id);
     if (updated) setDetailModal(updated);
   };
@@ -389,7 +345,7 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
     all: parcels.length,
     pending: parcels.filter(p => {
       const s = p.status?.toLowerCase();
-      return s === "pending" || s === "requested" || s === "accepted";
+      return s === "pending" || s === "requested" || s === "accepted" || s === "pending_payment" || s === "open_for_travellers";
     }).length,
     inTransit: parcels.filter(p => {
       const s = p.status?.toLowerCase();
@@ -404,7 +360,7 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
   const filteredParcels = parcels.filter(p => {
     const status = p.status?.toLowerCase();
     if (filter === 'all') return true;
-    if (filter === 'pending') return status === 'pending' || status === 'requested' || status === 'accepted';
+    if (filter === 'pending') return status === 'pending' || status === 'requested' || status === 'accepted' || status === 'pending_payment' || status === 'open_for_travellers';
     if (filter === 'inTransit') return status === 'in-transit' || status === 'picked-up';
     if (filter === 'delivered') return status === 'delivered' || status === 'received' || status === 'completed';
     return true;
@@ -422,12 +378,9 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
       phoneOrEvent.preventDefault();
     }
     
-    const targetPhone = typeof phoneOrEvent === 'string' ? phoneOrEvent : (user?.phone || incomingPhone);
-    if (!targetPhone) return;
-
     try {
-      const formatted = targetPhone.startsWith("+91") ? targetPhone : `+91${targetPhone}`;
-      const data = await getParcelsByPhone(formatted);
+      // Use the new mode='receiver' which handles ID-based linking + phone fallback (Correct Architecture)
+      const data = await getAllParcels('receiver');
       setIncomingParcels(data);
       setSearchedIncoming(true);
     } catch (err) {
@@ -447,7 +400,7 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
   };
 
   return (
-    <div className="mx-auto max-w-4xl px-4 pb-20 pt-20">
+    <div className="min-h-screen bg-slate-50 mx-auto max-w-4xl px-4 pb-20 pt-20">
 
       {/* ── Animated page header ── */}
       <Button 
@@ -463,31 +416,28 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
         initial={{ opacity: 0, y: -24 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.55 }}
-        className="relative mb-8 overflow-hidden rounded-3xl p-8 shadow-2xl"
-        style={{
-          background: "linear-gradient(135deg, hsl(222 60% 14%) 0%, hsl(232 55% 20%) 50%, hsl(222 55% 16%) 100%)",
-        }}
+        className="relative mb-8 overflow-hidden rounded-[2.5rem] p-10 shadow-[0_20px_50px_-12px_rgba(249,115,22,0.15)] border border-white bg-white"
       >
-        <div className="absolute -right-12 -top-12 h-64 w-64 rounded-full bg-secondary/20 blur-[80px]" />
-        <div className="absolute -left-12 -bottom-12 h-48 w-48 rounded-full bg-orange-500/10 blur-[60px]" />
+        <div className="absolute -right-12 -top-12 h-64 w-64 rounded-full bg-orange-500/10 blur-[80px]" />
+        <div className="absolute -left-12 -bottom-12 h-48 w-48 rounded-full bg-secondary/5 blur-[60px]" />
 
         <div className="relative flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="mb-2 flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-secondary shadow-lg shadow-secondary/20">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-500 shadow-lg shadow-orange-500/20">
                 <Package className="h-6 w-6 text-white" />
               </div>
               <div>
-                <h1 className="font-heading text-3xl font-black text-white tracking-tight">Active Dashboard</h1>
-                <p className="text-sm font-bold text-white/50">Manage your entire logistics pipeline</p>
+                <h1 className="font-heading text-3xl font-black text-slate-900 tracking-tight">Active Dashboard</h1>
+                <p className="text-sm font-bold text-slate-400">Manage your entire logistics pipeline</p>
               </div>
             </div>
           </div>
 
           <div className="flex flex-col items-end gap-2">
-            <div className="flex items-center gap-2 rounded-2xl bg-white/5 px-4 py-2 border border-white/10 backdrop-blur-md">
-                <span className="text-[10px] font-black uppercase tracking-widest text-white/40">Your Personal OTP</span>
-                <span className="text-lg font-black text-secondary tracking-widest">{user?.personalOtp || "----"}</span>
+            <div className="flex items-center gap-2 rounded-2xl bg-slate-50 px-4 py-2 border border-slate-100 shadow-inner">
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Your Personal OTP</span>
+                <span className="text-lg font-black text-orange-600 tracking-widest">{user?.personalOtp || "----"}</span>
             </div>
              <Button
                 onClick={() => setShowForm(!showForm)}
@@ -499,26 +449,26 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
         </div>
 
         {/* --- Unified Tabs --- */}
-        <div className="mt-10 flex gap-2 rounded-[1.5rem] bg-black/40 p-1.5 relative z-10 border border-white/5">
+        <div className="mt-10 flex gap-2 rounded-[1.5rem] bg-slate-100 p-1.5 relative z-10 border border-slate-200">
           <button
             onClick={() => setActiveTab("outgoing")}
             className={`flex-1 flex items-center justify-center gap-2 rounded-2xl py-3 text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === "outgoing"
-              ? "bg-secondary text-white shadow-xl shadow-secondary/20"
-              : "text-white/30 hover:text-white/60 hover:bg-white/5"
-              }`}
+               ? "bg-orange-500 text-white shadow-lg shadow-orange-500/20"
+               : "bg-transparent text-black hover:bg-slate-200/50"
+               }`}
           >
-            <PackageCheck className="h-4 w-4" />
-            Sent (Outbox)
+            <Package className="h-4 w-4" />
+            SENT (OUTBOX)
           </button>
           <button
             onClick={() => setActiveTab("incoming")}
             className={`flex-1 flex items-center justify-center gap-2 rounded-2xl py-3 text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === "incoming"
-              ? "bg-secondary text-white shadow-xl shadow-secondary/20"
-              : "text-white/30 hover:text-white/60 hover:bg-white/5"
-              }`}
+               ? "bg-orange-500 text-white shadow-lg shadow-orange-500/20"
+               : "bg-transparent text-black hover:bg-slate-200/50"
+               }`}
           >
             <Handshake className="h-4 w-4" />
-            Received (Inbox)
+            RECEIVED (INBOX)
           </button>
         </div>
       </motion.div>
@@ -625,6 +575,13 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
 
                           {/* Row 3: Parcel Details & Photo */}
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-dashed border-border pt-4">
+                            {editingParcel && editingParcel.deliveryOtp && (
+                               <div className="mb-4 mt-2 rounded-2xl bg-orange-500/10 border border-orange-500/20 p-4 text-center">
+                                  <p className="text-[10px] font-black uppercase tracking-widest text-orange-600 mb-1">Your Delivery Verification OTP</p>
+                                  <p className="text-3xl font-black text-slate-900 tracking-[0.5em] font-mono">{editingParcel.deliveryOtp || '------'}</p>
+                                  <p className="text-[9px] text-slate-500 font-bold mt-2">Give this 6-digit code to the traveller at handover</p>
+                               </div>
+                            )}
                             <div className="space-y-4">
                               <div>
                                  <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Parcel Item Name</Label>
@@ -751,7 +708,7 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
                              <Button type="button" variant="ghost" onClick={() => { setEditingParcel(null); setShowForm(false); }} className="text-xs font-bold rounded-xl px-4 hover:bg-slate-100">Cancel</Button>
                              <Button type="submit" disabled={loading || (!photoPreview && !editingParcel)} className="bg-secondary hover:bg-secondary/90 text-white font-black uppercase tracking-widest px-8 rounded-xl shadow-lg shadow-secondary/20 h-11 flex items-center gap-2">
                                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : (editingParcel ? <RefreshCw className="h-4 w-4" /> : <Lock className="h-4 w-4" />)}
-                                {loading ? 'Processing...' : (editingParcel ? 'Update' : 'Pay & Post Parcel')}
+                                {loading ? 'Processing...' : (editingParcel ? 'Save Changes' : 'Pay & Post Parcel')}
                              </Button>
                           </div>
                        </div>
@@ -839,11 +796,13 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
                                   )}
 
                                   {p.status === 'accepted' && p.pickupOtp && (
-                                    <div className="mb-6 mt-4 rounded-2xl bg-indigo-600 p-6 text-center shadow-lg shadow-indigo-600/20">
-                                       <p className="text-[10px] font-black uppercase tracking-[0.3em] text-white/50 mb-1">Pickup Authorization OTP</p>
-                                       <p className="text-4xl font-black text-white tracking-[0.4em] font-mono">{p.pickupOtp}</p>
-                                       <p className="text-[10px] font-bold text-white/70 mt-3">Share this code with {p.travellerName} at pickup</p>
-                                    </div>
+                                    <div className="mb-6 mt-4 rounded-3xl bg-orange-600 p-6 text-center shadow-lg shadow-orange-600/20 border-2 border-orange-400/30">
+                                        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-white/50 mb-1">Pickup Authorization (Share with Traveller)</p>
+                                        <p className="text-4xl font-black text-white tracking-[0.4em] font-mono">{p.pickupOtp}</p>
+                                        <div className="h-0.5 w-16 bg-white/20 mx-auto my-3" />
+                                        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-white/50 mb-1">Final Delivery OTP (Tell Receiver)</p>
+                                        <p className="text-3xl font-black text-white tracking-[0.4em] font-mono opacity-80">{p.deliveryOtp || '------'}</p>
+                                     </div>
                                  )}
 
                                   <div className="mt-6 flex gap-2">
@@ -856,8 +815,21 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
                                      <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleDelete(p.id); }} className="flex-1 font-bold text-xs uppercase text-red-500 hover:bg-red-50 rounded-full">Cancel Order</Button>
                                   </div>
 
-                                  <div className="mt-6 rounded-3xl border border-border bg-muted/10 p-2 overflow-hidden">
+                                  <div className="mt-6 rounded-3xl border border-border bg-muted/10 p-2 overflow-hidden relative group/map">
                                     <RouteMap from={p.fromLocation} to={p.toLocation} animate={p.status === 'in-transit'} />
+                                    {(p.status === 'in-transit' || p.status === 'picked-up') && (
+                                      <Button 
+                                        variant="secondary" 
+                                        size="sm" 
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          window.open(`https://www.google.com/maps/dir/${encodeURIComponent(p.fromLocation)}/${encodeURIComponent(p.toLocation)}`, '_blank');
+                                        }}
+                                        className="absolute bottom-4 right-4 bg-white/90 backdrop-blur-md text-secondary font-black text-[10px] uppercase rounded-xl border border-secondary/20 shadow-xl opacity-0 group-hover/map:opacity-100 transition-opacity"
+                                      >
+                                        <Navigation2 className="h-3 w-3 mr-1.5" /> View on Google Maps
+                                      </Button>
+                                    )}
                                   </div>
                                </motion.div>
                             )}
@@ -955,9 +927,37 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
                              })}
                           </div>
                        </div>
+                        {/* 🔐 Delivery Verification OTP (Only for Receiver, Point 15) */}
+                         {p.deliveryOtp && (p.status === 'in-transit' || p.status === 'accepted') && (
+                            <motion.div 
+                               initial={{ opacity: 0, scale: 0.95 }}
+                               animate={{ opacity: 1, scale: 1 }}
+                               className="mt-4 p-5 rounded-[2rem] bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-xl shadow-orange-500/20 relative overflow-hidden group border border-white/20"
+                            >
+                               <div className="flex flex-col items-center justify-center text-center relative z-10">
+                                  <div className="flex items-center gap-2 mb-3">
+                                     <Lock className="h-4 w-4 text-orange-200" />
+                                     <span className="text-[10px] font-black uppercase tracking-[0.2em] text-orange-200/80">Receiver Delivery OTP</span>
+                                  </div>
+                                  <div className="flex gap-2">
+                                     {p.deliveryOtp.split('').map((digit, i) => (
+                                        <div key={i} className="h-14 w-12 flex items-center justify-center bg-white/20 backdrop-blur-md rounded-2xl text-2xl font-black shadow-inner border border-white/30 transform transition-transform group-hover:scale-105 duration-300">
+                                           {digit}
+                                        </div>
+                                     ))}
+                                  </div>
+                                  <div className="mt-4 flex items-center gap-2 px-4 py-2 bg-black/10 rounded-full">
+                                     <ShieldCheck className="h-3 w-3 text-orange-200" />
+                                     <p className="text-[9px] font-bold text-orange-100">Share this code with the Traveller ONLY when you have the parcel.</p>
+                                  </div>
+                               </div>
+                               {/* Decorative Background Icon */}
+                               <Zap className="absolute -bottom-4 -right-4 h-24 w-24 text-white/10 rotate-12 transition-transform group-hover:scale-125 duration-700" />
+                            </motion.div>
+                         )}
 
                        {/* Action Buttons */}
-                       <div className="mt-2 flex flex-wrap gap-2">
+                       <div className="mt-6 flex flex-wrap gap-2">
                           <a href={`tel:${p.senderPhone || "1234567890"}`} className="flex-1 min-w-[100px]">
                              <Button variant="outline" size="sm" className="w-full bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 hover:text-blue-700 border-none rounded-xl font-bold uppercase tracking-widest text-[10px]">
                                 <Phone className="h-3.5 w-3.5 mr-1.5" /> Call Sender

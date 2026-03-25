@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/lib/authContext";
 import { useNavigate } from "react-router-dom";
 // Supabase import removed
+import { Label } from "@/components/ui/label";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter
 } from "@/components/ui/dialog";
@@ -33,7 +34,6 @@ export default function Traveller() {
 
   const [isConfirming, setIsConfirming] = useState(false);
   const [pickupOtp, setPickupOtp] = useState("");
-  const [timer, setTimer] = useState(0);
   const [trackingParcel, setTrackingParcel] = useState<Parcel | null>(null); // auto-opens after OTP
 
   // Navigation map state: shows full-screen map after OTP confirmed
@@ -48,25 +48,8 @@ export default function Traveller() {
       Notification.requestPermission();
     }
   }, []);
-  
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (timer > 0) {
-      interval = setInterval(() => setTimer(prev => prev - 1), 1000);
-    }
-    return () => clearInterval(interval);
-  }, [timer]);
 
-  const startOtpTimer = useCallback(() => {
-    setTimer(50);
-    toast.info("A new 50-second verification session has started.");
-  }, []);
 
-  useEffect(() => {
-    if (detailParcel?.status === 'accepted' && timer === 0) {
-      startOtpTimer();
-    }
-  }, [detailParcel?.id, detailParcel?.status, startOtpTimer]);
 
 
   const sendBrowserNotification = useCallback((title: string, body: string) => {
@@ -86,14 +69,18 @@ export default function Traveller() {
 
   const handleSearch = useCallback(async () => {
     try {
-      const data = await searchParcels(from, to);
+      // Priority: use the 'from' state if set, else fallback to user's registered city
+      const origin = from || user?.city || "";
+      const destination = to || "";
+
+      const data = await searchParcels(origin, destination);
       // Security: Filter out own parcels - you cannot be the traveller for your own parcel
       const filtered = data.filter(p => p.senderId !== user?.id);
       setResults(filtered);
     } catch {
-      toast.error("Search failed");
+      toast.error("Failed to load local parcels");
     }
-  }, [from, to, user?.id]);
+  }, [from, to, user?.id, user?.city]);
 
   const handleStartTransit = useCallback(async (id: string, parcel: Parcel, autoOtp?: string) => {
     const finalOtp = autoOtp || pickupOtp;
@@ -111,7 +98,7 @@ export default function Traveller() {
         setDetailParcel(res);
         setTrackingParcel(res);
         setPickupOtp("");
-        setTimer(0);
+
         await loadMyDeliveries();
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
@@ -126,53 +113,16 @@ export default function Traveller() {
     }
   }, [pickupOtp, sendBrowserNotification, loadMyDeliveries]);
 
-  // Polling for updates (Simulating real-time)
   useEffect(() => {
-    if (!user?.id) return;
+    loadMyDeliveries();
+  }, [loadMyDeliveries]);
 
-    let previousMyDeliveries: Parcel[] = [];
-
-    const checkUpdates = async () => {
-      try {
-        const deliveries = await getMyDeliveries();
-        
-        // Notify of changes (Simplified diffing)
-        deliveries.forEach(async (newParcel) => {
-          const oldParcel = previousMyDeliveries.find(p => p.id === newParcel.id);
-          
-          if (oldParcel) {
-            // Sender accepted the request
-            if (oldParcel.status === 'requested' && newParcel.status === 'accepted') {
-              toast.success(`✅ Sender accepted your request! Starting journey...`, { duration: 6000 });
-              sendBrowserNotification('CarryGo – Request Accepted! 🎉', `Your request for parcel has been accepted. Starting transit.`);
-              
-              setDetailParcel(newParcel);
-              // Auto-start transit if OTP is available
-              if (newParcel.status === 'accepted') {
-                startOtpTimer();
-              }
-            }
-
-            // Parcel delivered
-            if (oldParcel.status !== 'delivered' && newParcel.status === 'delivered') {
-              toast.success('📦 Delivery confirmed! Great job!');
-              sendBrowserNotification('CarryGo – Delivery Complete! 🎉', 'You have successfully delivered the parcel.');
-            }
-          }
-        });
-
-        setMyDeliveries(deliveries);
-        previousMyDeliveries = deliveries;
-      } catch (err) {
-        console.error("Polling failed:", err);
-      }
-    };
-
-    const interval = setInterval(checkUpdates, 5000);
-    checkUpdates(); // Initial check
-
-    return () => clearInterval(interval);
-  }, [user?.id, sendBrowserNotification, handleStartTransit]);
+  // Auto-load local parcels based on user's city (Point 3)
+  useEffect(() => {
+    if (activeTab === "search" && results.length === 0) {
+      handleSearch();
+    }
+  }, [activeTab, results.length, handleSearch]);
 
   const handleRequest = async (id: string) => {
     if (!user) return;
@@ -211,43 +161,44 @@ export default function Traveller() {
   };
 
   return (
-    <div className="mx-auto max-w-4xl px-4 pb-20 pt-24">
+    <div className="min-h-screen bg-slate-50 mx-auto max-w-4xl px-4 pb-20 pt-24">
 
-       {/* ── Header ── */}
-       {!detailParcel && (
-         <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-           <div className="space-y-4">
-              <Button 
-               variant="ghost" 
-               size="sm" 
-               onClick={() => navigate('/dashboard')}
-               className="group -ml-2 text-muted-foreground hover:text-foreground"
-              >
-                <ArrowLeft className="h-4 w-4 mr-2 transition-transform group-hover:-translate-x-1" />
-                Back to Dashboard
-              </Button>
-              <div>
-                 <h1 className="font-heading text-3xl font-bold text-foreground">Traveller Dashboard</h1>
-                 <p className="text-muted-foreground">Manage your deliveries and find new parcels</p>
-              </div>
-           </div>
-           
-           {/* 💰 Wallet Balance Card (Point 14) */}
-           <motion.div 
-             initial={{ opacity: 0, scale: 0.9 }}
-             animate={{ opacity: 1, scale: 1 }}
-             className="bg-green-600/10 border border-green-500/20 rounded-2xl p-4 flex items-center gap-3 backdrop-blur-md"
-           >
-              <div className="h-10 w-10 rounded-xl bg-green-600 flex items-center justify-center text-white shadow-lg shadow-green-600/20">
-                <CreditCard className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-green-700">Earnings Balance</p>
-                <p className="text-xl font-black text-green-600">₹{user?.walletBalance || 0}</p>
-              </div>
-           </motion.div>
-         </div>
-       )}
+      {/* ── Header ── */}
+      {!detailParcel && (
+        <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="space-y-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate('/dashboard')}
+              className="group -ml-2 text-muted-foreground hover:text-foreground"
+            >
+              <ArrowLeft className="h-4 w-4 mr-2 transition-transform group-hover:-translate-x-1" />
+              Back to Dashboard
+            </Button>
+            <div>
+              <h1 className="font-heading text-3xl font-bold text-foreground">Traveller Dashboard</h1>
+              <p className="text-muted-foreground">Manage your deliveries and find new parcels</p>
+            </div>
+          </div>
+
+          {/* 💰 Wallet Balance Card (Point 14) */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white border border-orange-500/10 rounded-2xl p-5 flex items-center gap-4 shadow-[0_10px_30px_-10px_rgba(249,115,22,0.1)]"
+          >
+            <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-white shadow-lg shadow-orange-500/20">
+              <CreditCard className="h-6 w-6" />
+            </div>
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Earnings Balance</p>
+              <p className="text-2xl font-black text-slate-900 leading-none mt-1">₹{user?.walletBalance || 0}</p>
+              <div className="flex h-1 w-8 bg-orange-500/20 rounded-full mt-2" />
+            </div>
+          </motion.div>
+        </div>
+      )}
 
       {/* ── Navigation Map (after OTP verified) ── */}
       <AnimatePresence>
@@ -299,10 +250,10 @@ export default function Traveller() {
             </div>
 
             <div className="overflow-hidden rounded-3xl border border-border bg-card shadow-xl">
-              <div className="bg-secondary/10 p-6">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary text-white">
-                    <Package className="h-6 w-6" />
+              <div className="bg-orange-500/5 p-6 border-b border-orange-500/10">
+                <div className="flex items-center gap-4 mb-2">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-500 text-white shadow-lg shadow-orange-500/20">
+                    <Package className="h-7 w-7" />
                   </div>
                   <div>
                     <h2 className="text-xl font-bold text-foreground font-heading">Parcel: {detailParcel.description.slice(0, 30) || "Package Info"}</h2>
@@ -428,25 +379,19 @@ export default function Traveller() {
                     <div className="flex flex-col items-center gap-4">
                       <div className="flex items-center justify-between w-full max-w-[150px] px-1">
                         <p className="text-[10px] font-bold text-muted-foreground uppercase">Enter OTP</p>
-                        {timer > 0 ? (
-                          <span className="text-[10px] font-bold text-secondary tabular-nums">{timer}s</span>
-                        ) : (
-                          <span className="text-[10px] font-bold text-red-500 uppercase">Expired</span>
-                        )}
                       </div>
                       <Input
                         value={pickupOtp}
                         onChange={(e) => setPickupOtp(e.target.value)}
                         placeholder="0 0 0 0"
                         maxLength={4}
-                        disabled={timer === 0}
                         className="max-w-[150px] text-center text-lg font-bold tracking-[0.3em] font-mono h-12 rounded-xl"
                       />
                       <Button
                         size="lg"
                         className="w-full max-w-xs bg-secondary text-white font-bold h-14 rounded-2xl shadow-xl shadow-secondary/20 hover:scale-[1.02] transition-transform"
                         onClick={() => handleStartTransit(detailParcel.id, detailParcel)}
-                        disabled={isConfirming || pickupOtp.length !== 4 || timer === 0}
+                        disabled={isConfirming || pickupOtp.length !== 4}
                       >
                         {isConfirming ? "Confirming..." : "Verify & Start Journey"}
                       </Button>
@@ -458,10 +403,20 @@ export default function Traveller() {
                 {detailParcel.status === 'in-transit' && (
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
-                      <h3 className="font-bold flex items-center gap-2">
+                      <h3 className="font-bold flex items-center gap-2 text-foreground">
                         <Navigation className="h-5 w-5 text-secondary" /> Navigation Active
                       </h3>
-                      <Button size="sm" variant="outline" onClick={() => setNavParcel(detailParcel)}>Full Screen Map</Button>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => window.open(`https://www.google.com/maps/dir/${encodeURIComponent(detailParcel.fromLocation)}/${encodeURIComponent(detailParcel.toLocation)}`, '_blank')}
+                          className="text-[10px] font-bold uppercase rounded-xl border-secondary/30 text-secondary hover:bg-secondary/5"
+                        >
+                          <Navigation2 className="h-3 w-3 mr-1.5" /> G-Maps App
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => setNavParcel(detailParcel)} className="text-[10px] uppercase font-bold rounded-xl">Full Screen 3D</Button>
+                      </div>
                     </div>
                     <RouteMap3D from={detailParcel.fromLocation} to={detailParcel.toLocation} animate={true} />
 
@@ -490,48 +445,51 @@ export default function Traveller() {
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="mb-6 rounded-3xl bg-indigo-600 p-6 text-white shadow-xl shadow-indigo-200"
+              className="mb-8 rounded-[2.5rem] bg-white p-8 text-slate-900 shadow-[0_20px_50px_-12px_rgba(249,115,22,0.15)] border border-white"
             >
               <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-widest text-indigo-200">Total Earnings</p>
-                  <h2 className="mt-1 text-4xl font-black">₹{user?.walletBalance || 0}</h2>
+                <div className="space-y-1">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Earnings Balance</p>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-2xl font-black text-orange-500">₹</span>
+                    <h2 className="text-5xl font-black tracking-tight">{user?.walletBalance || 0}</h2>
+                  </div>
                 </div>
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/20">
-                  <PackageCheck className="h-8 w-8 text-white" />
+                <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-orange-500/10 shadow-inner">
+                  <PackageCheck className="h-10 w-10 text-orange-500" />
                 </div>
               </div>
-              <div className="mt-6 flex items-center gap-2">
-                <span className="h-2 w-2 animate-pulse rounded-full bg-green-400" />
-                <p className="text-[10px] font-bold uppercase tracking-tighter text-indigo-100">Withdrawals process automatically weekly</p>
+              <div className="mt-8 flex items-center gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-100">
+                <div className="h-2 w-2 animate-pulse rounded-full bg-orange-500" />
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Auto-withdrawals processed every Monday</p>
               </div>
             </motion.div>
 
             {/* ── Tabs ── */}
-            <div className="mb-6 flex gap-2 rounded-xl bg-muted p-1">
+            <div className="mb-8 flex gap-2 rounded-2xl bg-slate-100 p-1.5 border border-slate-200 shadow-inner">
               <button
                 onClick={() => setActiveTab("deliveries")}
-                className={`flex-1 rounded-lg py-2 text-sm font-semibold transition-all ${activeTab === "deliveries"
-                  ? "bg-card text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
+                className={`flex-1 rounded-xl py-3.5 text-xs font-black uppercase tracking-widest transition-all ${activeTab === "deliveries"
+                  ? "bg-white text-orange-600 shadow-md"
+                  : "text-slate-400 hover:text-slate-600 hover:bg-white/50"
                   }`}
               >
-                <PackageCheck className="mr-1.5 inline h-4 w-4" />
+                <History className="mr-2 inline h-4 w-4" />
                 My Deliveries
                 {myDeliveries.length > 0 && (
-                  <span className="ml-1.5 rounded-full bg-secondary px-1.5 py-0.5 text-[10px] text-white">
+                  <span className="ml-2 rounded-full bg-orange-500 px-2 py-0.5 text-[9px] text-white">
                     {myDeliveries.length}
                   </span>
                 )}
               </button>
               <button
                 onClick={() => setActiveTab("search")}
-                className={`flex-1 rounded-lg py-2 text-sm font-semibold transition-all ${activeTab === "search"
-                  ? "bg-card text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
+                className={`flex-1 rounded-xl py-3.5 text-xs font-black uppercase tracking-widest transition-all ${activeTab === "search"
+                  ? "bg-white text-orange-600 shadow-md"
+                  : "text-slate-400 hover:text-slate-600 hover:bg-white/50"
                   }`}
               >
-                <Search className="mr-1.5 inline h-4 w-4" />
+                <Search className="mr-2 inline h-4 w-4" />
                 Find Parcels
               </button>
             </div>
@@ -616,7 +574,7 @@ export default function Traveller() {
                               {/* Sender Info */}
                               <div className="rounded-xl bg-muted/30 p-3 space-y-2">
                                 <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Sender</p>
-                                <button 
+                                <button
                                   className="flex items-center gap-2 text-sm hover:underline cursor-pointer text-left"
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -640,8 +598,8 @@ export default function Traveller() {
                               <div className="rounded-xl bg-muted/30 p-3 space-y-2">
                                 <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Estimated Earning</p>
                                 <div className="flex flex-col gap-1">
-                                   <span className="text-sm font-bold text-green-600">₹{((p.weight * 50 + 20) / 2).toFixed(2)}</span>
-                                   <p className="text-[9px] text-muted-foreground italic">Company pays 50% after delivery confirmation.</p>
+                                  <span className="text-sm font-bold text-green-600">₹{((p.weight * 50 + 20) / 2).toFixed(2)}</span>
+                                  <p className="text-[9px] text-muted-foreground italic">Company pays 50% after delivery confirmation.</p>
                                 </div>
                               </div>
                             </div>
@@ -738,25 +696,47 @@ export default function Traveller() {
         ══════════════════════════════════════════ */}
               {activeTab === "search" && (
                 <motion.div key="search" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                  {/* Search Bar */}
-                  <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-border bg-card p-5 shadow-md sm:flex-row sm:items-end">
-                    <div className="flex-1">
-                      <label className="mb-1 block text-sm font-medium text-foreground">From</label>
-                      <Input value={from} onChange={(e) => setFrom(e.target.value)} placeholder="Origin city" />
+                  {/* Smart Filtering & Location Control (Point 1 & 2) */}
+                  <div className="mb-8 rounded-3xl border-2 border-orange-500/20 bg-white p-8 shadow-[0_20px_50px_-12px_rgba(249,115,22,0.1)]">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                       <div className="flex items-center gap-4">
+                          <div className="h-16 w-16 rounded-3xl bg-orange-500/10 flex items-center justify-center text-orange-600 shadow-inner">
+                             <MapPin className="h-8 w-8" />
+                          </div>
+                          <div>
+                             <p className="text-[10px] font-black uppercase tracking-widest text-orange-600 mb-1">Set Your Journey Origin</p>
+                             <h3 className="text-xl font-black text-slate-900 leading-none">Starting from <span className="text-orange-600">{from || user?.city || "your city"}</span></h3>
+                          </div>
+                       </div>
+                       
+                       <div className="flex-1 max-w-sm">
+                          <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Change Starting City</Label>
+                          <div className="flex gap-2">
+                             <div className="relative group flex-1">
+                                <Input 
+                                   value={from} 
+                                   onChange={(e) => setFrom(e.target.value)} 
+                                   placeholder="Enter current city..." 
+                                   className="h-12 pl-12 rounded-2xl border-slate-200 bg-slate-50 focus:bg-white transition-all group-hover:border-orange-200"
+                                />
+                                <Navigation2 className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-orange-500 transition-colors" />
+                             </div>
+                             <Button 
+                               onClick={handleSearch}
+                               className="h-12 px-6 bg-orange-500 text-white rounded-2xl hover:bg-orange-600 shadow-lg shadow-orange-500/20 font-black uppercase text-[10px] tracking-widest"
+                             >
+                                <Search className="h-4 w-4 mr-2" /> Search
+                             </Button>
+                          </div>
+                       </div>
                     </div>
-                    <div className="flex-1">
-                      <label className="mb-1 block text-sm font-medium text-foreground">To</label>
-                      <Input value={to} onChange={(e) => setTo(e.target.value)} placeholder="Destination city" />
-                    </div>
-                    <Button onClick={handleSearch} className="bg-secondary text-secondary-foreground hover:bg-secondary/90">
-                      <Search className="mr-2 h-4 w-4" /> Search
-                    </Button>
                   </div>
 
                   {results.length === 0 ? (
                     <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border py-20 text-center">
                       <Truck className="mb-4 h-12 w-12 text-muted-foreground/50" />
-                      <p className="text-muted-foreground">No parcels found. Try a different search.</p>
+                      <p className="text-muted-foreground">No parcels currently available from <strong>{user?.city || "your area"}</strong>.</p>
+                      <p className="text-[10px] text-slate-400 mt-2 font-bold uppercase tracking-tighter">New deliveries appear as senders book them</p>
                     </div>
                   ) : (
                     <div className="grid gap-4">
@@ -770,26 +750,29 @@ export default function Traveller() {
                         >
                           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                             <div className="cursor-pointer flex-1" onClick={() => setExpanded(expanded === p.id ? null : p.id)}>
-                              <div className="flex items-center gap-2 mb-1">
-                                <Package className="h-4 w-4 text-secondary" />
-                                <p className="font-heading font-semibold text-foreground">{p.fromLocation}</p>
-                                <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                                <p className="font-heading font-semibold text-foreground">{p.toLocation}</p>
-                              </div>
-                                <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground mb-2">
-                                  <span className="flex items-center gap-1"><Weight className="h-3 w-3" /> {p.weight}kg</span>
-                                  <span className="flex items-center gap-1"><Layers className="h-3 w-3" /> {p.itemCount} items</span>
-                                  <button 
-                                    className="text-orange-500 hover:underline cursor-pointer"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      if (p.senderData) setProfileUser(p.senderData);
-                                    }}
-                                  >
-                                    Sender: {p.senderName}
-                                  </button>
-                                  <span>To: {p.receiverName}</span>
-                                </div>
+                               <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-orange-100 w-fit text-[10px] font-bold text-orange-600 uppercase tracking-tight mb-2">
+                                  <Zap className="h-3 w-3" /> Matches Your Origin
+                               </div>
+                               <div className="flex items-center gap-2 mb-1">
+                                 <Package className="h-4 w-4 text-secondary" />
+                                 <p className="font-heading font-semibold text-foreground">{p.fromLocation}</p>
+                                 <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                                 <p className="font-heading font-semibold text-foreground">{p.toLocation}</p>
+                               </div>
+                               <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground mb-2">
+                                 <span className="flex items-center gap-1"><Weight className="h-3 w-3" /> {p.weight}kg</span>
+                                 <span className="flex items-center gap-1"><Layers className="h-3 w-3" /> {p.itemCount} items</span>
+                                 <button
+                                   className="text-orange-500 hover:underline cursor-pointer"
+                                   onClick={(e) => {
+                                     e.stopPropagation();
+                                     if (p.senderData) setProfileUser(p.senderData);
+                                   }}
+                                 >
+                                   Sender: {p.senderName}
+                                 </button>
+                                 <span>To: {p.receiverName}</span>
+                               </div>
                               <div className="flex flex-wrap items-center gap-2">
                                 {p.vehicleType && (
                                   <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-secondary">
@@ -840,10 +823,10 @@ export default function Traveller() {
         )}
       </AnimatePresence>
       {/* Profile Modal */}
-      <UserProfileModal 
-        user={profileUser} 
-        isOpen={!!profileUser} 
-        onClose={() => setProfileUser(null)} 
+      <UserProfileModal
+        user={profileUser}
+        isOpen={!!profileUser}
+        onClose={() => setProfileUser(null)}
       />
     </div>
   );
