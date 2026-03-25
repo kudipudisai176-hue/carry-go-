@@ -10,8 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import StatusBadge from "@/components/StatusBadge";
-import RouteMap from "@/components/RouteMap";
-import RouteMap3D from "@/components/RouteMap3D";
+import SnapMap from "@/components/SnapMap";
 import {
   createParcel, getAllParcels, updateParcelStatus, deleteParcel,
   updateParcelPayment, acceptRequest, releaseParcelPayment, updateParcel, 
@@ -815,8 +814,8 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
                                      <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleDelete(p.id); }} className="flex-1 font-bold text-xs uppercase text-red-500 hover:bg-red-50 rounded-full">Cancel Order</Button>
                                   </div>
 
-                                  <div className="mt-6 rounded-3xl border border-border bg-muted/10 p-2 overflow-hidden relative group/map">
-                                    <RouteMap from={p.fromLocation} to={p.toLocation} animate={p.status === 'in-transit'} />
+                                  <div className="mt-6 rounded-[2.5rem] border border-border bg-muted/10 overflow-hidden relative group/map h-[400px]">
+                                    <SnapMap from={p.fromLocation} to={p.toLocation} />
                                     {(p.status === 'in-transit' || p.status === 'picked-up') && (
                                       <Button 
                                         variant="secondary" 
@@ -990,8 +989,8 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
                           exit={{ opacity: 0, height: 0 }}
                           className="mt-6 border-t border-border pt-6 overflow-hidden"
                         >
-                            <div className="rounded-2xl overflow-hidden border border-border shadow-inner">
-                               <RouteMap3D from={p.fromLocation} to={p.toLocation} animate={p.status === 'in-transit'} />
+                            <div className="rounded-[2.5rem] overflow-hidden border border-border mt-4 h-[400px]">
+                               <SnapMap from={p.fromLocation} to={p.toLocation} />
                             </div>
                         </motion.div>
                       )}

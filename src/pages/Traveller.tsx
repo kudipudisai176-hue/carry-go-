@@ -6,7 +6,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import StatusBadge from "@/components/StatusBadge";
-import RouteMap3D from "@/components/RouteMap3D";
+import SnapMap from "@/components/SnapMap";
 import {
   searchParcels, updateParcelStatus,
   requestParcel, getMyDeliveries, type Parcel, type UserData
@@ -221,8 +221,8 @@ export default function Traveller() {
                 Close Map
               </Button>
             </div>
-            <div className="p-4">
-              <RouteMap3D from={navParcel.fromLocation} to={navParcel.toLocation} animate={true} />
+            <div className="p-4 h-[400px] overflow-hidden rounded-2xl">
+              <SnapMap from={navParcel.fromLocation} to={navParcel.toLocation} />
             </div>
           </motion.div>
         )}
@@ -418,7 +418,9 @@ export default function Traveller() {
                         <Button size="sm" variant="outline" onClick={() => setNavParcel(detailParcel)} className="text-[10px] uppercase font-bold rounded-xl">Full Screen 3D</Button>
                       </div>
                     </div>
-                    <RouteMap3D from={detailParcel.fromLocation} to={detailParcel.toLocation} animate={true} />
+                    <div className="h-[400px] rounded-[2.5rem] overflow-hidden border border-border">
+                       <SnapMap from={detailParcel.fromLocation} to={detailParcel.toLocation} />
+                    </div>
 
                     <div className="rounded-3xl border-2 border-green-500/30 bg-green-500/5 p-8 text-center space-y-6">
                       <p className="text-sm font-bold text-green-600 uppercase tracking-widest">Final Step</p>
@@ -679,7 +681,9 @@ export default function Traveller() {
                                   exit={{ opacity: 0, height: 0 }}
                                   className="mt-4 overflow-hidden"
                                 >
-                                  <RouteMap3D from={p.fromLocation} to={p.toLocation} animate={p.status === "in-transit"} />
+                                  <div className="h-[400px] rounded-[2.5rem] overflow-hidden border border-border mt-4">
+                                    <SnapMap from={p.fromLocation} to={p.toLocation} />
+                                  </div>
                                 </motion.div>
                               )}
                             </AnimatePresence>
@@ -809,7 +813,9 @@ export default function Traveller() {
                           {expanded === p.id && (
                             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4">
                               {p.description && <p className="mb-3 text-sm text-muted-foreground">{p.description}</p>}
-                              <RouteMap3D from={p.fromLocation} to={p.toLocation} animate={false} />
+                              <div className="rounded-[2.5rem] overflow-hidden border border-border mt-4 h-[400px]">
+                                <SnapMap from={p.fromLocation} to={p.toLocation} />
+                              </div>
                             </motion.div>
                           )}
                         </motion.div>
