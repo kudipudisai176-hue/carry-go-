@@ -134,14 +134,20 @@ export default function SnapMap({
         el.className = "group cursor-pointer";
         el.innerHTML = `
           <div class="relative flex flex-col items-center">
-            <div class="absolute -top-12 bg-white px-3 py-1.5 rounded-2xl shadow-xl min-w-max border border-slate-100 opacity-0 group-hover:opacity-100 transition-opacity">
+            <!-- 🌟 Premium Pulse Effect -->
+            <div class="absolute inset-0 -m-2">
+               <div class="h-16 w-16 rounded-full bg-orange-500/20 animate-ping absolute"></div>
+               <div class="h-16 w-16 rounded-full bg-orange-500/10 animate-pulse absolute"></div>
+            </div>
+            
+            <div class="absolute -top-12 bg-white px-3 py-1.5 rounded-2xl shadow-xl min-w-max border border-slate-100 opacity-0 group-hover:opacity-100 transition-opacity z-20">
                <p class="text-[10px] font-black text-slate-800">${user.name}</p>
                <p class="text-[8px] font-bold text-orange-500">${user.status}</p>
             </div>
-            <div class="h-12 w-12 rounded-full border-4 border-white bg-orange-50 overflow-hidden shadow-2xl transition-transform hover:scale-110 active:scale-95 ring-4 ring-orange-500/20">
+            <div class="h-12 w-12 rounded-full border-4 border-white bg-orange-50 overflow-hidden shadow-2xl transition-transform hover:scale-110 active:scale-95 ring-4 ring-orange-500/20 relative z-10">
               <img src="${user.avatar}" class="h-full w-full object-cover" />
             </div>
-            <div class="h-3 w-3 bg-white border-2 border-orange-500 rounded-full mt-[-6px] shadow-sm"></div>
+            <div class="h-3 w-3 bg-white border-2 border-orange-500 rounded-full mt-[-6px] shadow-sm relative z-10"></div>
           </div>
         `;
 
