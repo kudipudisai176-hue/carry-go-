@@ -1,9 +1,9 @@
-const express = require('express');
 const dotenv = require('dotenv');
-const cors = require('cors');
-const connectDB = require('./config/db');
+dotenv.config(); // ✅ MUST be first before any other imports that read process.env
 
-dotenv.config();
+const express = require('express');
+const cors = require('cors');
+const { connectDB } = require('./config/db');
 
 connectDB();
 

@@ -18,11 +18,15 @@ router.post('/', protect, async (req, res) => {
       comment
     });
 
-    // Update reviewee's average rating
+    // Update reviewee's average rating using Supabase-compatible shim
     const reviews = await Review.find({ reviewee });
     const avgRating = reviews.reduce((sum, item) => sum + item.rating, 0) / reviews.length;
     
-    await User.findByIdAndUpdate(reviewee, { rating: avgRating });
+    const revieweeUser = await User.findById(reviewee);
+    if (revieweeUser) {
+      revieweeUser.rating = avgRating;
+      await revieweeUser.save();
+    }
 
     res.status(201).json(review);
   } catch (error) {

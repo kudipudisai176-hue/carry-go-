@@ -1,37 +1,32 @@
-const mongoose = require('mongoose');
+const { supabase } = require('../config/db');
 
-const paymentSchema = mongoose.Schema(
-  {
-    parcel: {
-      type: mongoose.Schema.Types.ObjectId,
-      required: true,
-      ref: 'Parcel',
-    },
-    sender: {
-      type: mongoose.Schema.Types.ObjectId,
-      required: true,
-      ref: 'User',
-    },
-    amount: {
-      type: Number,
-      required: true,
-    },
-    payment_status: {
-      type: String,
-      enum: ['pending', 'paid', 'failed'],
-      default: 'pending',
-    },
-    escrow_status: {
-      type: String,
-      enum: ['held', 'released'],
-      default: 'held',
-    },
-    paymentGatewayId: { type: String },
+const Payment = {
+  create: async (paymentData) => {
+    const normalized = {
+      ...paymentData,
+      parcel_id: paymentData.parcel,
+      sender_id: paymentData.sender
+    };
+    delete normalized.parcel;
+    delete normalized.sender;
+    
+    const { data, error } = await supabase
+      .from('payments')
+      .insert(normalized)
+      .select()
+      .single();
+    if (error) throw error;
+    return { ...data, _id: data.id };
   },
-  {
-    timestamps: true,
-  }
-);
 
-const Payment = mongoose.model('Payment', paymentSchema);
+  updateMany: async (filter, updateObj) => {
+    let q = supabase.from('payments').update(updateObj.$set || updateObj);
+    for (const key in filter) {
+       const k = key === 'parcel' ? 'parcel_id' : key;
+       q = q.eq(k, filter[key]);
+    }
+    return await q;
+  }
+};
+
 module.exports = Payment;
