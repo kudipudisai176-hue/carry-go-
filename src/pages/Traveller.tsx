@@ -443,27 +443,44 @@ export default function Traveller() {
           </motion.div>
         ) : (
           <>
-            {/* ── Wallet Card ── */}
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="mb-8 rounded-[2.5rem] bg-white p-8 text-slate-900 shadow-[0_20px_50px_-12px_rgba(249,115,22,0.15)] border border-white"
+              className="mb-8 rounded-[2.5rem] bg-[#001333] p-8 text-white shadow-2xl relative overflow-hidden group"
             >
-              <div className="flex items-center justify-between">
+              <div className="relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
                 <div className="space-y-1">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Earnings Balance</p>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-2xl font-black text-orange-500">₹</span>
-                    <h2 className="text-5xl font-black tracking-tight">{user?.walletBalance || 0}</h2>
+                   <div className="flex items-center gap-2">
+                      <div className="h-1.5 w-1.5 rounded-full bg-orange-600" />
+                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Total Earnings Balance</p>
+                   </div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-4xl font-black text-orange-500">₹</span>
+                    <h2 className="text-7xl font-black tracking-tight text-white leading-none">0</h2>
                   </div>
                 </div>
-                <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-orange-500/10 shadow-inner">
-                  <PackageCheck className="h-10 w-10 text-orange-500" />
+
+                <div className="flex h-20 w-20 items-center justify-center rounded-[2rem] bg-[#001c44] border border-blue-500/20 shadow-xl group-hover:scale-110 transition-transform duration-500">
+                  <div className="relative">
+                    <PackageCheck className="h-10 w-10 text-orange-500" />
+                    <div className="absolute -top-1 -right-1 h-3 w-3 bg-green-500 rounded-full border-2 border-[#001333] animate-pulse" />
+                  </div>
                 </div>
               </div>
-              <div className="mt-8 flex items-center gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-100">
-                <div className="h-2 w-2 animate-pulse rounded-full bg-orange-500" />
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Auto-withdrawals processed every Monday</p>
+
+              <div className="relative mt-12 overflow-hidden rounded-[2rem] bg-white p-5 shadow-inner">
+                 <div className="flex items-center gap-4">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-orange-500/10 text-orange-600">
+                      <Clock className="h-5 w-5" />
+                    </div>
+                    <div>
+                       <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Payout Schedule</p>
+                       <p className="text-[11px] font-bold text-slate-900 mt-0.5">Auto-withdrawals processed <span className="text-orange-600">every Monday</span> at 9:00 AM</p>
+                    </div>
+                    <div className="ml-auto flex -space-x-1 opacity-20">
+                       {[1,2,3].map(i => <div key={i} className="h-6 w-6 rounded-full border border-white bg-slate-200" />)}
+                    </div>
+                 </div>
               </div>
             </motion.div>
 
@@ -559,41 +576,53 @@ export default function Traveller() {
                               </div>
 
                               {/* Receiver Info */}
-                              <div className="rounded-xl bg-muted/30 p-3 space-y-2">
-                                <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Receiver</p>
-                                <div className="flex items-center gap-2 text-sm">
-                                  <User className="h-4 w-4 text-blue-500" />
-                                  <span className="font-semibold text-foreground">{p.receiverName}</span>
-                                </div>
-                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                  <Phone className="h-3 w-3" />
-                                  <a href={`tel:${p.receiverPhone}`} className="text-blue-500 underline-offset-2 hover:underline">
-                                    {p.receiverPhone}
+                              <div className="rounded-xl bg-muted/30 p-3 space-y-2 relative overflow-hidden group/card shadow-sm border border-border/50">
+                                <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-1 opacity-60">Receiver</p>
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2.5">
+                                    <div className="h-8 w-8 rounded-full bg-blue-500/10 flex items-center justify-center">
+                                      <User className="h-4 w-4 text-blue-500" />
+                                    </div>
+                                    <span className="font-bold text-sm text-foreground">{p.receiverName}</span>
+                                  </div>
+                                  <a 
+                                    href={`tel:${p.receiverPhone}`}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="h-10 w-10 flex items-center justify-center rounded-xl bg-blue-500 text-white shadow-lg shadow-blue-500/20 hover:scale-110 active:scale-95 transition-all"
+                                    title={`Call ${p.receiverName}`}
+                                  >
+                                    <Phone className="h-4 w-4" />
                                   </a>
                                 </div>
                               </div>
 
                               {/* Sender Info */}
                               <div className="rounded-xl bg-muted/30 p-3 space-y-2">
-                                <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Sender</p>
                                 <button
-                                  className="flex items-center gap-2 text-sm hover:underline cursor-pointer text-left"
+                                  className="group flex flex-col gap-1 w-full text-left"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     if (p.senderData) setProfileUser(p.senderData);
                                   }}
                                 >
-                                  <User className="h-4 w-4 text-orange-500" />
-                                  <span className="font-semibold text-foreground">{p.senderName}</span>
-                                </button>
-                                {p.senderPhone && (
-                                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                    <Phone className="h-3 w-3" />
-                                    <a href={`tel:${p.senderPhone}`} className="text-orange-500 underline-offset-2 hover:underline">
-                                      {p.senderPhone}
+                                  <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-1 opacity-60">Sender</p>
+                                  <div className="flex items-center justify-between w-full">
+                                    <div className="flex items-center gap-2.5">
+                                      <div className="h-8 w-8 rounded-full bg-orange-500/10 flex items-center justify-center group-hover:bg-orange-500/20 transition-colors">
+                                        <User className="h-4 w-4 text-orange-500" />
+                                      </div>
+                                      <span className="font-bold text-sm text-foreground group-hover:text-orange-600 transition-colors">{p.senderName}</span>
+                                    </div>
+                                    <a 
+                                      href={`tel:${p.senderPhone}`}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="h-10 w-10 flex items-center justify-center rounded-xl bg-orange-500 text-white shadow-lg shadow-orange-500/20 hover:scale-110 active:scale-95 transition-all"
+                                      title={`Call ${p.senderName}`}
+                                    >
+                                      <Phone className="h-4 w-4 rotate-0" />
                                     </a>
                                   </div>
-                                )}
+                                </button>
                               </div>
 
                               {/* Estimated Earning Info */}

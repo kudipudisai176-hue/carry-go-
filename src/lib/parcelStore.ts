@@ -58,6 +58,7 @@ export interface Parcel {
   receivedPhoto?: string;
   receiverRating?: number;
   createdAt: string;
+  updatedAt?: string;
   senderData?: UserData;
   travellerData?: UserData;
 }
@@ -112,6 +113,7 @@ const mapParcel = (p: any): Parcel => {
   receivedPhoto: p.receivedPhoto,
   receiverRating: p.receiverRating,
   createdAt: p.createdAt,
+  updatedAt: p.updatedAt,
   senderData: p.sender && typeof p.sender === 'object' ? {
     id: p.sender._id || p.sender.id,
     name: p.sender.name,

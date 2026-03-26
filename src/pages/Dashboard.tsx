@@ -23,9 +23,10 @@ export default function Dashboard() {
       desc: "Fastest peer-to-peer delivery for your items",
       icon: Package,
       path: "/sender",
-      color: "from-[#f97316] via-[#ea580c] to-[#c2410c]", // Deep vibrant orange
-      shadow: "shadow-orange-500/25",
-      borderClass: "border-orange-500/20 hover:border-orange-500/50",
+      color: "from-orange-500 via-orange-600 to-orange-700",
+      shadow: "shadow-orange-200/50 hover:shadow-orange-500/40",
+      bgClass: "bg-orange-50/40 hover:bg-orange-50/80",
+      borderClass: "border-orange-200/60 hover:border-orange-500/60",
       badge: "Fastest"
     },
     {
@@ -33,9 +34,10 @@ export default function Dashboard() {
       desc: "Monetize your journey and cover travel costs",
       icon: Truck,
       path: "/traveller",
-      color: "from-[#8b5cf6] via-[#7c3aed] to-[#6d28d9]", // Rich purple
-      shadow: "shadow-purple-500/25",
-      borderClass: "border-purple-500/20 hover:border-purple-500/50",
+      color: "from-purple-500 via-purple-600 to-purple-700",
+      shadow: "shadow-purple-200/50 hover:shadow-purple-500/40",
+      bgClass: "bg-purple-50/40 hover:bg-purple-50/80",
+      borderClass: "border-purple-200/60 hover:border-purple-500/60",
       badge: "Income"
     }
   ];
@@ -94,10 +96,10 @@ export default function Dashboard() {
             >
               <Link
                 to={act.path}
-                className={`group relative flex flex-col justify-between overflow-hidden rounded-[2.5rem] bg-white p-8 border-2 transition-all duration-300 hover:scale-[1.02] hover:-translate-y-1 ${act.borderClass} ${act.shadow}`}
+                className={`group relative flex flex-col justify-between overflow-hidden rounded-[2.5rem] p-8 border-2 transition-all duration-300 hover:scale-[1.02] hover:-translate-y-1 ${act.bgClass || 'bg-white'} ${act.borderClass} ${act.shadow}`}
               >
                 {/* Visual Flair */}
-                <div className={`absolute -right-4 -top-4 h-32 w-32 rounded-full bg-gradient-to-br ${act.color} opacity-[0.03] transition-transform duration-500 group-hover:scale-150`} />
+                <div className={`absolute -right-4 -top-4 h-32 w-32 rounded-full bg-gradient-to-br ${act.color} opacity-[0.12] transition-transform duration-500 group-hover:scale-150`} />
                 
                 <div className="relative">
                   <div className="flex items-start justify-between">

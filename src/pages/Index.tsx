@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { Package, Truck, MapPin, ArrowRight, Shield, Zap, Globe, Users, Star, User, UserPlus } from "lucide-react";
-import { motion, useScroll, useTransform, type Variants } from "framer-motion";
-import { useRef } from "react";
+import { motion, useScroll, useTransform, type Variants, AnimatePresence } from "framer-motion";
+import { useRef, useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/authContext";
 import ParticleCanvas from "@/components/ParticleCanvas";
@@ -45,6 +45,16 @@ const itemVariants = {
 
 export default function Index() {
   const { user } = useAuth();
+  const [wordIndex, setWordIndex] = useState(0);
+  const words = ["ship", "send", "carry", "earn", "deliver"];
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setWordIndex((prev) => (prev + 1) % words.length);
+    }, 2500);
+    return () => clearInterval(timer);
+  }, []);
+
   const heroRef = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll({ target: heroRef, offset: ["start start", "end start"] });
   const heroY = useTransform(scrollYProgress, [0, 1], [0, 80]);
@@ -115,42 +125,33 @@ export default function Index() {
 
           {/* Subtitle */}
           <motion.p
-            className="mx-auto mb-10 max-w-2xl text-lg text-primary-foreground/75 md:text-xl"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.6 }}
+            className="mx-auto mb-10 max-w-2xl text-lg text-primary-foreground/80 md:text-2xl font-medium tracking-tight"
           >
-            {"The smartest way to ship anything,".split(" ").map((word, i) => (
-              <motion.span
-                key={i}
-                animate={{
-                  opacity: [0, 1, 1, 0],
-                  y: [10, 0, 0, -10],
-                  filter: ["blur(10px)", "blur(0px)", "blur(0px)", "blur(10px)"]
-                }}
-                transition={{
-                  repeat: Infinity,
-                  duration: 4,
-                  delay: i * 0.1,
-                  times: [0, 0.2, 0.8, 1]
-                }}
-                className="inline-block mr-1.5"
-              >
-                {word}
-              </motion.span>
-            ))}
-            <motion.span
-              animate={{
-                opacity: [0, 1, 1, 0],
-                backgroundPosition: ["-200% 0", "0% 0", "200% 0", "400% 0"]
-              }}
-              transition={{
-                repeat: Infinity,
-                duration: 4,
-                delay: 1.2,
-                times: [0, 0.3, 0.7, 1]
-              }}
-              className="inline-block bg-gradient-to-r from-secondary via-white to-secondary bg-[length:200%_auto] bg-clip-text font-bold text-transparent ml-1"
-            >
+            The smartest way to{" "}
+            <span className="relative inline-block h-[1.2em] overflow-hidden align-bottom">
+              <AnimatePresence mode="wait">
+                <motion.span
+                  key={words[wordIndex]}
+                  initial={{ y: "100%", opacity: 0, filter: "blur(8px)" }}
+                  animate={{ y: "0%", opacity: 1, filter: "blur(0px)" }}
+                  exit={{ y: "-100%", opacity: 0, filter: "blur(8px)" }}
+                  transition={{ 
+                    duration: 0.5, 
+                    ease: [0.23, 1, 0.32, 1] 
+                  }}
+                  className="inline-block font-black text-secondary bg-clip-text"
+                >
+                  {words[wordIndex]}
+                </motion.span>
+              </AnimatePresence>
+            </span>{" "}
+            anything,{" "}
+            <span className="text-shimmer font-black ml-1">
               anywhere in India.
-            </motion.span>
+            </span>
           </motion.p>
 
 

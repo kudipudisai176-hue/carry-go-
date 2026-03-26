@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import {
-  Package, Plus, Check, Trash2, MapPin, Weight, ArrowRight, ArrowLeft, Sparkles, Box, Bike, Bus, Car, Truck, Info, Layers, CreditCard, QrCode, Smartphone, ExternalLink, X, KeyRound, Navigation, Bell, CheckCircle2, Camera, RefreshCw, Edit2, Search, PackageCheck, Handshake, User, Phone, MessageCircle, Navigation2, Lock, ShieldCheck, ChevronDown, Loader2, Zap
+  Package, Plus, Check, Trash2, MapPin, Weight, ArrowRight, ArrowLeft, Sparkles, Box, Bike, Bus, Car, Truck, Info, Layers, CreditCard, QrCode, Smartphone, ExternalLink, X, KeyRound, Navigation, Bell, CheckCircle2, Camera, RefreshCw, Edit2, Search, PackageCheck, Handshake, User, Phone, MessageCircle, Navigation2, Lock, ShieldCheck, ChevronDown, Loader2, Zap, Clock
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +20,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/lib/authContext";
 import UserProfileModal from "@/components/UserProfileModal";
 import { UserData } from "@/lib/parcelStore";
+import { format } from "date-fns";
 
 export default function Sender({ startWithForm = false }: { startWithForm?: boolean }) {
   const { user, isLoading } = useAuth();
@@ -747,8 +748,18 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
                                   <div className="flex items-center gap-2 mb-1">
                                      <StatusBadge status={p.status} />
                                      <span className="text-[10px] font-black uppercase tracking-tighter text-muted-foreground opacity-50">#{p.id.slice(-6).toUpperCase()}</span>
-                                  </div>
-                                  <h3 className="font-heading font-black text-lg">{p.fromLocation} → {p.toLocation}</h3>
+                                   </div>
+                                   <div className="flex flex-col gap-0.5 mb-1.5 opacity-60">
+                                      <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+                                         <Clock className="h-3 w-3" /> Created: {p.createdAt ? format(new Date(p.createdAt), "MMM d, h:mm a") : "---"}
+                                      </p>
+                                      {p.updatedAt && p.updatedAt !== p.createdAt && (
+                                         <p className="text-[9px] font-black uppercase tracking-widest text-secondary flex items-center gap-1.5">
+                                            <Bell className="h-3 w-3" /> Notified/Updated: {format(new Date(p.updatedAt), "MMM d, h:mm a")}
+                                         </p>
+                                      )}
+                                   </div>
+                                   <h3 className="font-heading font-black text-lg">{p.fromLocation} → {p.toLocation}</h3>
                                </div>
                             </div>
                             <div className="flex flex-col items-end">
@@ -765,8 +776,64 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
                                   exit={{ opacity: 0, height: 0 }}
                                   className="mt-6 border-t border-border pt-6 overflow-hidden"
                                >
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                      {/* Receiver Box */}
+                                      <div className="flex items-center justify-between p-4 bg-white border border-border shadow-sm rounded-3xl group/card">
+                                        <div className="flex items-center gap-3">
+                                          <div className="h-10 w-10 bg-blue-500/10 text-blue-500 rounded-2xl flex items-center justify-center">
+                                            <User className="h-5 w-5" />
+                                          </div>
+                                          <div>
+                                            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest opacity-60">Receiver</p>
+                                            <p className="font-black text-sm text-slate-800">{p.receiverName}</p>
+                                          </div>
+                                        </div>
+                                        <a 
+                                          href={`tel:${p.receiverPhone}`}
+                                          onClick={(e) => e.stopPropagation()}
+                                          className="h-10 w-10 bg-blue-500 text-white rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20 hover:scale-110 active:scale-95 transition-all"
+                                          title={`Call ${p.receiverName}`}
+                                        >
+                                          <Phone className="h-4 w-4" />
+                                        </a>
+                                      </div>
+
+                                      {/* Traveller Box (If Assigned) */}
+                                      {p.travellerName ? (
+                                        <div className="flex items-center justify-between p-4 bg-white border border-border shadow-sm rounded-3xl group/card">
+                                          <div className="flex items-center gap-3">
+                                            <div className="h-10 w-10 bg-emerald-500/10 text-emerald-500 rounded-2xl flex items-center justify-center">
+                                              <User className="h-5 w-5" />
+                                            </div>
+                                            <div>
+                                              <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest opacity-60">Traveller</p>
+                                              <p className="font-black text-sm text-slate-800">{p.travellerName}</p>
+                                            </div>
+                                          </div>
+                                          <a 
+                                            href={`tel:${p.travellerPhone}`}
+                                            onClick={(e) => e.stopPropagation()}
+                                            className="h-10 w-10 bg-emerald-500 text-white rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20 hover:scale-110 active:scale-95 transition-all"
+                                            title={`Call ${p.travellerName}`}
+                                          >
+                                            <Phone className="h-4 w-4" />
+                                          </a>
+                                        </div>
+                                      ) : (
+                                        <div className="flex items-center gap-3 p-4 bg-muted/20 border border-dashed border-border rounded-3xl">
+                                          <div className="h-10 w-10 bg-muted rounded-2xl flex items-center justify-center text-muted-foreground/30">
+                                            <Loader2 className="h-5 w-5 animate-spin" />
+                                          </div>
+                                          <div>
+                                            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest opacity-60">Traveller</p>
+                                            <p className="font-bold text-xs text-muted-foreground/50 italic leading-none">Searching for traveller...</p>
+                                          </div>
+                                        </div>
+                                      )}
+                                   </div>
+
                                   {/* Extra details when expanded */}
-                                  <div className="grid grid-cols-2 gap-4">
+                                  <div className="grid grid-cols-2 gap-4 mt-4">
                                      <div className="flex items-center gap-3 p-3 bg-muted/40 rounded-xl">
                                        <div className="p-2 rounded-lg bg-white shadow-sm text-secondary">
                                          <Package className="h-4 w-4" />
@@ -882,24 +949,44 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
                     key={`in-${p.id}`}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="group relative overflow-hidden rounded-3xl border border-border bg-card p-5 shadow-card hover:border-secondary/30 transition-all"
+                    className="group relative overflow-hidden rounded-3xl border border-border bg-card p-5 shadow-card hover:border-blue-600/30 transition-all"
                   >
                     <div className="flex flex-col gap-4">
                        <div className="flex items-start justify-between">
                           <div className="flex-1">
                              <div className="flex items-center gap-2 mb-2">
                                 <StatusBadge status={p.status} />
-                                <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">ORDER #{p.id.slice(-6).toUpperCase()}</span>
-                             </div>
-                             <h3 className="font-heading font-black text-lg text-foreground">{p.fromLocation} → {p.toLocation}</h3>
+                                       <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">ORDER #{p.id.slice(-6).toUpperCase()}</span>
+                                 <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5 opacity-70">
+                                    <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+                                      <Clock className="h-3 w-3" /> Created: {p.createdAt ? format(new Date(p.createdAt), "MMM d, h:mm a") : "---"}
+                                    </p>
+                                    {p.updatedAt && p.updatedAt !== p.createdAt && (
+                                      <p className="text-[9px] font-black uppercase tracking-widest text-blue-600 flex items-center gap-1.5 font-bold">
+                                        <Bell className="h-3 w-3" /> Notified (Last Status): {format(new Date(p.updatedAt), "MMM d, h:mm a")}
+                                      </p>
+                                    )}
+                                 </div>
+                              </div>
+                              <h3 className="font-heading font-black text-lg text-foreground group-hover:text-blue-600 transition-colors">{p.fromLocation} → {p.toLocation}</h3>
                              <div className="mt-2 flex items-center gap-4 text-xs font-bold text-muted-foreground">
-                                <span className="flex items-center gap-1.5"><Weight className="h-3.5 w-3.5 text-secondary" /> {p.weight} kg</span>
-                                <button 
-                                   onClick={() => p.senderData && setProfileUser(p.senderData)}
-                                   className="flex items-center gap-1.5 hover:bg-secondary/10 hover:text-secondary rounded-full px-2 py-0.5 transition-all text-secondary/80 bg-secondary/5"
-                                >
-                                   <User className="h-3.5 w-3.5" /> Sender: {p.senderName}
-                                </button>
+                                <span className="flex items-center gap-1.5"><Weight className="h-3.5 w-3.5 text-blue-600" /> {p.weight} kg</span>
+                                 <div className="flex items-center gap-2">
+                                    <button 
+                                       onClick={() => p.senderData && setProfileUser(p.senderData)}
+                                       className="flex items-center gap-1.5 hover:bg-blue-600/10 hover:text-blue-600 rounded-full px-2 py-0.5 transition-all text-blue-600/80 bg-blue-600/5"
+                                    >
+                                       <User className="h-3.5 w-3.5" /> Sender: {p.senderName}
+                                    </button>
+                                    <a 
+                                      href={`tel:${p.senderPhone}`}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="h-7 w-7 bg-blue-600 text-white rounded-full flex items-center justify-center shadow-lg shadow-blue-600/20 hover:scale-110 active:scale-95 transition-all"
+                                      title={`Call ${p.senderName}`}
+                                    >
+                                      <Phone className="h-3 w-3" />
+                                    </a>
+                                 </div>
                              </div>
                           </div>
                        </div>
@@ -917,8 +1004,8 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
                                 const stepNames = ['Pending', 'Picked Up', 'In Transit', 'Delivered'];
                                 return (
                                    <div key={step} className="flex-1 flex flex-col items-center gap-1.5">
-                                      <div className={`h-1.5 w-full rounded-full transition-all duration-500 ${isPast ? 'bg-secondary/80 shadow-[0_0_8px_rgba(255,100,0,0.5)]' : 'bg-border'}`} />
-                                      <span className={`text-[9px] font-black uppercase tracking-tighter ${isCurrent ? 'text-secondary' : isPast ? 'text-foreground/80' : 'text-muted-foreground/40'}`}>
+                                      <div className={`h-1.5 w-full rounded-full transition-all duration-500 ${isPast ? 'bg-blue-600/80 shadow-[0_0_8px_rgba(37,99,235,0.5)]' : 'bg-border'}`} />
+                                      <span className={`text-[9px] font-black uppercase tracking-tighter ${isCurrent ? 'text-blue-600' : isPast ? 'text-foreground/80' : 'text-muted-foreground/40'}`}>
                                          {stepNames[idx]}
                                       </span>
                                    </div>
@@ -931,12 +1018,12 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
                             <motion.div 
                                initial={{ opacity: 0, scale: 0.95 }}
                                animate={{ opacity: 1, scale: 1 }}
-                               className="mt-4 p-5 rounded-[2rem] bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-xl shadow-orange-500/20 relative overflow-hidden group border border-white/20"
+                               className="mt-4 p-5 rounded-[2rem] bg-gradient-to-br from-blue-500 to-blue-700 text-white shadow-xl shadow-blue-500/20 relative overflow-hidden group border border-white/20"
                             >
                                <div className="flex flex-col items-center justify-center text-center relative z-10">
                                   <div className="flex items-center gap-2 mb-3">
-                                     <Lock className="h-4 w-4 text-orange-200" />
-                                     <span className="text-[10px] font-black uppercase tracking-[0.2em] text-orange-200/80">Receiver Delivery OTP</span>
+                                     <Lock className="h-4 w-4 text-blue-200" />
+                                     <span className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-200/80">Receiver Delivery OTP</span>
                                   </div>
                                   <div className="flex gap-2">
                                      {p.deliveryOtp.split('').map((digit, i) => (
@@ -945,13 +1032,13 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
                                         </div>
                                      ))}
                                   </div>
-                                  <div className="mt-4 flex items-center gap-2 px-4 py-2 bg-black/10 rounded-full">
-                                     <ShieldCheck className="h-3 w-3 text-orange-200" />
-                                     <p className="text-[9px] font-bold text-orange-100">Share this code with the Traveller ONLY when you have the parcel.</p>
-                                  </div>
-                               </div>
-                               {/* Decorative Background Icon */}
-                               <Zap className="absolute -bottom-4 -right-4 h-24 w-24 text-white/10 rotate-12 transition-transform group-hover:scale-125 duration-700" />
+                                   <div className="mt-4 flex items-center gap-2 px-4 py-2 bg-black/10 rounded-full">
+                                      <ShieldCheck className="h-3 w-3 text-blue-200" />
+                                      <p className="text-[9px] font-bold text-blue-100">Share this code with the Traveller ONLY when you have the parcel.</p>
+                                   </div>
+                                </div>
+                                {/* Decorative Background Icon */}
+                                <Zap className="absolute -bottom-4 -right-4 h-24 w-24 text-white/10 rotate-12 transition-transform group-hover:scale-125 duration-700" />
                             </motion.div>
                          )}
 
