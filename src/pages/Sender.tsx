@@ -816,7 +816,7 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
                     <MapPin className="h-8 w-8 text-muted-foreground/30" />
                   </motion.div>
                   <p className="text-muted-foreground font-bold">No parcels found yet</p>
-                  <p className="text-xs text-muted-foreground/60 mt-1 max-w-xs px-10">We check your mobile number <strong>{user?.phone}</strong> for incoming deliveries automatically.</p>
+                  <p className="text-xs text-black mt-1 max-w-xs px-10">We check your mobile number <strong>{user?.phone}</strong> for incoming deliveries automatically.</p>
                </div>
             ) : (
               <div className="grid gap-4">
