@@ -11,6 +11,13 @@ export default defineConfig(({ mode }) => ({
     hmr: {
       overlay: false,
     },
+<<<<<<< HEAD
+=======
+    /* https: {
+      key: fs.readFileSync('./cert.key'),
+      cert: fs.readFileSync('./cert.crt'),
+    }, */
+>>>>>>> a8d5de6 (Recovered backend and fixed Vite SSL config)
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {

@@ -1,0 +1,19 @@
+[
+  "id",
+  "name",
+  "email",
+  "password",
+  "phone",
+  "role",
+  "sub_role",
+  "bio",
+  "profile_photo",
+  "wallet_balance",
+  "rating",
+  "total_trips",
+  "personal_otp",
+  "personal_otp_expires_at",
+  "vehicle_type",
+  "created_at",
+  "updated_at"
+]
