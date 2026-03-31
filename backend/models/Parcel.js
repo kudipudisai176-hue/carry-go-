@@ -3,7 +3,13 @@ const { supabase } = require('../config/db');
 const Parcel = {
   // Find parcels by custom query
   find: (query = {}) => {
-    let q = supabase.from('parcels').select('*, sender:users!parcels_sender_id_fkey(*), traveller:users!parcels_traveller_id_fkey(*)');
+    // 🔍 IMPORTANT: Use explicit LEFT JOINs to avoid filtering out parcels with no traveller assigned
+    const userFields = 'id, name, profile_photo, phone, email, bio, rating, total_trips, vehicle_type, aadhar_number, id_photo';
+    let q = supabase.from('parcels').select(`
+      *,
+      sender:users!fk_parcel_sender(${userFields}),
+      traveller:users!fk_parcel_traveller(${userFields})
+    `);
     
     // Convert Mongoose queries to Supabase
     for (const key in query) {
@@ -43,39 +49,60 @@ const Parcel = {
   },
 
   findById: async (id) => {
-    const { data, error } = await supabase
-      .from('parcels')
-      .select('*, sender:users!parcels_sender_id_fkey(*), traveller:users!parcels_traveller_id_fkey(*)')
-      .eq('id', id)
-      .single();
-    if (error) return null;
-    
-    return { 
-      ...data, 
-      _id: data.id,
-      save: async function() {
-        const { id, _id, created_at, updated_at, sender, traveller, ...updateData } = this;
-        const { data: updated, error: uError } = await supabase
-          .from('parcels')
-          .update({ ...updateData, updated_at: new Date() })
-          .eq('id', id)
-          .select()
-          .single();
-        if (uError) throw uError;
-        Object.assign(this, updated);
-        return this;
+    try {
+      console.log(`[Parcel Model] Attempting to find parcel: ${id}`);
+      const { data, error } = await supabase
+        .from('parcels')
+        .select(`
+          *,
+          sender:users!fk_parcel_sender(*),
+          traveller:users!fk_parcel_traveller(*)
+        `)
+        .eq('id', id)
+        .maybeSingle();
+
+      if (error) {
+        console.error(`[Parcel Model] Supabase error in findById:`, error.message);
+        return null;
       }
-    };
+
+      if (!data) {
+        console.warn(`[Parcel Model] Parcel not found (ID: ${id})`);
+        return null;
+      }
+
+      return {
+        ...data,
+        _id: data.id,
+        save: async function() {
+          const { id, _id, created_at, updated_at, sender, traveller, ...updateData } = this;
+          const { data: updated, error: uError } = await supabase
+            .from('parcels')
+            .update({ ...updateData, updated_at: new Date() })
+            .eq('id', id)
+            .select()
+            .single();
+
+          if (uError) throw uError;
+          Object.assign(this, updated);
+          return this;
+        }
+      };
+    } catch (err) {
+      console.error(`[Parcel Model] Generic error in findById:`, err.message);
+      return null;
+    }
   },
 
   create: async (parcelData) => {
-    // Standardize sender/traveller id naming (supabase uses sender_id, mongoose used sender)
+    // Standardize: Ensure all ID fields use _id suffix for Supabase
     const normalized = {
       ...parcelData,
-      sender_id: parcelData.sender,
-      traveller_id: parcelData.traveller,
-      receiver_id: parcelData.receiver,
+      sender_id: parcelData.sender_id || parcelData.sender,
+      traveller_id: parcelData.traveller_id || parcelData.traveller,
+      receiver_id: parcelData.receiver_id || parcelData.receiver,
     };
+    // Remove Mongoose-style keys if they exist
     delete normalized.sender;
     delete normalized.traveller;
     delete normalized.receiver;
@@ -90,9 +117,13 @@ const Parcel = {
   },
 
   updateMany: async (filter, update) => {
-    let q = supabase.from('parcels').update(update.$set || update);
+    // Support both $set and direct update object
+    const updateData = update.$set || update;
+    let q = supabase.from('parcels').update(updateData);
+    
     for (const key in filter) {
-      q = q.eq(key, filter[key]);
+      const dbKey = key === '_id' ? 'id' : key;
+      q = q.eq(dbKey, filter[key]);
     }
     return await q;
   },
@@ -100,7 +131,8 @@ const Parcel = {
   deleteOne: async (filter) => {
      let q = supabase.from('parcels').delete();
      for (const key in filter) {
-       q = q.eq(key, filter[key] === '_id' ? 'id' : filter[key]);
+       const dbKey = key === '_id' ? 'id' : key;
+       q = q.eq(dbKey, filter[key]);
      }
      return await q;
   }

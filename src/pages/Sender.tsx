@@ -2,15 +2,15 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import {
-  Package, Plus, Check, Trash2, MapPin, Weight, ArrowRight, ArrowLeft, Sparkles, Box, Bike, Bus, Car, Truck, Info, Layers, CreditCard, QrCode, Smartphone, ExternalLink, X, KeyRound, Navigation, Bell, CheckCircle2, Camera, RefreshCw, Edit2, Search, PackageCheck, Handshake, User, Phone, MessageCircle, Navigation2, Lock, ShieldCheck, ChevronDown, Loader2, Zap, Clock
+  Package, Plus, Check, Trash2, MapPin, Weight, ArrowRight, ArrowLeft, Sparkles, Box, Bike, Bus, Car, Truck, Info, Layers, CreditCard, QrCode, ExternalLink, X, KeyRound, Navigation, Bell, CheckCircle2, Camera, RefreshCw, Edit2, Search, PackageCheck, Handshake, User, Phone, MessageCircle, Navigation2, Lock as LockIcon, ShieldCheck, Loader2, Zap, Clock
 } from "lucide-react";
+import { locations } from '@/lib/locations';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import StatusBadge from "@/components/StatusBadge";
-import SnapMap from "@/components/SnapMap";
 import {
   createParcel, getAllParcels, updateParcelStatus, deleteParcel,
   updateParcelPayment, acceptRequest, releaseParcelPayment, updateParcel, 
@@ -21,6 +21,7 @@ import { useAuth } from "@/lib/authContext";
 import UserProfileModal from "@/components/UserProfileModal";
 import { UserData } from "@/lib/parcelStore";
 import { format } from "date-fns";
+import { supabase } from "@/lib/supabaseClient";
 
 export default function Sender({ startWithForm = false }: { startWithForm?: boolean }) {
   const { user, isLoading } = useAuth();
@@ -51,26 +52,27 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
   const [incomingParcels, setIncomingParcels] = useState<Parcel[]>([]);
   const [searchedIncoming, setSearchedIncoming] = useState(false);
   const [expandedIncoming, setExpandedIncoming] = useState<string | null>(null);
-
-  // New form fields
+  const [activeChat, setActiveChat] = useState<string | null>(null);
+  
+  // -- Form State --
   const [weight, setWeight] = useState("");
-  const [size, setSize] = useState<'small' | 'medium' | 'large' | 'very-large'>("small");
   const [itemCount, setItemCount] = useState(1);
-  const [selectedVehicle, setSelectedVehicle] = useState<string>("");
-  const [paymentMethod, setPaymentMethod] = useState<'pay-now' | 'pay-on-delivery'>('pay-now');
+  const [size, setSize] = useState<"small" | "medium" | "large" | "very-large">("medium");
+  const [selectedVehicle, setSelectedVehicle] = useState("Bike");
+  const [paymentMethod, setPaymentMethod] = useState("pay-now");
   const [parcelPhoto, setParcelPhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
   const [showHowItWorks, setShowHowItWorks] = useState(false);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [pendingPaymentParcel, setPendingPaymentParcel] = useState<Parcel | null>(null);
+
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => {
     if (!isLoading && !user) navigate("/login", { replace: true });
   }, [user, isLoading, navigate]);
 
-  if (isLoading) return <div className="flex h-screen items-center justify-center bg-[#0d1117] text-orange-500 font-black uppercase tracking-[0.3em] animate-pulse">Initializing Dashboard...</div>;
+  if (isLoading) return <div className="flex h-screen items-center justify-center bg-[#0d1117] text-orange-500 font-bold uppercase tracking-[0.3em] animate-pulse">Initializing Dashboard...</div>;
   if (!user) return null;
 
   const startCamera = async () => {
@@ -177,6 +179,38 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
     }
   }, []);
 
+  // Real-time status sync (Point 11 in instructions)
+  useEffect(() => {
+    if (!user?.id) return;
+    
+    // Listen for any changes to parcels I SNT (outgoing)
+    const channel = supabase
+      .channel('sender-parcel-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Listen for all events (Insert, Update, Delete)
+          schema: 'public',
+          table: 'parcels',
+          filter: `sender_id=eq.${user.id}`
+        },
+        (payload) => {
+          console.log('[Realtime] Parcel changed:', payload);
+          refresh(); // Pull fresh data from API to ensure data mapping is consistent
+          
+          if (payload.new && (payload.new as any).status === 'requested') {
+             toast.info("A traveller has requested to carry your parcel! 📦");
+             sendBrowserNotification("New Delivery Request!", "Check your dashboard to approve the traveller.");
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, refresh, sendBrowserNotification]);
+
   useEffect(() => { 
     refresh(); 
     const interval = setInterval(refresh, 5000); 
@@ -191,20 +225,19 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
       return;
     }
 
-    const parcelData = {
-      senderName: user.name || "Me",
-      receiverName: fd.get("receiverName") as string,
-      receiverPhone: `+91${fd.get("receiverPhone")}`,
-      fromLocation: fd.get("fromLocation") as string,
-      toLocation: fd.get("toLocation") as string,
+    const parcelData: any = {
+      sender_name: user.name || "Me",
+      receiver_name: fd.get("receiverName") as string,
+      receiver_phone: `+91${fd.get("receiverPhone")}`,
+      from_location: fd.get("fromLocation") as string,
+      to_location: fd.get("toLocation") as string,
       weight: parseFloat(weight) || 0,
       size: size,
-      itemCount: itemCount,
-      vehicleType: selectedVehicle,
-      paymentMethod: paymentMethod,
+      item_count: itemCount,
+      vehicle_type: selectedVehicle,
+      payment_method: paymentMethod,
       description: fd.get("description") as string,
-      distance: 0,
-      senderId: user?.id || "",
+      sender_id: user?.id || "",
     };
 
     if (editingParcel) {
@@ -224,15 +257,12 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
 
     setLoading(true);
     try {
-      const resp = await createParcel({
-        ...parcelData,
-        paymentStatus: 'pending'
-      }, parcelPhoto || undefined);
+      const resp = await createParcel(parcelData, parcelPhoto || undefined);
       
-      setPendingPaymentParcel(resp);
-      setShowPaymentModal(true);
+      // Directly show success state since backend handles the 'paid' status automatically now
+      setLatestCreated(resp);
       resetForm();
-      toast.info("Select a payment method to post your parcel.");
+      toast.success("Parcel posted successfully! It is now visible to all travellers.");
     } catch (err: any) {
       toast.error(`Parcel creation failed: ${err.response?.data?.message || err.message}`);
     } finally {
@@ -240,28 +270,7 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
     }
   };
 
-  const handleSimulatePayment = async () => {
-    if (!pendingPaymentParcel) return;
-    setLoading(true);
-    try {
-      const { simulatePayment } = await import('@/lib/parcelStore');
-      const updated = await simulatePayment(pendingPaymentParcel.id);
-      toast.success("Payment Received! Parcel is now open for travellers.");
-      setLatestCreated(updated);
-      setShowPaymentModal(false);
-      setPendingPaymentParcel(null);
-      if (updated.deliveryOtp) {
-        toast.success(`💳 Payment Success! Delivery OTP: ${updated.deliveryOtp}`, { duration: 10000 });
-      } else {
-        toast.success("💳 Payment Success! Parcel is now open for travellers.");
-      }
-      refresh();
-    } catch (err: any) {
-      toast.error("Payment failed: " + (err.response?.data?.message || err.message));
-    } finally {
-      setLoading(false);
-    }
-  };
+
 
   const handleReleasePayment = async (id: string) => {
     try {
@@ -283,12 +292,12 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
   const handleEdit = (p: Parcel) => {
     setEditingParcel(p);
     setWeight(p.weight.toString());
-    setSize(p.size);
-    setItemCount(p.itemCount);
-    setSelectedVehicle(p.vehicleType || "");
-    setPaymentMethod(p.paymentMethod);
-    if (p.parcelPhoto) {
-      setPhotoPreview(`http://localhost:5000/${p.parcelPhoto}`);
+    setSize(p.size as any);
+    setItemCount(p.item_count);
+    setSelectedVehicle(p.vehicle_type || "");
+    setPaymentMethod(p.payment_method);
+    if (p.parcel_photo) {
+      setPhotoPreview(`http://localhost:5000/${p.parcel_photo}`);
     }
     setShowForm(true);
   };
@@ -297,7 +306,7 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
     setShowForm(false);
     setCheckoutParcel(null);
     setWeight("");
-    setSize("small");
+    setSize("medium");
     setItemCount(1);
     setSelectedVehicle("");
     setPaymentMethod('pay-now');
@@ -394,10 +403,7 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
     handleSearchIncoming(user?.phone);
   };
 
-  const openPaymentModal = (p: Parcel) => {
-    setPendingPaymentParcel(p);
-    setShowPaymentModal(true);
-  };
+
 
   return (
     <div className="min-h-screen bg-slate-50 mx-auto max-w-4xl px-4 pb-20 pt-20">
@@ -428,7 +434,7 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
                 <Package className="h-6 w-6 text-white" />
               </div>
               <div>
-                <h1 className="font-heading text-3xl font-black text-slate-900 tracking-tight">Active Dashboard</h1>
+                <h1 className="font-heading text-3xl font-bold text-slate-900 tracking-tight">Active Dashboard</h1>
                 <p className="text-sm font-bold text-slate-400">Manage your entire logistics pipeline</p>
               </div>
             </div>
@@ -436,12 +442,12 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
 
           <div className="flex flex-col items-end gap-2">
             <div className="flex items-center gap-2 rounded-2xl bg-slate-50 px-4 py-2 border border-slate-100 shadow-inner">
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Your Personal OTP</span>
-                <span className="text-lg font-black text-orange-600 tracking-widest">{user?.personalOtp || "----"}</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Your Personal OTP</span>
+                <span className="text-lg font-bold text-orange-600 tracking-widest">{user?.personalOtp || "----"}</span>
             </div>
              <Button
                 onClick={() => setShowForm(!showForm)}
-                className="bg-secondary hover:bg-secondary/90 text-white font-black rounded-2xl shadow-xl shadow-secondary/20 px-8"
+                className="bg-secondary hover:bg-secondary/90 text-white font-bold rounded-2xl shadow-xl shadow-secondary/20 px-8"
               >
                 <Plus className="mr-2 h-5 w-5" /> NEW PARCEL
               </Button>
@@ -452,7 +458,7 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
         <div className="mt-10 flex gap-2 rounded-[1.5rem] bg-slate-100 p-1.5 relative z-10 border border-slate-200">
           <button
             onClick={() => setActiveTab("outgoing")}
-            className={`flex-1 flex items-center justify-center gap-2 rounded-2xl py-3 text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === "outgoing"
+            className={`flex-1 flex items-center justify-center gap-2 rounded-2xl py-3 text-[10px] font-bold uppercase tracking-widest transition-all ${activeTab === "outgoing"
                ? "bg-orange-500 text-white shadow-lg shadow-orange-500/20"
                : "bg-transparent text-black hover:bg-slate-200/50"
                }`}
@@ -462,7 +468,7 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
           </button>
           <button
             onClick={() => setActiveTab("incoming")}
-            className={`flex-1 flex items-center justify-center gap-2 rounded-2xl py-3 text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === "incoming"
+            className={`flex-1 flex items-center justify-center gap-2 rounded-2xl py-3 text-[10px] font-bold uppercase tracking-widest transition-all ${activeTab === "incoming"
                ? "bg-orange-500 text-white shadow-lg shadow-orange-500/20"
                : "bg-transparent text-black hover:bg-slate-200/50"
                }`}
@@ -498,45 +504,11 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
                   onClick={() => setFilter(s.id as any)}
                   className={`flex cursor-pointer flex-col items-center justify-center rounded-2xl border p-3 transition-all ${filter === s.id ? 'bg-secondary/10 border-secondary ring-2 ring-secondary/20' : 'bg-card/30 border-border hover:bg-card/50'}`}
                 >
-                  <span className="text-xl font-black" style={{ color: s.color }}>{s.value}</span>
+                  <span className="text-xl font-bold" style={{ color: s.color }}>{s.value}</span>
                   <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">{s.label}</span>
                 </motion.div>
               ))}
             </div>
-
-            {/* --- COMMAND CENTER (NEW) --- */}
-            {parcels.some(p => p.status === 'requested') && (
-              <motion.div 
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="mt-6 rounded-3xl border-2 border-orange-500/30 bg-orange-500/5 p-5 shadow-2xl backdrop-blur-md relative overflow-hidden"
-              >
-                 <div className="absolute top-0 right-0 p-2 opacity-10"><Bell className="h-20 w-20" /></div>
-                 <div className="relative flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2">
-                       <span className="relative flex h-3 w-3"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span><span className="relative inline-flex rounded-full h-3 w-3 bg-orange-500"></span></span>
-                       <h3 className="font-black uppercase tracking-[0.2em] text-orange-600 text-[10px]">Action Required: New Traveller Requests</h3>
-                    </div>
-                 </div>
-                 <div className="space-y-3">
-                    {parcels.filter(p => p.status === 'requested').map(p => (
-                       <div key={p.id} className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 rounded-2xl bg-white shadow-sm border border-orange-100 group hover:shadow-md transition-all">
-                          <div className="flex items-center gap-3">
-                             <div className="h-10 w-10 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 font-black">{p.travellerName?.charAt(0) || "T"}</div>
-                             <div>
-                                <p className="text-xs font-black text-slate-800 uppercase tracking-tight">{p.travellerName} <span className="text-orange-400">wants to carry:</span> {p.fromLocation} → {p.toLocation}</p>
-                                <p className="text-[10px] font-bold text-muted-foreground">ID: #{p.id.slice(-6).toUpperCase()} · Weight: {p.weight}kg · Price: ₹{p.price}</p>
-                             </div>
-                          </div>
-                          <div className="flex items-center gap-2 w-full sm:w-auto">
-                              <Button variant="ghost" size="sm" onClick={() => p.travellerData && setProfileUser(p.travellerData)} className="flex-1 sm:flex-none text-[10px] font-black uppercase hover:bg-muted rounded-full">View Profile</Button>
-                              <Button size="sm" onClick={() => handleAccept(p.id)} className="flex-1 sm:flex-none bg-orange-500 hover:bg-orange-600 text-white text-[10px] font-black uppercase rounded-full shadow-lg shadow-orange-500/20 px-4">Accept Request</Button>
-                          </div>
-                       </div>
-                    ))}
-                 </div>
-              </motion.div>
-            )}
 
             {/* Form & List */}
             <div className="space-y-6 mt-6">
@@ -544,19 +516,19 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
                 {showForm && (
                   <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
                     <form onSubmit={handleSubmit} className="mb-6 rounded-3xl border border-secondary/20 bg-card p-6 shadow-xl">
-                       <h2 className="text-lg font-black tracking-tight mb-4 flex items-center gap-2"><Sparkles className="h-5 w-5 text-secondary" /> {editingParcel ? 'Edit Parcel' : 'Send New Parcel'}</h2>
+                       <h2 className="text-lg font-bold tracking-tight mb-4 flex items-center gap-2"><Sparkles className="h-5 w-5 text-secondary" /> {editingParcel ? 'Edit Parcel' : 'Send New Parcel'}</h2>
                        <div className="space-y-4">
                           {/* Row 1: Receiver Details */}
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
-                               <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Receiver Name</Label>
-                               <Input name="receiverName" placeholder="" defaultValue={editingParcel?.receiverName} className="mt-1 bg-slate-50 focus:bg-white border-slate-200" required />
+                               <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Receiver Name</Label>
+                               <Input name="receiverName" placeholder="" defaultValue={editingParcel?.receiver_name} className="mt-1 bg-slate-50 focus:bg-white border-slate-200" required />
                             </div>
                             <div>
-                               <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Receiver Number</Label>
+                               <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Receiver Number</Label>
                                <div className="flex mt-1 rounded-md overflow-hidden border border-slate-200 focus-within:ring-2 focus-within:ring-orange-500">
                                  <span className="bg-slate-100 px-3 flex items-center text-sm font-bold text-slate-500 border-r border-slate-200">+91</span>
-                                 <input name="receiverPhone" placeholder="" defaultValue={editingParcel?.receiverPhone?.replace('+91','')} className="flex-1 px-3 py-2 outline-none text-sm bg-slate-50 focus:bg-white font-medium" required maxLength={10} minLength={10} pattern="\d{10}" />
+                                 <input name="receiverPhone" placeholder="" defaultValue={editingParcel?.receiver_phone?.replace('+91','')} className="flex-1 px-3 py-2 outline-none text-sm bg-slate-50 focus:bg-white font-medium" required maxLength={10} minLength={10} pattern="\d{10}" />
                                </div>
                             </div>
                           </div>
@@ -564,44 +536,42 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
                           {/* Row 2: Route Details */}
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-dashed border-border pt-4">
                             <div>
-                               <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">From City</Label>
-                               <Input name="fromLocation" placeholder="" defaultValue={editingParcel?.fromLocation} className="mt-1 bg-slate-50 focus:bg-white border-slate-200" required />
+                               <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">From City</Label>
+                               <Input name="fromLocation" list="locations-list" placeholder="e.g. Kakinada" defaultValue={editingParcel?.from_location} className="mt-1 bg-slate-50 focus:bg-white border-slate-200" required />
                             </div>
                             <div>
-                               <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">To City</Label>
-                               <Input name="toLocation" placeholder="" defaultValue={editingParcel?.toLocation} className="mt-1 bg-slate-50 focus:bg-white border-slate-200" required />
+                               <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">To City</Label>
+                               <Input name="toLocation" list="locations-list" placeholder="e.g. Rajahmundry" defaultValue={editingParcel?.to_location} className="mt-1 bg-slate-50 focus:bg-white border-slate-200" required />
                             </div>
+                            <datalist id="locations-list">
+                               {locations.map(loc => (
+                                  <option key={loc.name} value={loc.name}>{loc.mandal}</option>
+                               ))}
+                            </datalist>
                           </div>
 
                           {/* Row 3: Parcel Details & Photo */}
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-dashed border-border pt-4">
-                            {editingParcel && editingParcel.deliveryOtp && (
-                               <div className="mb-4 mt-2 rounded-2xl bg-orange-500/10 border border-orange-500/20 p-4 text-center">
-                                  <p className="text-[10px] font-black uppercase tracking-widest text-orange-600 mb-1">Your Delivery Verification OTP</p>
-                                  <p className="text-3xl font-black text-slate-900 tracking-[0.5em] font-mono">{editingParcel.deliveryOtp || '------'}</p>
-                                  <p className="text-[9px] text-slate-500 font-bold mt-2">Give this 6-digit code to the traveller at handover</p>
-                               </div>
-                            )}
                             <div className="space-y-4">
                               <div>
-                                 <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Parcel Item Name</Label>
+                                 <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Parcel Item Name</Label>
                                  <Input name="description" placeholder="" defaultValue={editingParcel?.description} className="mt-1 bg-slate-50 focus:bg-white border-slate-200" required />
                               </div>
                               <div className="flex gap-2">
                                 <div className="flex-1">
-                                  <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Weight (kg)</Label>
+                                  <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Weight (kg)</Label>
                                   <Input type="number" step="0.1" name="weight" placeholder="kg" onChange={(e) => setWeight(e.target.value)} defaultValue={editingParcel?.weight} className="mt-1 bg-slate-50 focus:bg-white border-slate-200" required />
                                 </div>
                                 <div className="flex-1">
-                                  <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Items</Label>
-                                  <Input type="number" name="itemCount" placeholder="Qty" onChange={(e)=> setItemCount(parseInt(e.target.value))} defaultValue={editingParcel?.itemCount} className="mt-1 bg-slate-50 focus:bg-white border-slate-200" required />
+                                  <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Items</Label>
+                                  <Input type="number" name="itemCount" placeholder="Qty" onChange={(e)=> setItemCount(parseInt(e.target.value))} defaultValue={editingParcel?.item_count} className="mt-1 bg-slate-50 focus:bg-white border-slate-200" required />
                                 </div>
                               </div>
                             </div>
                             
                             {/* Live Image Capture */}
                             <div>
-                               <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Parcel Live Image</Label>
+                               <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Parcel Live Image</Label>
                                <div className="mt-1 border-2 border-dashed border-slate-200 rounded-xl p-4 flex flex-col items-center justify-center bg-slate-50 relative overflow-hidden h-[132px]">
                                   {photoPreview ? (
                                     <>
@@ -626,89 +596,14 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
                             </div>
                           </div>
 
-                          {/* Row 4: Secure Payment (Escrow Protection) */}
-                          <div className="border-t border-dashed border-border pt-4">
-                             <div className="flex items-center justify-between mb-3">
-                                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                                   <ShieldCheck className="h-3.5 w-3.5 text-secondary" /> Secure Payment (Escrow Protection)
-                                </Label>
-                                <button 
-                                   type="button" 
-                                   onClick={() => setShowHowItWorks(!showHowItWorks)}
-                                   className="text-[10px] font-bold text-secondary flex items-center gap-1 hover:underline"
-                                >
-                                   How it works? <ChevronDown className={`h-3 w-3 transition-transform ${showHowItWorks ? 'rotate-180' : ''}`} />
-                                </button>
-                             </div>
 
-                             <AnimatePresence>
-                                {showHowItWorks && (
-                                   <motion.div 
-                                      initial={{ height: 0, opacity: 0 }}
-                                      animate={{ height: 'auto', opacity: 1 }}
-                                      exit={{ height: 0, opacity: 0 }}
-                                      className="overflow-hidden mb-3"
-                                   >
-                                      <div className="bg-slate-50 rounded-xl p-3 border border-slate-200 grid grid-cols-2 sm:grid-cols-5 gap-2">
-                                         {[
-                                            { s: 1, t: "Sender Pays Securely" },
-                                            { s: 2, t: "CarryGo Holds Payment" },
-                                            { s: 3, t: "Traveller Delivers" },
-                                            { s: 4, t: "Receiver Confirms" },
-                                            { s: 5, t: "Released to Traveller" }
-                                         ].map(step => (
-                                            <div key={step.s} className="flex flex-col items-center text-center gap-1">
-                                               <span className="h-5 w-5 bg-secondary text-white text-[10px] font-black rounded-full flex items-center justify-center">{step.s}</span>
-                                               <span className="text-[8px] font-bold leading-tight text-muted-foreground uppercase">{step.t}</span>
-                                            </div>
-                                         ))}
-                                      </div>
-                                   </motion.div>
-                                )}
-                             </AnimatePresence>
-
-                             <div className="bg-purple-50/50 border-2 border-purple-200 rounded-2xl p-5 shadow-sm">
-                                <div className="flex items-start gap-4">
-                                   <div className="bg-purple-100 p-3 rounded-2xl text-purple-600 shadow-sm shrink-0">
-                                      <Lock className="h-6 w-6"/>
-                                   </div>
-                                   <div className="flex-1">
-                                      <div className="flex items-center gap-2">
-                                         <h4 className="font-black text-purple-900 text-base">Secure Escrow Payment</h4>
-                                         <span className="bg-purple-200 text-purple-700 text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-widest">Recommended</span>
-                                      </div>
-                                      <p className="text-xs text-purple-700/80 font-medium leading-relaxed mt-1">
-                                         Your payment is <strong className="text-purple-900">सुरक्षित</strong> with CarryGo. 
-                                         The amount will be held by the platform and released to the traveller only after successful delivery confirmation.
-                                      </p>
-                                      
-                                      {/* Price Breakdown */}
-                                      <div className="mt-4 pt-4 border-t border-purple-200/50 space-y-2">
-                                         <div className="flex justify-between text-xs font-bold text-purple-700/70">
-                                            <span>Parcel Charge</span>
-                                            <span>₹{(parseFloat(weight) || 0) * 50}</span>
-                                         </div>
-                                         <div className="flex justify-between text-xs font-bold text-purple-700/70">
-                                            <span>Platform Fee (10%)</span>
-                                            <span>₹{Math.round((parseFloat(weight) || 0) * 5)}</span>
-                                         </div>
-                                         <div className="flex justify-between text-base font-black text-purple-900 pt-1">
-                                            <span>Total Payable</span>
-                                            <span>₹{Math.round((parseFloat(weight) || 0) * 55)}</span>
-                                         </div>
-                                      </div>
-                                   </div>
-                                </div>
-                             </div>
-                             <input type="hidden" name="paymentMethod" value="pay-now" />
-                          </div>
 
                           {/* Submit Actions */}
                           <div className="flex items-center gap-3 pt-6 border-t border-border mt-4 justify-end">
                              <Button type="button" variant="ghost" onClick={() => { setEditingParcel(null); setShowForm(false); }} className="text-xs font-bold rounded-xl px-4 hover:bg-slate-100">Cancel</Button>
-                             <Button type="submit" disabled={loading || (!photoPreview && !editingParcel)} className="bg-secondary hover:bg-secondary/90 text-white font-black uppercase tracking-widest px-8 rounded-xl shadow-lg shadow-secondary/20 h-11 flex items-center gap-2">
-                                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : (editingParcel ? <RefreshCw className="h-4 w-4" /> : <Lock className="h-4 w-4" />)}
-                                {loading ? 'Processing...' : (editingParcel ? 'Save Changes' : 'Pay & Post Parcel')}
+                             <Button type="submit" disabled={loading || (!photoPreview && !editingParcel)} className="bg-secondary hover:bg-secondary/90 text-white font-bold uppercase tracking-widest px-8 rounded-xl shadow-lg shadow-secondary/20 h-11 flex items-center gap-2">
+                                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : (editingParcel ? <RefreshCw className="h-4 w-4" /> : <PackageCheck className="h-4 w-4" />)}
+                                 {loading ? 'Processing...' : (editingParcel ? 'Save Changes' : 'Post Parcel')}
                              </Button>
                           </div>
                        </div>
@@ -747,24 +642,14 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
                                <div>
                                   <div className="flex items-center gap-2 mb-1">
                                      <StatusBadge status={p.status} />
-                                     <span className="text-[10px] font-black uppercase tracking-tighter text-muted-foreground opacity-50">#{p.id.slice(-6).toUpperCase()}</span>
+                                     <span className="text-[10px] font-bold uppercase tracking-tighter text-muted-foreground opacity-50">#{p.id.slice(-6).toUpperCase()}</span>
                                    </div>
-                                   <div className="flex flex-col gap-0.5 mb-1.5 opacity-60">
-                                      <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
-                                         <Clock className="h-3 w-3" /> Created: {p.createdAt ? format(new Date(p.createdAt), "MMM d, h:mm a") : "---"}
-                                      </p>
-                                      {p.updatedAt && p.updatedAt !== p.createdAt && (
-                                         <p className="text-[9px] font-black uppercase tracking-widest text-secondary flex items-center gap-1.5">
-                                            <Bell className="h-3 w-3" /> Notified/Updated: {format(new Date(p.updatedAt), "MMM d, h:mm a")}
-                                         </p>
-                                      )}
-                                   </div>
-                                   <h3 className="font-heading font-black text-lg">{p.fromLocation} → {p.toLocation}</h3>
+                                   <h3 className="font-heading font-bold text-lg">{p.from_location} → {p.to_location}</h3>
                                </div>
                             </div>
                             <div className="flex flex-col items-end">
-                               <span className="text-xl font-black text-foreground">₹{p.price}</span>
-                               <span className="text-[10px] font-bold text-muted-foreground uppercase">{p.weight}kg · {p.itemCount} items</span>
+                               <span className="text-xl font-bold text-foreground">₹{p.price}</span>
+                               <span className="text-[10px] font-bold text-muted-foreground uppercase">{p.weight}kg · {p.item_count} items</span>
                             </div>
                          </div>
 
@@ -784,52 +669,66 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
                                             <User className="h-5 w-5" />
                                           </div>
                                           <div>
-                                            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest opacity-60">Receiver</p>
-                                            <p className="font-black text-sm text-slate-800">{p.receiverName}</p>
+                                            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest opacity-60">Receiver</p>
+                                            <p className="font-bold text-sm text-slate-800">{p.receiver_name}</p>
                                           </div>
                                         </div>
                                         <a 
-                                          href={`tel:${p.receiverPhone}`}
+                                          href={`tel:${p.receiver_phone}`}
                                           onClick={(e) => e.stopPropagation()}
                                           className="h-10 w-10 bg-blue-500 text-white rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20 hover:scale-110 active:scale-95 transition-all"
-                                          title={`Call ${p.receiverName}`}
+                                          title={`Call ${p.receiver_name}`}
                                         >
                                           <Phone className="h-4 w-4" />
                                         </a>
                                       </div>
 
                                       {/* Traveller Box (If Assigned) */}
-                                      {p.travellerName ? (
-                                        <div className="flex items-center justify-between p-4 bg-white border border-border shadow-sm rounded-3xl group/card">
-                                          <div className="flex items-center gap-3">
-                                            <div className="h-10 w-10 bg-emerald-500/10 text-emerald-500 rounded-2xl flex items-center justify-center">
-                                              <User className="h-5 w-5" />
+                                      {p.traveller_name || (p.status === 'requested') ? (
+                                         <div className="flex flex-col gap-3 w-full">
+                                            <div className="flex items-center justify-between p-4 bg-white border border-border shadow-sm rounded-3xl group/card">
+                                              <div className="flex items-center gap-3">
+                                                <div className="h-10 w-10 bg-emerald-500/10 text-emerald-500 rounded-2xl flex items-center justify-center">
+                                                  <User className="h-5 w-5" />
+                                                </div>
+                                                <div>
+                                                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest opacity-60">Traveller</p>
+                                                  <p className="font-bold text-sm text-slate-800">{p.traveller_name || "Applicant"}</p>
+                                                </div>
+                                              </div>
+                                              {p.traveller_phone ? (
+                                                <a 
+                                                  href={`tel:${p.traveller_phone}`}
+                                                  onClick={(e) => e.stopPropagation()}
+                                                  className="h-10 w-10 bg-emerald-500 text-white rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20 hover:scale-110 active:scale-95 transition-all"
+                                                >
+                                                  <Phone className="h-4 w-4" />
+                                                </a>
+                                              ) : (
+                                                <div className="text-[9px] font-bold text-orange-500 uppercase px-2 py-1 bg-orange-100 rounded-lg">Pending approval</div>
+                                              )}
                                             </div>
-                                            <div>
-                                              <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest opacity-60">Traveller</p>
-                                              <p className="font-black text-sm text-slate-800">{p.travellerName}</p>
-                                            </div>
-                                          </div>
-                                          <a 
-                                            href={`tel:${p.travellerPhone}`}
-                                            onClick={(e) => e.stopPropagation()}
-                                            className="h-10 w-10 bg-emerald-500 text-white rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20 hover:scale-110 active:scale-95 transition-all"
-                                            title={`Call ${p.travellerName}`}
-                                          >
-                                            <Phone className="h-4 w-4" />
-                                          </a>
-                                        </div>
-                                      ) : (
-                                        <div className="flex items-center gap-3 p-4 bg-muted/20 border border-dashed border-border rounded-3xl">
-                                          <div className="h-10 w-10 bg-muted rounded-2xl flex items-center justify-center text-muted-foreground/30">
-                                            <Loader2 className="h-5 w-5 animate-spin" />
-                                          </div>
-                                          <div>
-                                            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest opacity-60">Traveller</p>
-                                            <p className="font-bold text-xs text-muted-foreground/50 italic leading-none">Searching for traveller...</p>
-                                          </div>
-                                        </div>
-                                      )}
+                                            
+                                            {p.status === 'requested' && (
+                                              <Button 
+                                                onClick={(e) => { e.stopPropagation(); handleAccept(p.id); }}
+                                                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-12 rounded-2xl shadow-lg shadow-emerald-600/20 uppercase tracking-widest text-[10px] animate-pulse"
+                                              >
+                                                <Handshake className="h-4 w-4 mr-2" /> Approve Traveller to Deliver
+                                              </Button>
+                                            )}
+                                         </div>
+                                       ) : (
+                                         <div className="flex items-center gap-3 p-4 bg-muted/20 border border-dashed border-border rounded-3xl w-full">
+                                           <div className="h-10 w-10 bg-muted rounded-2xl flex items-center justify-center text-muted-foreground/30">
+                                             <Loader2 className="h-5 w-5 animate-spin" />
+                                           </div>
+                                           <div>
+                                             <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest opacity-60">Traveller</p>
+                                             <p className="font-bold text-xs text-muted-foreground/50 italic leading-none">Searching for traveller...</p>
+                                           </div>
+                                         </div>
+                                       )}
                                    </div>
 
                                   {/* Extra details when expanded */}
@@ -840,7 +739,7 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
                                        </div>
                                        <div>
                                          <p className="text-[10px] font-bold text-muted-foreground uppercase">Items</p>
-                                         <p className="font-bold text-sm tracking-tighter">{p.itemCount} Units</p>
+                                         <p className="font-bold text-sm tracking-tighter">{p.item_count} Units</p>
                                        </div>
                                      </div>
                                      <div className="flex items-center gap-3 p-3 bg-muted/40 rounded-xl">
@@ -849,7 +748,7 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
                                        </div>
                                        <div>
                                          <p className="text-[10px] font-bold text-muted-foreground uppercase">Payment</p>
-                                         <p className="font-bold text-sm tracking-tighter uppercase">{p.paymentMethod.replace('-', ' ')}</p>
+                                         <p className="font-bold text-sm tracking-tighter uppercase">{p.payment_method?.replace('-', ' ')}</p>
                                        </div>
                                      </div>
                                   </div>
@@ -861,42 +760,19 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
                                     </div>
                                   )}
 
-                                  {p.status === 'accepted' && p.pickupOtp && (
-                                    <div className="mb-6 mt-4 rounded-3xl bg-orange-600 p-6 text-center shadow-lg shadow-orange-600/20 border-2 border-orange-400/30">
-                                        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-white/50 mb-1">Pickup Authorization (Share with Traveller)</p>
-                                        <p className="text-4xl font-black text-white tracking-[0.4em] font-mono">{p.pickupOtp}</p>
-                                        <div className="h-0.5 w-16 bg-white/20 mx-auto my-3" />
-                                        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-white/50 mb-1">Final Delivery OTP (Tell Receiver)</p>
-                                        <p className="text-3xl font-black text-white tracking-[0.4em] font-mono opacity-80">{p.deliveryOtp || '------'}</p>
+                                  {p.status === 'accepted' && p.pickup_otp && (
+                                    <div className="mb-6 mt-4 rounded-3xl bg-secondary p-6 text-center shadow-lg shadow-secondary/20 border-2 border-white/20">
+                                        <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-white/70 mb-1">Pickup Authorization (Share with Traveller)</p>
+                                        <p className="text-4xl font-bold text-white tracking-[0.4em] font-mono">{p.pickup_otp}</p>
                                      </div>
                                  )}
 
                                   <div className="mt-6 flex gap-2">
-                                     {p.status === 'pending_payment' && (
-                                        <Button onClick={(e) => { e.stopPropagation(); openPaymentModal(p); }} className="flex-1 bg-secondary text-white font-black text-xs uppercase rounded-full shadow-lg shadow-secondary/20 h-10">
-                                           <CreditCard className="h-4 w-4 mr-2" /> Pay Now & Post
-                                        </Button>
-                                     )}
+
                                      <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleEdit(p); }} className="flex-1 font-bold text-xs uppercase bg-muted rounded-full">Edit Details</Button>
                                      <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleDelete(p.id); }} className="flex-1 font-bold text-xs uppercase text-red-500 hover:bg-red-50 rounded-full">Cancel Order</Button>
                                   </div>
 
-                                  <div className="mt-6 rounded-[2.5rem] border border-border bg-muted/10 overflow-hidden relative group/map h-[500px]">
-                                    <SnapMap from={p.fromLocation} to={p.toLocation} />
-                                    {(p.status === 'in-transit' || p.status === 'picked-up') && (
-                                      <Button 
-                                        variant="secondary" 
-                                        size="sm" 
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          window.open(`https://www.google.com/maps/dir/${encodeURIComponent(p.fromLocation)}/${encodeURIComponent(p.toLocation)}`, '_blank');
-                                        }}
-                                        className="absolute bottom-4 right-4 bg-white/90 backdrop-blur-md text-secondary font-black text-[10px] uppercase rounded-xl border border-secondary/20 shadow-xl opacity-0 group-hover/map:opacity-100 transition-opacity"
-                                      >
-                                        <Navigation2 className="h-3 w-3 mr-1.5" /> View on Google Maps
-                                      </Button>
-                                    )}
-                                  </div>
                                </motion.div>
                             )}
                          </AnimatePresence>
@@ -918,7 +794,7 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
           >
             <div className="rounded-3xl border border-secondary/20 bg-card/50 backdrop-blur-md p-6 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <h2 className="text-xl font-black text-foreground">👋 Welcome, {user?.name?.split(' ')[0] || 'User'}</h2>
+                <h2 className="text-xl font-bold text-foreground">👋 Welcome, {user?.name?.split(' ')[0] || 'User'}</h2>
                 <p className="text-sm font-bold text-muted-foreground mt-1">
                   📦 Your Incoming Parcels ({incomingParcels.length})
                 </p>
@@ -956,33 +832,23 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
                           <div className="flex-1">
                              <div className="flex items-center gap-2 mb-2">
                                 <StatusBadge status={p.status} />
-                                       <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">ORDER #{p.id.slice(-6).toUpperCase()}</span>
-                                 <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5 opacity-70">
-                                    <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
-                                      <Clock className="h-3 w-3" /> Created: {p.createdAt ? format(new Date(p.createdAt), "MMM d, h:mm a") : "---"}
-                                    </p>
-                                    {p.updatedAt && p.updatedAt !== p.createdAt && (
-                                      <p className="text-[9px] font-black uppercase tracking-widest text-blue-600 flex items-center gap-1.5 font-bold">
-                                        <Bell className="h-3 w-3" /> Notified (Last Status): {format(new Date(p.updatedAt), "MMM d, h:mm a")}
-                                      </p>
-                                    )}
-                                 </div>
-                              </div>
-                              <h3 className="font-heading font-black text-lg text-foreground group-hover:text-blue-600 transition-colors">{p.fromLocation} → {p.toLocation}</h3>
+                                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">ORDER #{p.id.slice(-6).toUpperCase()}</span>
+                             </div>
+                             <h3 className="font-heading font-bold text-lg text-foreground group-hover:text-blue-600 transition-colors">{p.from_location} → {p.to_location}</h3>
                              <div className="mt-2 flex items-center gap-4 text-xs font-bold text-muted-foreground">
                                 <span className="flex items-center gap-1.5"><Weight className="h-3.5 w-3.5 text-blue-600" /> {p.weight} kg</span>
                                  <div className="flex items-center gap-2">
                                     <button 
-                                       onClick={() => p.senderData && setProfileUser(p.senderData)}
+                                       onClick={() => p.sender_data && setProfileUser(p.sender_data)}
                                        className="flex items-center gap-1.5 hover:bg-blue-600/10 hover:text-blue-600 rounded-full px-2 py-0.5 transition-all text-blue-600/80 bg-blue-600/5"
                                     >
-                                       <User className="h-3.5 w-3.5" /> Sender: {p.senderName}
+                                       <User className="h-3.5 w-3.5" /> Sender: {p.sender_name}
                                     </button>
                                     <a 
-                                      href={`tel:${p.senderPhone}`}
+                                      href={`tel:${p.sender_phone}`}
                                       onClick={(e) => e.stopPropagation()}
                                       className="h-7 w-7 bg-blue-600 text-white rounded-full flex items-center justify-center shadow-lg shadow-blue-600/20 hover:scale-110 active:scale-95 transition-all"
-                                      title={`Call ${p.senderName}`}
+                                      title={`Call ${p.sender_name}`}
                                     >
                                       <Phone className="h-3 w-3" />
                                     </a>
@@ -1005,7 +871,7 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
                                 return (
                                    <div key={step} className="flex-1 flex flex-col items-center gap-1.5">
                                       <div className={`h-1.5 w-full rounded-full transition-all duration-500 ${isPast ? 'bg-blue-600/80 shadow-[0_0_8px_rgba(37,99,235,0.5)]' : 'bg-border'}`} />
-                                      <span className={`text-[9px] font-black uppercase tracking-tighter ${isCurrent ? 'text-blue-600' : isPast ? 'text-foreground/80' : 'text-muted-foreground/40'}`}>
+                                      <span className={`text-[9px] font-bold uppercase tracking-tighter ${isCurrent ? 'text-blue-600' : isPast ? 'text-foreground/80' : 'text-muted-foreground/40'}`}>
                                          {stepNames[idx]}
                                       </span>
                                    </div>
@@ -1014,7 +880,7 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
                           </div>
                        </div>
                         {/* 🔐 Delivery Verification OTP (Only for Receiver, Point 15) */}
-                         {p.deliveryOtp && (p.status === 'in-transit' || p.status === 'accepted') && (
+                         {p.delivery_otp && (p.status === 'in-transit' || p.status === 'accepted') && (
                             <motion.div 
                                initial={{ opacity: 0, scale: 0.95 }}
                                animate={{ opacity: 1, scale: 1 }}
@@ -1022,12 +888,12 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
                             >
                                <div className="flex flex-col items-center justify-center text-center relative z-10">
                                   <div className="flex items-center gap-2 mb-3">
-                                     <Lock className="h-4 w-4 text-blue-200" />
-                                     <span className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-200/80">Receiver Delivery OTP</span>
+                                     <LockIcon className="h-4 w-4 text-blue-200" />
+                                     <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-200/80">Receiver Delivery OTP</span>
                                   </div>
                                   <div className="flex gap-2">
-                                     {p.deliveryOtp.split('').map((digit, i) => (
-                                        <div key={i} className="h-14 w-12 flex items-center justify-center bg-white/20 backdrop-blur-md rounded-2xl text-2xl font-black shadow-inner border border-white/30 transform transition-transform group-hover:scale-105 duration-300">
+                                     {p.delivery_otp.split('').map((digit, i) => (
+                                        <div key={i} className="h-14 w-12 flex items-center justify-center bg-white/20 backdrop-blur-md rounded-2xl text-2xl font-bold shadow-inner border border-white/30 transform transition-transform group-hover:scale-105 duration-300">
                                            {digit}
                                         </div>
                                      ))}
@@ -1044,7 +910,7 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
 
                        {/* Action Buttons */}
                        <div className="mt-6 flex flex-wrap gap-2">
-                          <a href={`tel:${p.senderPhone || "1234567890"}`} className="flex-1 min-w-[100px]">
+                          <a href={`tel:${p.sender_phone || "1234567890"}`} className="flex-1 min-w-[100px]">
                              <Button variant="outline" size="sm" className="w-full bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 hover:text-blue-700 border-none rounded-xl font-bold uppercase tracking-widest text-[10px]">
                                 <Phone className="h-3.5 w-3.5 mr-1.5" /> Call Sender
                              </Button>
@@ -1052,15 +918,12 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
                           <Button variant="outline" size="sm" onClick={() => window.dispatchEvent(new CustomEvent('open-chat-support'))} className="flex-1 min-w-[100px] bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 hover:text-emerald-700 border-none rounded-xl font-bold uppercase tracking-widest text-[10px]">
                              <MessageCircle className="h-3.5 w-3.5 mr-1.5" /> Chat
                           </Button>
-                          <Button variant="outline" size="sm" onClick={() => setExpandedIncoming(expandedIncoming === p.id ? null : p.id)} className="flex-1 min-w-[100px] bg-purple-500/10 text-purple-600 hover:bg-purple-500/20 hover:text-purple-700 border-none rounded-xl font-bold uppercase tracking-widest text-[10px]">
-                             <Navigation2 className="h-3.5 w-3.5 mr-1.5" /> {expandedIncoming === p.id ? "Hide Map" : "Live Map"}
-                          </Button>
 
                           {p.status === 'delivered' && (
                              <Button 
                                size="sm"
                                onClick={() => handleMarkReceived(p.id)}
-                               className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white font-black rounded-xl shadow-lg shadow-green-600/20 px-6 uppercase tracking-widest text-[10px]"
+                               className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl shadow-lg shadow-green-600/20 px-6 uppercase tracking-widest text-[10px]"
                              >
                                 <CheckCircle2 className="h-4 w-4 mr-2" /> I Received This
                              </Button>
@@ -1068,20 +931,6 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
                        </div>
                     </div>
 
-                    <AnimatePresence>
-                      {expandedIncoming === p.id && (
-                        <motion.div 
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: 'auto' }}
-                          exit={{ opacity: 0, height: 0 }}
-                          className="mt-6 border-t border-border pt-6 overflow-hidden"
-                        >
-                            <div className="rounded-[2.5rem] overflow-hidden border border-border mt-4 h-[500px]">
-                               <SnapMap from={p.fromLocation} to={p.toLocation} />
-                            </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
                   </motion.div>
                 ))}
               </div>
@@ -1090,70 +939,9 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
         )}
       </AnimatePresence>
 
-      <UserProfileModal 
-        user={profileUser} 
-        isOpen={!!profileUser} 
-        onClose={() => setProfileUser(null)} 
-      />
-
-      <PaymentGatewayModal 
-        isOpen={showPaymentModal} 
-        onClose={() => setShowPaymentModal(false)} 
-        parcel={pendingPaymentParcel}
-        onConfirm={handleSimulatePayment}
-        loading={loading}
-      />
     </div>
   );
 }
 
-// --- Simulated Payment Modal ---
-function PaymentGatewayModal({ isOpen, onClose, parcel, onConfirm, loading }: { isOpen: boolean, onClose: () => void, parcel: Parcel | null, onConfirm: () => void, loading: boolean }) {
-  if (!isOpen || !parcel) return null;
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-full max-w-sm bg-card rounded-[40px] border border-border overflow-hidden shadow-2xl">
-        <div className="bg-secondary p-8 text-center text-white relative">
-           <div className="absolute top-4 right-4"><X className="h-6 w-6 cursor-pointer opacity-50 hover:opacity-100" onClick={onClose}/></div>
-           <div className="mx-auto h-20 w-20 bg-white/20 rounded-full flex items-center justify-center mb-4">
-              <CreditCard className="h-10 w-10 text-white" />
-           </div>
-           <h3 className="text-2xl font-black">Checkout</h3>
-           <p className="text-white/60 font-bold text-xs mt-1 uppercase tracking-widest">Transaction ID: CG-{parcel.id.slice(-6).toUpperCase()}</p>
-        </div>
-        
-        <div className="p-8 space-y-6">
-           <div className="space-y-4">
-              <div className="flex justify-between items-center text-sm font-bold opacity-60">
-                 <span>Subtotal</span>
-                 <span>₹{parcel.parcelCharge}</span>
-              </div>
-              <div className="flex justify-between items-center text-sm font-bold opacity-60">
-                 <span>Platform Protection</span>
-                 <span>₹{parcel.platformFee}</span>
-              </div>
-              <div className="flex justify-between items-center pt-4 border-t border-border">
-                 <span className="text-lg font-black">Grand Total</span>
-                 <span className="text-2xl font-black text-secondary">₹{parcel.price}</span>
-              </div>
-           </div>
 
-           <div className="space-y-3">
-              <Button onClick={onConfirm} disabled={loading} className="w-full h-14 bg-secondary hover:bg-secondary/90 text-white font-black text-lg rounded-2xl shadow-lg shadow-secondary/20">
-                 {loading ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : <Smartphone className="h-5 w-5 mr-2" />}
-                 PAY WITH UPI
-              </Button>
-              <div className="flex gap-2">
-                 <Button variant="outline" className="flex-1 h-12 rounded-xl font-bold text-xs"><Info className="h-4 w-4 mr-2" /> RAZORPAY</Button>
-                 <Button variant="outline" className="flex-1 h-12 rounded-xl font-bold text-xs">STRIPE</Button>
-              </div>
-           </div>
-
-           <p className="text-[10px] text-center font-bold text-muted-foreground uppercase tracking-tight flex items-center justify-center gap-1">
-              <Lock className="h-3 w-3" /> 256-bit Secure Escrow Encryption
-           </p>
-        </div>
-      </motion.div>
-    </div>
-  );
-}
+ 

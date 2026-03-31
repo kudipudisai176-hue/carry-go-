@@ -1,23 +1,50 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { MapPin, PackageCheck, Handshake, CheckCircle2, Star } from "lucide-react";
+import { MapPin, PackageCheck, Handshake, CheckCircle2, Star, Truck, Zap, Box, Weight, Bell, LayoutDashboard, Search, History, ShieldCheck, Key, MessageSquare, Clock, Navigation2, Check, RefreshCw, Sparkles, Home, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import StatusBadge from "@/components/StatusBadge";
-import RouteMap from "@/components/RouteMap";
 import { getParcelsByPhone, markReceived, submitReview, type Parcel, type UserData } from "@/lib/parcelStore";
 import { toast } from "sonner";
 import UserProfileModal from "@/components/UserProfileModal";
 import { useAuth } from "@/lib/authContext";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "@/lib/supabaseClient";
+import ParcelChat from "@/components/ParcelChat";
+
+// SwiftParcel Premium CSS (Common with Traveller Dashboard)
+const styles = `
+  :root {
+    --navy: #0f1f3d;
+    --orange: #f26522;
+    --orange-light: #fff3ec;
+    --orange-border: #f9c4a0;
+    --gray-bg: #f4f6f9;
+    --gray-border: #dde2ea;
+    --gray-text: #8896a8;
+    --white: #ffffff;
+    --success: #22c55e;
+    --shadow: 0 4px 24px rgba(15,31,61,0.08);
+    --shadow-md: 0 8px 32px rgba(15,31,61,0.13);
+  }
+
+  .route-dot {
+    width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid;
+  }
+  .route-dot.from { border-color: var(--navy); background: white; }
+  .route-dot.to { border-color: var(--orange); background: var(--orange); }
+  .route-connector { width: 1.5px; height: 18px; background: #dde2ea; }
+`;
 
 export default function Receiver() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [parcels, setParcels] = useState<Parcel[]>([]);
-  const [expanded, setExpanded] = useState<string | null>(null);
   const [profileUser, setProfileUser] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activeChat, setActiveChat] = useState<string | null>(null);
 
   // Review states
   const [reviewParcel, setReviewParcel] = useState<Parcel | null>(null);
@@ -39,80 +66,61 @@ export default function Receiver() {
     }
   }, [user?.phone]);
 
-  useEffect(() => {
-    fetchParcels();
-  }, [fetchParcels]);
-
   const sendBrowserNotification = useCallback((title: string, body: string) => {
     if ('Notification' in window && Notification.permission === 'granted') {
       new Notification(title, { body, icon: '/favicon.ico' });
     }
   }, []);
 
-  // Request browser notification permission
-  useEffect(() => {
-    if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission();
-    }
-  }, []);
-
-  // Polling for updates (Simulating real-time)
+  // Real-time status sync (Supabase)
   useEffect(() => {
     if (!user?.phone) return;
     const formattedPhone = user.phone.startsWith("+91") ? user.phone : `+91${user.phone.replace(/\D/g, '')}`;
 
-    let previousParcels: Parcel[] = [];
-
-    const checkUpdates = async () => {
-      try {
-        const fresh = await getParcelsByPhone(formattedPhone);
-        
-        // Notify of changes (Simplified diffing)
-        fresh.forEach(newParcel => {
-          const oldParcel = previousParcels.find(p => p.id === newParcel.id);
-          if (!oldParcel) return;
-
-          if (oldParcel.status !== newParcel.status) {
+    const channel = supabase
+      .channel('receiver-parcel-updates-v2')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'parcels',
+          filter: `receiver_phone=eq.${formattedPhone}`
+        },
+        (payload) => {
+          fetchParcels();
+          if (payload.eventType === 'UPDATE') {
             const statusMsgs: Record<string, string> = {
-              'requested': '📦 A traveller has requested your parcel. Order is being confirmed!',
-              'accepted': 'Your parcel has been accepted and is ready for pickup!',
-              'in-transit': '🚚 Your order is confirmed! Your parcel is now in transit!',
-              'delivered': '📦 Your parcel has been delivered! Please confirm receipt.',
+              'accepted': '📦 Your parcel has been accepted and is ready for pickup!',
+              'in-transit': '🚚 Your parcel is now in transit!',
+              'arrived': '🏁 Your traveller has arrived at your destination!',
+              'delivered': '✅ The parcel handover is complete!',
             };
-
-            const msg = statusMsgs[newParcel.status];
+            const msg = statusMsgs[(payload.new as any).status];
             if (msg) {
               toast.info(msg);
-              sendBrowserNotification('CarryGo Update', msg);
+              sendBrowserNotification('SwiftParcel Update', msg);
             }
           }
-        });
+        }
+      )
+      .subscribe();
 
-        setParcels(fresh);
-        previousParcels = fresh;
-      } catch (err) {
-        console.error("Polling failed:", err);
-      }
-    };
-
-    const interval = setInterval(checkUpdates, 5000);
-    checkUpdates(); // Initial check
-
-    return () => clearInterval(interval);
-  }, [user?.phone, sendBrowserNotification]);
-
+    fetchParcels(); // Initial fetch
+    return () => { supabase.removeChannel(channel); };
+  }, [user?.phone, fetchParcels, sendBrowserNotification]);
 
   const handleReceive = async (id: string) => {
     await markReceived(id);
-    toast.success("Parcel marked as received! Sender will be notified of payment.");
+    toast.success("Parcel marked as received! Sender will be notified.");
     fetchParcels();
   };
 
   const handleSubmitReview = async () => {
-    if (!reviewParcel || !reviewParcel.travellerId) return;
+    if (!reviewParcel || !reviewParcel.traveller_id) return;
     setSubmittingReview(true);
     try {
-      await submitReview(reviewParcel.id, reviewParcel.travellerId, rating, comment);
+      await submitReview(reviewParcel.id, reviewParcel.traveller_id, rating, comment);
       toast.success("Feedback submitted! Thank you.");
       setReviewedParcels(prev => [...prev, reviewParcel.id]);
       setReviewParcel(null);
@@ -125,187 +133,262 @@ export default function Receiver() {
     }
   };
 
-  return (
-    <div className="mx-auto max-w-4xl px-4 pb-20 pt-24">
-      <div className="mb-8 border-b border-border pb-6 flex items-center gap-4">
-        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-secondary/10">
-          <PackageCheck className="h-7 w-7 text-secondary" />
+  // ── RENDER: Header ──
+  const Header = () => (
+    <div className="w-full bg-[#0f1f3d] py-4 px-6 flex items-center gap-3 sticky top-0 z-50">
+      <div className="h-9 w-9 bg-[#f26522] rounded-xl flex items-center justify-center text-white shadow-lg">
+        <PackageCheck className="h-5 w-5" />
+      </div>
+      <span className="font-heading text-lg font-bold text-white tracking-tight">SwiftParcel</span>
+      <div className="ml-auto flex items-center gap-3">
+        <div className="h-8 w-8 rounded-full bg-white/10 flex items-center justify-center text-white/70">
+           <Bell className="h-4 w-4" />
         </div>
-        <div>
-          <h1 className="font-heading text-3xl font-bold text-foreground">Your Incoming Parcels</h1>
-          <p className="text-muted-foreground mt-1">Track and confirm delivery for your incoming packages</p>
+        <div className="h-8 w-8 rounded-full bg-white/10 flex items-center justify-center text-white/70 cursor-pointer" onClick={() => navigate('/dashboard')}>
+           <LayoutDashboard className="h-4 w-4" />
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen bg-[#eef1f6] flex flex-col items-center">
+      <style>{styles}</style>
+      <Header />
+
+      <div className="w-full max-w-[500px] p-6 pb-24">
+        
+        <div className="space-y-6">
+           <div className="flex flex-col items-center text-center">
+              <h1 className="font-heading text-2xl font-bold text-[#0f1f3d] tracking-tight">Incoming Shipments</h1>
+              <p className="text-[#8896a8] text-xs font-bold uppercase tracking-widest mt-2">Personal Tracking Feed</p>
+           </div>
+
+           {!loading && parcels.length === 0 ? (
+             <div className="bg-white border-2 border-dashed border-[#dde2ea] rounded-[2rem] py-20 px-8 text-center shadow-sm">
+                <div className="mb-5 opacity-30 flex justify-center">
+                  <MapPin className="h-14 w-14 text-[#8896a8]" />
+                </div>
+                <h3 className="font-heading text-lg font-bold text-[#0f1f3d]">No incoming parcels.</h3>
+                <p className="text-sm text-[#8896a8] mt-2 leading-relaxed">Parcels sent to <span className="text-[#f26522] font-semibold">{user?.phone}</span> will automatically appear here for real-time tracking.</p>
+             </div>
+           ) : (
+             <div className="space-y-4">
+                {parcels.map(p => (
+                   <motion.div 
+                     key={p.id} 
+                     initial={{ opacity: 0, y: 15 }} 
+                     animate={{ opacity: 1, y: 0 }}
+                     className="bg-white rounded-[1.5rem] shadow-sm overflow-hidden border border-slate-100"
+                   >
+                       {/* Card Header & Status */}
+                       <div className="bg-gradient-to-br from-[#0f1f3d] to-[#1a3360] p-5 flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                             <div className="h-10 w-10 bg-[#f26522] rounded-xl flex items-center justify-center font-bold text-white text-lg">
+                                {p.sender_name?.charAt(0) || "S"}
+                             </div>
+                             <div className="text-left">
+                                <h4 className="text-white font-bold text-sm leading-tight">{p.sender_name}</h4>
+                                <p className="text-white/50 text-[10px] uppercase font-bold tracking-wide mt-1">Sender</p>
+                             </div>
+                          </div>
+                          <StatusBadge status={p.status} />
+                       </div>
+
+                       <div className="p-5 space-y-5">
+                          {/* Route track */}
+                          <div className="bg-[#f4f6f9] p-4 rounded-2xl">
+                             <p className="text-[9px] font-bold uppercase text-[#8896a8] tracking-widest mb-3 flex items-center gap-1.5 uppercase">
+                                <MapPin className="h-3 w-3" /> Journey Snapshot
+                             </p>
+                             <div className="flex flex-col">
+                                <div className="flex gap-3">
+                                   <div className="flex flex-col items-center shrink-0">
+                                      <div className="route-dot from" />
+                                      <div className="route-connector" />
+                                   </div>
+                                   <div className="pb-4">
+                                      <p className="text-xs font-bold text-[#0f1f3d]">{p.from_location}</p>
+                                   </div>
+                                </div>
+                                <div className="flex gap-3">
+                                   <div className="flex shrink-0">
+                                      <div className="route-dot to" />
+                                   </div>
+                                   <div>
+                                      <p className="text-xs font-bold text-[#f26522]">{p.to_location}</p>
+                                   </div>
+                                </div>
+                             </div>
+                          </div>
+
+                          {/* Parcel Details Chips */}
+                          <div className="flex flex-wrap gap-2">
+                             <div className="bg-[#f4f6f9] px-3 py-2 rounded-lg flex items-center gap-2 text-[10px] font-bold text-[#8896a8]">
+                                <Weight className="h-3 w-3" /> {p.weight}kg
+                             </div>
+                             <div className="bg-[#f4f6f9] px-3 py-2 rounded-lg flex items-center gap-2 text-[10px] font-bold text-[#8896a8]">
+                                <Box className="h-3 w-3" /> {p.size}
+                             </div>
+                          </div>
+
+                          {/* Traveller Info */}
+                          {p.traveller_name && (
+                             <div className="rounded-2xl bg-[#fff3ec] p-4 border border-[#f9c4a0]/50 flex items-center justify-between">
+                                <div className="flex items-center gap-3 cursor-pointer" onClick={() => p.traveller_data && setProfileUser(p.traveller_data)}>
+                                   <div className="h-10 w-10 bg-[#f26522]/10 rounded-full flex items-center justify-center text-[#f26522]">
+                                      <Truck className="h-5 w-5" />
+                                   </div>
+                                   <div>
+                                      <p className="text-[10px] font-bold text-[#f26522] uppercase tracking-[0.1em]">Traveller Assigned</p>
+                                      <h5 className="font-bold text-[#0f1f3d] text-sm">{p.traveller_name}</h5>
+                                   </div>
+                                </div>
+                                <Button size="sm" variant="ghost" className="h-10 w-10 rounded-xl p-0" onClick={() => setActiveChat(p.id)}>
+                                   <MessageSquare className="h-5 w-5 text-[#f26522]" />
+                                </Button>
+                             </div>
+                          )}
+
+                          {/* HANDOVER KEY (OTP) */}
+                          {['accepted', 'in-transit', 'arrived'].includes(p.status) && (
+                            <div className="bg-[#0f1f3d] rounded-2xl p-6 text-center shadow-xl shadow-[#0f1f3d]/10 border-b-4 border-orange-500">
+                               <div className="h-12 w-12 bg-orange-500/20 border border-orange-500/40 rounded-full flex items-center justify-center mx-auto mb-4">
+                                  <Key className="h-6 w-6 text-orange-500" />
+                               </div>
+                               <p className="text-white/50 text-[10px] font-bold uppercase tracking-[0.2em] mb-2">Secure Delivery Key</p>
+                               <div className="flex justify-center gap-1.5">
+                                  {(p.delivery_otp || "----").split('').map((digit, i) => (
+                                     <div key={i} className="flex-1 bg-white/5 border border-white/10 h-14 rounded-xl flex items-center justify-center text-2xl font-bold text-white shadow-inner">
+                                        {digit}
+                                     </div>
+                                  ))}
+                               </div>
+                               <p className="text-white/40 text-[9px] mt-4 font-bold uppercase leading-relaxed max-w-[200px] mx-auto">Provide this code to the traveller only upon arrival.</p>
+                            </div>
+                          )}
+
+                          {/* ARRIVED STATE */}
+                          {p.status === "arrived" && (
+                            <div className="bg-green-500/10 border-2 border-green-500/30 rounded-2xl p-6 text-center space-y-4 animate-pulse">
+                               <div className="flex items-center justify-center gap-2 text-green-600">
+                                  <Clock className="h-5 w-5" />
+                                  <span className="font-bold uppercase text-xs tracking-widest">Traveller is here!</span>
+                               </div>
+                               <p className="text-[#0f1f3d] text-sm font-bold">Your parcel has reached its destination.</p>
+                            </div>
+                          )}
+
+                          {/* DELIVERED BUT NOT RECEIVED */}
+                          {p.status === "delivered" && (
+                            <div className="space-y-3">
+                               <div className="bg-green-500 rounded-2xl p-5 text-white flex items-center gap-4">
+                                  <div className="h-10 w-10 bg-white/20 rounded-full flex items-center justify-center">
+                                     <Check className="h-6 w-6" />
+                                  </div>
+                                  <div>
+                                     <h5 className="font-bold text-sm uppercase">Handover Complete!</h5>
+                                     <p className="text-white/70 text-xs">Waiting for your final receipt</p>
+                                  </div>
+                               </div>
+                               <Button 
+                                 className="w-full h-14 bg-[#0f1f3d] rounded-xl text-white font-bold uppercase tracking-widest text-xs"
+                                 onClick={() => handleReceive(p.id)}
+                               >
+                                  Confirm Parcel Receipt
+                               </Button>
+                            </div>
+                          )}
+
+                          {/* RECEIVED STATE (RATINGS) */}
+                          {p.status === "received" && (
+                            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5">
+                               <div className="flex items-center gap-3 mb-4">
+                                  <div className="h-8 w-8 bg-slate-200 rounded-full flex items-center justify-center text-slate-500">
+                                     <History className="h-4 w-4" />
+                                  </div>
+                                  <p className="text-xs font-bold text-slate-500">Logistics Loop Closed</p>
+                               </div>
+                               {p.traveller_id && !reviewedParcels.includes(p.id) && (
+                                  <Button 
+                                    variant="outline" 
+                                    className="w-full h-12 border-orange-500 text-orange-500 font-bold text-xs uppercase rounded-xl hover:bg-orange-50"
+                                    onClick={() => setReviewParcel(p)}
+                                  >
+                                     Rate Experience
+                                  </Button>
+                               )}
+                               {reviewedParcels.includes(p.id) && (
+                                  <div className="flex items-center gap-2 text-green-600 font-bold text-[10px] uppercase tracking-widest bg-green-50 py-3 rounded-xl justify-center">
+                                     <Sparkles className="h-3 w-3" /> Feedback Recorded
+                                  </div>
+                               )}
+                            </div>
+                          )}
+                       </div>
+                   </motion.div>
+                ))}
+             </div>
+           )}
         </div>
       </div>
 
-      {!loading && parcels.length === 0 && (
-        <div className="flex flex-col items-center justify-center rounded-3xl border-2 border-dashed border-border py-20 text-center bg-card shadow-sm mt-6">
-          <MapPin className="mb-5 h-16 w-16 text-muted-foreground/30" />
-          <h2 className="text-xl font-bold text-foreground mb-2">No incoming parcels</h2>
-          <p className="text-muted-foreground max-w-sm">When someone sends a parcel to your registered phone number, it will automatically appear here.</p>
-        </div>
+      {activeChat && (
+        <ParcelChat 
+          deliveryId={activeChat} 
+          currentUserId={user?.id || ""} 
+          onClose={() => setActiveChat(null)} 
+        />
       )}
 
-      <AnimatePresence>
-        {parcels.map((p) => (
-          <motion.div
-            key={p.id}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-4 rounded-xl border border-border bg-card p-5 shadow-card"
-          >
-            <div className="flex cursor-pointer items-start justify-between" onClick={() => setExpanded(expanded === p.id ? null : p.id)}>
-              <div>
-                <p className="font-heading font-semibold text-foreground">{p.fromLocation} → {p.toLocation}</p>
-                <div className="text-sm text-muted-foreground flex flex-wrap gap-2 items-center">
-                  <span>From: </span>
-                  <button 
-                    className="text-orange-500 hover:underline cursor-pointer font-medium"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (p.senderData) setProfileUser(p.senderData);
-                    }}
-                  >
-                    {p.senderName}
-                  </button>
-                  <span>· {p.weight}kg</span>
-                </div>
-                {p.travellerName && (
-                  <div className="mt-2 flex items-center gap-4">
-                    <button 
-                      className="text-xs text-secondary font-medium hover:underline cursor-pointer"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (p.travellerData) setProfileUser(p.travellerData);
-                      }}
-                    >
-                      Carried by: {p.travellerName}
-                    </button>
-                  </div>
-                )}
-              </div>
-              <StatusBadge status={p.status} />
-            </div>
-
-            {/* Status Timeline */}
-            <div className="mt-4 flex items-center gap-1">
-              {(['pending', 'requested', 'accepted', 'in-transit', 'delivered', 'received'] as const).map((s, i) => {
-                const statusOrder = ['pending', 'requested', 'accepted', 'in-transit', 'delivered', 'received'];
-                const currentIdx = statusOrder.indexOf(p.status);
-                const isComplete = i <= currentIdx;
-                return (
-                  <div key={s} className="flex flex-1 items-center">
-                    <div className={`h-2 w-full rounded-full transition-colors ${isComplete ? (p.status === 'received' ? 'bg-indigo-500' : 'bg-secondary') : 'bg-muted'}`} />
-                  </div>
-                );
-              })}
-            </div>
-            <div className="mt-1 flex justify-between text-[10px] text-muted-foreground">
-              <span>Pending</span>
-              <span>In Transit</span>
-              <span>Delivered</span>
-              <span>Received</span>
-            </div>
-
-            {p.status === "delivered" && (
-              <div className="mt-6 flex flex-col gap-4 rounded-xl border border-success/30 bg-success/5 p-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-success/20">
-                    <Handshake className="h-6 w-6 text-success" />
-                  </div>
-                  <div>
-                    <p className="font-bold text-foreground">Parcel is here!</p>
-                    <p className="text-xs text-muted-foreground">Please confirm with the traveller and mark as received.</p>
-                  </div>
-                </div>
-                <Button
-                  onClick={() => handleReceive(p.id)}
-                  className="w-full bg-success font-bold hover:bg-success/90"
-                >
-                  <CheckCircle2 className="mr-2 h-4 w-4" /> Received Delivery
-                </Button>
-              </div>
-            )}
-
-            {p.status === "received" && (
-              <div className="mt-4 flex flex-col gap-3 rounded-lg bg-indigo-500/5 p-4 border border-indigo-500/20">
-                <div className="flex items-center gap-2">
-                  <PackageCheck className="h-5 w-5 text-indigo-500" />
-                  <p className="text-sm font-medium text-indigo-500">Delivery confirmed and received!</p>
-                </div>
-                {p.travellerId && !reviewedParcels.includes(p.id) && (
-                  <Button
-                    variant="outline"
-                    className="w-full border-indigo-200 text-indigo-600 hover:bg-indigo-50 transition-colors"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setReviewParcel(p);
-                    }}
-                  >
-                    <Star className="mr-2 h-4 w-4" /> Leave Feedback for Traveller
-                  </Button>
-                )}
-                {reviewedParcels.includes(p.id) && (
-                  <p className="text-xs text-indigo-600 font-medium">✨ Feedback left for traveller.</p>
-                )}
-              </div>
-            )}
-
-
-            {expanded === p.id && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4">
-                <RouteMap from={p.fromLocation} to={p.toLocation} animate={p.status === "in-transit"} />
-              </motion.div>
-            )}
-          </motion.div>
-        ))}
-      </AnimatePresence>
-      {/* Profile Modal */}
       <UserProfileModal 
         user={profileUser} 
         isOpen={!!profileUser} 
         onClose={() => setProfileUser(null)} 
       />
 
-      {/* Review Modal */}
       <Dialog open={!!reviewParcel} onOpenChange={(open) => !open && setReviewParcel(null)}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Rate your Traveller</DialogTitle>
-            <DialogDescription>
-              How was your experience with {reviewParcel?.travellerName}? Your feedback helps keep CarryGo safe.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="flex justify-center gap-2">
+        <DialogContent className="sm:max-w-md rounded-[2.5rem] border-none shadow-2xl p-0 overflow-hidden">
+          <div className="bg-[#0f1f3d] p-10 text-center text-white">
+             <div className="mx-auto h-24 w-24 bg-orange-500 rounded-[2rem] flex items-center justify-center mb-6 shadow-xl shadow-orange-500/20">
+                <Star className="h-10 w-10 text-white fill-white" />
+             </div>
+             <DialogTitle className="text-3xl font-bold text-white">Rate your Traveller</DialogTitle>
+             <p className="text-white/40 text-[11px] font-bold uppercase tracking-[0.2em] mt-3">Share your logistics experience</p>
+          </div>
+          
+          <div className="p-10 space-y-8 bg-white">
+            <div className="flex justify-center gap-4">
               {[1, 2, 3, 4, 5].map((starIdx) => (
                 <button
                   key={starIdx}
                   onClick={() => setRating(starIdx)}
-                  className="transition-transform hover:scale-110 focus:outline-none"
+                  className="transition-all hover:scale-125 focus:outline-none"
                 >
                   <Star 
-                    className={`h-8 w-8 ${starIdx <= rating ? 'fill-yellow-400 text-yellow-400' : 'text-slate-200'}`} 
+                    className={`h-10 w-10 ${starIdx <= rating ? 'fill-orange-400 text-orange-400 drop-shadow-lg' : 'text-slate-100'}`} 
                   />
                 </button>
               ))}
             </div>
-            <div className="space-y-2">
-              <Label>Comment (optional)</Label>
+            
+            <div className="space-y-3">
+              <Label className="text-[10px] font-bold uppercase text-[#8896a8] tracking-widest ml-1">Comments (optional)</Label>
               <Textarea 
-                placeholder="Share your experience..." 
+                placeholder="How was the handover experience?" 
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
-                className="resize-none"
-                rows={3}
+                className="resize-none h-32 rounded-3xl bg-[#f4f6f9] border-none font-bold text-[#0f1f3d] p-6 focus:ring-0"
               />
             </div>
+
+            <div className="flex gap-4">
+               <Button variant="ghost" onClick={() => setReviewParcel(null)} className="flex-1 font-bold uppercase text-[#8896a8] text-xs">Skip</Button>
+               <Button onClick={handleSubmitReview} disabled={submittingReview} className="flex-[2] h-14 bg-[#0f1f3d] rounded-2xl font-bold uppercase tracking-widest text-xs text-white">
+                 {submittingReview ? <RefreshCw className="h-4 w-4 animate-spin" /> : "Submit Review"}
+               </Button>
+            </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setReviewParcel(null)}>Cancel</Button>
-            <Button onClick={handleSubmitReview} disabled={submittingReview} className="bg-indigo-600 text-white hover:bg-indigo-700">
-              {submittingReview ? "Submitting..." : "Submit Review"}
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

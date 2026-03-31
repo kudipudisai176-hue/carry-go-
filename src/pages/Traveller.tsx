@@ -1,56 +1,56 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  Package, Plus, Check, Trash2, MapPin, Weight, ArrowRight, ArrowLeft, Sparkles, Box, Bike, Bus, Car, Truck, Info, Layers, CreditCard, RefreshCw, Navigation, History, Search, Handshake, ChevronRight, CheckCircle2, Navigation2, Zap, Clock, Star, Phone, ShieldCheck, Map, LayoutDashboard, User, PackageCheck, ChevronUp, ChevronDown, Bell
+import { 
+  MapPin, PackageCheck, Handshake, CheckCircle2, Star, Truck, Zap, Box, 
+  Weight, Bell, LayoutDashboard, Search, History, ShieldCheck, Key, 
+  MessageCircle, MessageSquare, Clock, Navigation2, Check, RefreshCw, Sparkles, Home, User,
+  Package, ArrowRight, ArrowLeft, Layers, Phone, Bike, Car, Bus, 
+  Navigation, ExternalLink, ChevronDown, ChevronUp, CreditCard, Plus, 
+  Info, ChevronRight, Map, Trash2, X, Camera, CheckCircle, Loader2
 } from "lucide-react";
+import { locations } from "@/lib/locations";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import StatusBadge from "@/components/StatusBadge";
-import SnapMap from "@/components/SnapMap";
 import {
-  searchParcels, updateParcelStatus,
-  requestParcel, getMyDeliveries, type Parcel, type UserData
+  searchParcels, updateParcelStatus, getParcelById,
+  requestParcel, getMyDeliveries, type Parcel, type UserData, mapParcel, uploadParcelPhoto
 } from "@/lib/parcelStore";
 import UserProfileModal from "@/components/UserProfileModal";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/authContext";
 import { useNavigate } from "react-router-dom";
-// Supabase import removed
+import { supabase } from "@/lib/supabaseClient";
 import { Label } from "@/components/ui/label";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter
-} from "@/components/ui/dialog";
+import ParcelChat from "@/components/ParcelChat";
+
 
 export default function Traveller() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // -- Data State --
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [results, setResults] = useState<Parcel[]>([]);
   const [myDeliveries, setMyDeliveries] = useState<Parcel[]>([]);
-  const [expanded, setExpanded] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"deliveries" | "search">("deliveries");
   const [profileUser, setProfileUser] = useState<UserData | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const [isConfirming, setIsConfirming] = useState(false);
-  const [pickupOtp, setPickupOtp] = useState("");
-  const [trackingParcel, setTrackingParcel] = useState<Parcel | null>(null); // auto-opens after OTP
-
-  // Navigation map state: shows full-screen map after OTP confirmed
-  const [navParcel, setNavParcel] = useState<Parcel | null>(null);
-
-  // Dedicated detail view for accepted/processing parcels
-  const [detailParcel, setDetailParcel] = useState<Parcel | null>(null);
-
-  // Request browser notification permission
-  useEffect(() => {
-    if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission();
-    }
-  }, []);
-
-
-
+  // -- Delivery Flow State --
+  const [flowStep, setFlowStep] = useState<0 | 1 | 2 | 3 | 4 | 5>(0); // 0=List, 1=Details, 2=Pickup, 3=Map, 4=Delivery, 5=Complete
+  const [activeParcel, setActiveParcel] = useState<Parcel | null>(null);
+  const [otpValue, setOtpValue] = useState(["", "", "", ""]); // 4-digit for this flow
+  const [pickupPhoto, setPickupPhoto] = useState<string | null>(null);
+  const [deliveryPhoto, setDeliveryPhoto] = useState<string | null>(null);
+  const [pickupPhotoFile, setPickupPhotoFile] = useState<File | null>(null);
+  const [deliveryPhotoFile, setDeliveryPhotoFile] = useState<File | null>(null);
+  const [otpError, setOtpError] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [activeChat, setActiveChat] = useState<string | null>(null);
+  const [showMap, setShowMap] = useState(true);
 
   const sendBrowserNotification = useCallback((title: string, body: string) => {
     if ('Notification' in window && Notification.permission === 'granted') {
@@ -62,62 +62,86 @@ export default function Traveller() {
     try {
       const data = await getMyDeliveries();
       setMyDeliveries(data);
-    } catch {
-      // silently fail - traveller may not have deliveries yet
-    }
-  }, []);
-
-  const handleSearch = useCallback(async () => {
-    try {
-      // Priority: use the 'from' state if set, else fallback to user's registered city
-      const origin = from || user?.city || "";
-      const destination = to || "";
-
-      const data = await searchParcels(origin, destination);
-      // Security: Filter out own parcels - you cannot be the traveller for your own parcel
-      const filtered = data.filter(p => p.senderId !== user?.id);
-      setResults(filtered);
-    } catch {
-      toast.error("Failed to load local parcels");
-    }
-  }, [from, to, user?.id, user?.city]);
-
-  const handleStartTransit = useCallback(async (id: string, parcel: Parcel, autoOtp?: string) => {
-    const finalOtp = autoOtp || pickupOtp;
-    if (!finalOtp || finalOtp.length !== 4) {
-      toast.error("Please enter the 4-digit OTP provided by the Sender");
-      return;
-    }
-    setIsConfirming(true);
-    try {
-      const res = await updateParcelStatus(id, "in-transit", undefined, finalOtp);
-      if (res) {
-        toast.success("🚀 Transit started! Tracking is now live for all parties.", { duration: 5000 });
-        sendBrowserNotification('CarryGo – Transit Started! 🚚', `Parcel ${res.description?.slice(0, 20) || 'package'} is now in transit.`);
-        setNavParcel(res);
-        setDetailParcel(res);
-        setTrackingParcel(res);
-        setPickupOtp("");
-
-        await loadMyDeliveries();
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+      
+      // If we are in the flow, keep that parcel updated
+      if (activeParcel) {
+         const updated = data.find(p => p.id === activeParcel.id);
+         if (updated) setActiveParcel(updated);
       }
-    } catch (err: unknown) {
-      if (err instanceof Error) {
-        toast.error((err as { response?: { data?: { message?: string } } }).response?.data?.message || err.message || "Failed to start journey");
-      } else {
-        toast.error("Failed to start journey");
-      }
-    } finally {
-      setIsConfirming(false);
+    } catch {
+      // silently fail
     }
-  }, [pickupOtp, sendBrowserNotification, loadMyDeliveries]);
+  }, [activeParcel]);
+
+  // Real-time status sync (Point 11)
+  useEffect(() => {
+    if (!user?.id) return;
+    
+    const channel = supabase
+      .channel('traveller-parcel-updates-v2')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'parcels',
+          filter: `traveller_id=eq.${user.id}`
+        },
+        async (payload) => {
+          if (payload.new.status === 'accepted') {
+             // Fetch the very latest full record to ensure sender phone etc are there
+             const fullParcel = await getParcelById(payload.new.id);
+             const p = fullParcel || mapParcel(payload.new);
+
+             toast.success("A sender has accepted your delivery request! 🎉", {
+               duration: 8000,
+               action: {
+                 label: "View Delivery",
+                 onClick: () => {
+                    setActiveParcel(p);
+                    setFlowStep(1);
+                    setActiveTab("deliveries");
+                 }
+               }
+             });
+             sendBrowserNotification("Request Accepted! ✅", "You have been assigned to a new parcel.");
+             
+             // Auto-open logic
+             setActiveParcel(p);
+             setFlowStep(1);
+             setActiveTab("deliveries");
+             
+             loadMyDeliveries();
+          } else {
+             loadMyDeliveries();
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, loadMyDeliveries, sendBrowserNotification]);
 
   useEffect(() => {
     loadMyDeliveries();
   }, [loadMyDeliveries]);
 
-  // Auto-load local parcels based on user's city (Point 3)
+  const handleSearch = useCallback(async () => {
+    setLoading(true);
+    try {
+      const origin = from || user?.city || "";
+      const data = await searchParcels(origin, to || "");
+      const filtered = data.filter(p => p.sender_id !== user?.id);
+      setResults(filtered);
+    } catch {
+      toast.error("Failed to load local parcels");
+    } finally {
+      setLoading(false);
+    }
+  }, [from, to, user?.id, user?.city]);
+
   useEffect(() => {
     if (activeTab === "search" && results.length === 0) {
       handleSearch();
@@ -130,738 +154,676 @@ export default function Traveller() {
       await requestParcel(id, user.name);
       toast.success("Request sent! Waiting for Sender to approve.");
       handleSearch();
-    } catch (err: unknown) {
-      if (err instanceof Error) {
-        toast.error((err as { response?: { data?: { message?: string } } }).response?.data?.message || err.message || "Failed to send request");
-      } else {
-        toast.error("Failed to send request");
-      }
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to send request");
     }
   };
 
-  const handleDeliver = async (id: string, parcel: Parcel) => {
-    setIsConfirming(true);
+  const handleArrivedAtPickup = async (parcelId?: string) => {
+    const id = parcelId || activeParcel?.id;
+    if (!id) return;
+    
     try {
-      const res = await updateParcelStatus(id, "delivered");
-      if (res) {
-        toast.success("Delivery confirmed! Great job 🎉");
-        setNavParcel(null);
-        setDetailParcel(res);
-        await loadMyDeliveries();
-      }
-    } catch (err: unknown) {
-      if (err instanceof Error) {
-        toast.error((err as { response?: { data?: { message?: string } } }).response?.data?.message || err.message || "Failed to confirm delivery");
-      } else {
-        toast.error("Failed to confirm delivery");
-      }
+      // 📍 Optional: Notify sender/receiver via backend (Point 15)
+      await updateParcelStatus(id, 'arrived');
+      toast.info("Sender notified of your arrival!");
+    } catch (e) {
+      console.warn("Status update failed:", e);
+    }
+    setFlowStep(2);
+    setOtpError(null);
+    setOtpValue(["", "", "", ""]);
+  };
+
+  const handleConfirmPickup = async () => {
+    if (!activeParcel || !pickupPhotoFile) {
+        toast.error("Please capture a photo first!");
+        return;
+    }
+    const otpCode = otpValue.join("");
+    if (otpCode.length < 4) {
+        setOtpError("Enter 4-digit OTP");
+        return;
+    }
+
+    setIsProcessing(true);
+    try {
+      const photoUrl = await uploadParcelPhoto(activeParcel.id, pickupPhotoFile, "pickup");
+      await updateParcelStatus(activeParcel.id, "picked-up", undefined, otpCode, photoUrl);
+      toast.success("Pickup Confirmed!");
+      setFlowStep(3);
+      setShowMap(true);
+      loadMyDeliveries();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Pickup failed. Incorrect OTP.");
     } finally {
-      setIsConfirming(false);
+      setIsProcessing(false);
     }
   };
+
+  const handleArrivedAtReceiver = () => {
+    setFlowStep(4);
+    setOtpError(null);
+    setOtpValue(["", "", "", ""]);
+  };
+
+  const handleConfirmDelivery = async () => {
+    if (!activeParcel || !deliveryPhotoFile) {
+        toast.error("Please capture a delivery photo!");
+        return;
+    }
+    const otpCode = otpValue.join("");
+    if (otpCode.length < 4) {
+        setOtpError("Enter 4-digit OTP");
+        return;
+    }
+
+    setIsProcessing(true);
+    try {
+      const photoUrl = await uploadParcelPhoto(activeParcel.id, deliveryPhotoFile, "delivery");
+      await updateParcelStatus(activeParcel.id, "delivered", undefined, otpCode, photoUrl);
+      setFlowStep(5);
+      loadMyDeliveries();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Delivery failed. Incorrect OTP.");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleImageCapture = (e: React.ChangeEvent<HTMLInputElement>, type: 'pickup' | 'delivery') => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    if (type === 'pickup') {
+        setPickupPhotoFile(file);
+        setPickupPhoto(URL.createObjectURL(file));
+    } else {
+        setDeliveryPhotoFile(file);
+        setDeliveryPhoto(URL.createObjectURL(file));
+    }
+  };
+
+  const resetFlow = () => {
+    setFlowStep(0);
+    setActiveParcel(null);
+    setOtpValue(["", "", "", ""]);
+    setPickupPhoto(null);
+    setDeliveryPhoto(null);
+    setPickupPhotoFile(null);
+    setDeliveryPhotoFile(null);
+  };
+
+  const handleOtpInput = (val: string, index: number) => {
+    const newOtp = [...otpValue];
+    newOtp[index] = val.slice(-1); // Only take last digit
+    setOtpValue(newOtp);
+    
+    if (val && index < 3) {
+      document.getElementById(`otp-${index + 1}`)?.focus();
+    }
+  };
+
+  const handleOtpKeyDown = (e: React.KeyboardEvent, index: number) => {
+    if (e.key === 'Backspace' && !otpValue[index] && index > 0) {
+      document.getElementById(`otp-${index - 1}`)?.focus();
+    }
+  };
+
 
   return (
-    <div className="min-h-screen bg-slate-50 mx-auto max-w-4xl px-4 pb-20 pt-24">
+    <div className="min-h-screen bg-slate-50 mx-auto max-w-4xl px-4 pb-20 pt-20">
+      <Button 
+        variant="ghost" 
+        size="sm" 
+        onClick={() => navigate('/dashboard')}
+        className="group mb-4 -ml-2 text-muted-foreground hover:text-foreground"
+      >
+        <ArrowLeft className="h-4 w-4 mr-2 transition-transform group-hover:-translate-x-1" />
+        Back to Dashboard
+      </Button>
 
-      {/* ── Header ── */}
-      {!detailParcel && (
-        <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="space-y-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate('/dashboard')}
-              className="group -ml-2 text-muted-foreground hover:text-foreground"
-            >
-              <ArrowLeft className="h-4 w-4 mr-2 transition-transform group-hover:-translate-x-1" />
-              Back to Dashboard
-            </Button>
-            <div>
-              <h1 className="font-heading text-3xl font-bold text-foreground">Traveller Dashboard</h1>
-              <p className="text-muted-foreground">Manage your deliveries and find new parcels</p>
+      <motion.div
+        initial={{ opacity: 0, y: -24 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.55 }}
+        className="relative mb-8 overflow-hidden rounded-[2.5rem] p-10 shadow-[0_20px_50px_-12px_rgba(249,115,22,0.15)] border border-white bg-white"
+      >
+        <div className="absolute -right-12 -top-12 h-64 w-64 rounded-full bg-orange-500/10 blur-[80px]" />
+        <div className="absolute -left-12 -bottom-12 h-48 w-48 rounded-full bg-secondary/5 blur-[60px]" />
+
+        <div className="relative flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="mb-2 flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-500 shadow-lg shadow-orange-500/20">
+                <Bike className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <h1 className="font-heading text-3xl font-bold text-slate-900 tracking-tight">Traveller Dashboard</h1>
+                <p className="text-sm font-bold text-slate-400">Manage your deliveries and find new routes</p>
+              </div>
             </div>
           </div>
 
-          {/* 💰 Wallet Balance Card (Point 14) */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-white border border-orange-500/10 rounded-2xl p-5 flex items-center gap-4 shadow-[0_10px_30px_-10px_rgba(249,115,22,0.1)]"
-          >
-            <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-white shadow-lg shadow-orange-500/20">
-              <CreditCard className="h-6 w-6" />
+          <div className="flex flex-col items-end gap-2">
+            <div className="flex items-center gap-2 rounded-2xl bg-slate-50 px-4 py-2 border border-slate-100 shadow-inner">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Total Earnings</span>
+                <span className="text-lg font-bold text-orange-600 tracking-widest">₹{myDeliveries.reduce((acc, curr) => acc + (curr.status === 'delivered' ? curr.price : 0), 0)}</span>
             </div>
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Earnings Balance</p>
-              <p className="text-2xl font-black text-slate-900 leading-none mt-1">₹{user?.walletBalance || 0}</p>
-              <div className="flex h-1 w-8 bg-orange-500/20 rounded-full mt-2" />
-            </div>
-          </motion.div>
+          </div>
         </div>
-      )}
 
-      {/* ── Navigation Map (after OTP verified) ── */}
-      <AnimatePresence>
-        {navParcel && !detailParcel && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="mb-6 overflow-hidden rounded-2xl border-2 border-secondary/30 bg-card shadow-xl shadow-secondary/10"
+        {/* --- Unified Tabs --- */}
+        <div className="mt-10 flex gap-2 rounded-[1.5rem] bg-slate-100 p-1.5 relative z-10 border border-slate-200">
+          <button
+            onClick={() => setActiveTab("deliveries")}
+            className={`flex-1 flex items-center justify-center gap-2 rounded-2xl py-3 text-[10px] font-bold uppercase tracking-widest transition-all ${activeTab === "deliveries"
+               ? "bg-orange-500 text-white shadow-lg shadow-orange-500/20"
+               : "bg-transparent text-black hover:bg-slate-200/50"
+               }`}
           >
-            <div className="flex items-center justify-between bg-secondary/10 px-5 py-3">
-              <div className="flex items-center gap-2">
-                <Navigation className="h-5 w-5 text-secondary" />
-                <span className="font-bold text-foreground">Navigation Active</span>
-                <span className="rounded-full bg-secondary/20 px-2 py-0.5 text-xs text-secondary font-medium">
-                  {navParcel.fromLocation} → {navParcel.toLocation}
-                </span>
-              </div>
-              <Button size="sm" variant="ghost" onClick={() => setNavParcel(null)} className="text-xs">
-                Close Map
-              </Button>
-            </div>
-            <div className="p-4 h-[500px] overflow-hidden rounded-2xl">
-              <SnapMap from={navParcel.fromLocation} to={navParcel.toLocation} />
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* ── Detail View Page ── */}
-      <AnimatePresence mode="wait">
-        {detailParcel ? (
-          <motion.div
-            key="detail-view"
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            className="space-y-6"
+            <History className="h-4 w-4" />
+            MY DELIVERIES
+          </button>
+          <button
+            onClick={() => setActiveTab("search")}
+            className={`flex-1 flex items-center justify-center gap-2 rounded-2xl py-3 text-[10px] font-bold uppercase tracking-widest transition-all ${activeTab === "search"
+               ? "bg-orange-500 text-white shadow-lg shadow-orange-500/20"
+               : "bg-transparent text-black hover:bg-slate-200/50"
+               }`}
           >
-            <div className="flex items-center justify-between">
-              <Button
-                variant="ghost"
-                onClick={() => setDetailParcel(null)}
-                className="gap-2 text-muted-foreground hover:text-foreground"
-              >
-                <ArrowRight className="h-4 w-4 rotate-180" /> Back to List
-              </Button>
-              <StatusBadge status={detailParcel.status} />
-            </div>
+            <Search className="h-4 w-4" />
+            FIND PARCELS
+          </button>
+        </div>
+      </motion.div>
 
-            <div className="overflow-hidden rounded-3xl border border-border bg-card shadow-xl">
-              <div className="bg-orange-500/5 p-6 border-b border-orange-500/10">
-                <div className="flex items-center gap-4 mb-2">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-500 text-white shadow-lg shadow-orange-500/20">
-                    <Package className="h-7 w-7" />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-bold text-foreground font-heading">Parcel: {detailParcel.description.slice(0, 30) || "Package Info"}</h2>
-                    <p className="text-xs text-muted-foreground">ID: {detailParcel.id.slice(-8).toUpperCase()}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-6 space-y-8">
-                {/* Locations */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative">
-                  <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 hidden md:block">
-                    <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
-                      <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-secondary">Pickup Location</p>
-                    <div className="flex items-start gap-3">
-                      <MapPin className="h-5 w-5 text-secondary mt-0.5 shrink-0" />
-                      <p className="text-lg font-semibold leading-tight">{detailParcel.fromLocation}</p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2 md:text-right">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-green-600">Delivery Location</p>
-                    <div className="flex items-start gap-3 md:flex-row-reverse">
-                      <MapPin className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
-                      <p className="text-lg font-semibold leading-tight">{detailParcel.toLocation}</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="h-px bg-border/50" />
-
-                {/* Details Grid */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                  <div className="space-y-1">
-                    <p className="text-[10px] font-bold uppercase text-muted-foreground">Weight</p>
-                    <div className="flex items-center gap-2">
-                      <Weight className="h-4 w-4 text-secondary/70" />
-                      <span className="font-bold">{detailParcel.weight} kg</span>
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-[10px] font-bold uppercase text-muted-foreground">Size</p>
-                    <div className="flex items-center gap-2">
-                      <Box className="h-4 w-4 text-secondary/70" />
-                      <span className="font-bold capitalize">{detailParcel.size}</span>
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-[10px] font-bold uppercase text-muted-foreground">Items</p>
-                    <div className="flex items-center gap-2">
-                      <Layers className="h-4 w-4 text-secondary/70" />
-                      <span className="font-bold">{detailParcel.itemCount} Units</span>
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-[10px] font-bold uppercase text-muted-foreground">Payout</p>
-                    <div className="flex items-center gap-2">
-                      <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${detailParcel.paymentStatus === 'paid'
-                        ? (detailParcel.paymentReleased ? 'bg-success/15 text-success' : 'bg-blue-500/15 text-blue-500')
-                        : 'bg-red-500/15 text-red-500'
-                        }`}>
-                        {detailParcel.paymentStatus === 'paid'
-                          ? (detailParcel.paymentReleased ? 'Funds Released' : 'Held in Escrow')
-                          : 'Waiting for Payment'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="h-px bg-border/50" />
-
-                {/* People */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <div className="rounded-2xl bg-muted/30 p-5 border border-border/50">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-4">Sender Information</p>
-                    <div className="flex items-center gap-4">
-                      <div className="h-12 w-12 rounded-full bg-secondary/20 flex items-center justify-center text-secondary">
-                        <User className="h-6 w-6" />
-                      </div>
-                      <div>
-                        <p className="font-bold text-lg">{detailParcel.senderName}</p>
-                        <a href={`tel:${detailParcel.senderPhone}`} className="flex items-center gap-1.5 text-sm text-secondary hover:underline">
-                          <Phone className="h-3 w-3" /> {detailParcel.senderPhone || "Phone not provided"}
-                        </a>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="rounded-2xl bg-muted/30 p-5 border border-border/50">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-4">Receiver Information</p>
-                    <div className="flex items-center gap-4">
-                      <div className="h-12 w-12 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-500">
-                        <User className="h-6 w-6" />
-                      </div>
-                      <div>
-                        <p className="font-bold text-lg">{detailParcel.receiverName}</p>
-                        <a href={`tel:${detailParcel.receiverPhone}`} className="flex items-center gap-1.5 text-sm text-blue-500 hover:underline">
-                          <Phone className="h-3 w-3" /> {detailParcel.receiverPhone}
-                        </a>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Action Section (Only for Pickup) */}
-                {detailParcel.status === 'accepted' && (
-                  <div className="rounded-3xl border-2 border-secondary/30 bg-secondary/5 p-8 text-center space-y-6">
-                    <div className="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-secondary text-white shadow-lg shadow-secondary/20 mb-2">
-                      <Truck className="h-8 w-8" />
-                    </div>
-                    <div>
-                      <h3 className="text-2xl font-bold text-foreground">Confirm Pickup</h3>
-                      <p className="text-muted-foreground text-sm max-w-sm mx-auto mt-2">
-                        Enter the secure 4-digit OTP from <strong>{detailParcel.senderName}</strong> (Hint: 1234) to confirm pickup.
-                      </p>
-                    </div>
-
-                    <div className="flex flex-col items-center gap-4">
-                      <div className="flex items-center justify-between w-full max-w-[150px] px-1">
-                        <p className="text-[10px] font-bold text-muted-foreground uppercase">Enter OTP</p>
-                      </div>
-                      <Input
-                        value={pickupOtp}
-                        onChange={(e) => setPickupOtp(e.target.value)}
-                        placeholder="0 0 0 0"
-                        maxLength={4}
-                        className="max-w-[150px] text-center text-lg font-bold tracking-[0.3em] font-mono h-12 rounded-xl"
-                      />
-                      <Button
-                        size="lg"
-                        className="w-full max-w-xs bg-secondary text-white font-bold h-14 rounded-2xl shadow-xl shadow-secondary/20 hover:scale-[1.02] transition-transform"
-                        onClick={() => handleStartTransit(detailParcel.id, detailParcel)}
-                        disabled={isConfirming || pickupOtp.length !== 4}
-                      >
-                        {isConfirming ? "Confirming..." : "Verify & Start Journey"}
-                      </Button>
-                    </div>
-                  </div>
-                )}
-
-                {/* In-Transit Map Inline */}
-                {detailParcel.status === 'in-transit' && (
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h3 className="font-bold flex items-center gap-2 text-foreground">
-                        <Navigation className="h-5 w-5 text-secondary" /> Navigation Active
-                      </h3>
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => window.open(`https://www.google.com/maps/dir/${encodeURIComponent(detailParcel.fromLocation)}/${encodeURIComponent(detailParcel.toLocation)}`, '_blank')}
-                          className="text-[10px] font-bold uppercase rounded-xl border-secondary/30 text-secondary hover:bg-secondary/5"
-                        >
-                          <Navigation2 className="h-3 w-3 mr-1.5" /> G-Maps App
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={() => setNavParcel(detailParcel)} className="text-[10px] uppercase font-bold rounded-xl">Full Screen 3D</Button>
-                      </div>
-                    </div>
-                    <div className="h-[500px] rounded-[2.5rem] overflow-hidden border border-border">
-                       <SnapMap from={detailParcel.fromLocation} to={detailParcel.toLocation} />
-                    </div>
-
-                    <div className="rounded-3xl border-2 border-green-500/30 bg-green-500/5 p-8 text-center space-y-6">
-                      <p className="text-sm font-bold text-green-600 uppercase tracking-widest">Final Step</p>
-                      <h3 className="text-xl font-bold">Arrived at Destination?</h3>
-                      <p className="text-xs text-muted-foreground">Click below to confirm successful delivery to <strong>{detailParcel.receiverName}</strong>.</p>
-                      <div className="flex flex-col items-center gap-4">
-                        <Button
-                          className="w-full max-w-xs bg-green-600 text-white font-bold h-12 rounded-xl shadow-lg shadow-green-600/20"
-                          onClick={() => navigate(`/confirm-delivery/${detailParcel.id}`)}
-                          disabled={isConfirming}
-                        >
-                          {isConfirming ? "Navigating..." : "Confirm Delivery Complete"}
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </motion.div>
-        ) : (
-          <>
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="mb-8 rounded-[2.5rem] bg-[#001333] p-8 text-white shadow-2xl relative overflow-hidden group"
-            >
-              <div className="relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
-                <div className="space-y-1">
-                   <div className="flex items-center gap-2">
-                      <div className="h-1.5 w-1.5 rounded-full bg-orange-600" />
-                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Total Earnings Balance</p>
-                   </div>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-4xl font-black text-orange-500">₹</span>
-                    <h2 className="text-7xl font-black tracking-tight text-white leading-none">0</h2>
-                  </div>
-                </div>
-
-                <div className="flex h-20 w-20 items-center justify-center rounded-[2rem] bg-[#001c44] border border-blue-500/20 shadow-xl group-hover:scale-110 transition-transform duration-500">
-                  <div className="relative">
-                    <PackageCheck className="h-10 w-10 text-orange-500" />
-                    <div className="absolute -top-1 -right-1 h-3 w-3 bg-green-500 rounded-full border-2 border-[#001333] animate-pulse" />
-                  </div>
-                </div>
-              </div>
-
-              <div className="relative mt-12 overflow-hidden rounded-[2rem] bg-white p-5 shadow-inner">
-                 <div className="flex items-center gap-4">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-orange-500/10 text-orange-600">
-                      <Clock className="h-5 w-5" />
-                    </div>
-                    <div>
-                       <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Payout Schedule</p>
-                       <p className="text-[11px] font-bold text-slate-900 mt-0.5">Auto-withdrawals processed <span className="text-orange-600">every Monday</span> at 9:00 AM</p>
-                    </div>
-                    <div className="ml-auto flex -space-x-1 opacity-20">
-                       {[1,2,3].map(i => <div key={i} className="h-6 w-6 rounded-full border border-white bg-slate-200" />)}
-                    </div>
-                 </div>
-              </div>
-            </motion.div>
-
-            {/* ── Tabs ── */}
-            <div className="mb-8 flex gap-2 rounded-2xl bg-slate-100 p-1.5 border border-slate-200 shadow-inner">
-              <button
-                onClick={() => setActiveTab("deliveries")}
-                className={`flex-1 rounded-xl py-3.5 text-xs font-black uppercase tracking-widest transition-all ${activeTab === "deliveries"
-                  ? "bg-white text-orange-600 shadow-md"
-                  : "text-slate-400 hover:text-slate-600 hover:bg-white/50"
-                  }`}
-              >
-                <History className="mr-2 inline h-4 w-4" />
-                My Deliveries
-                {myDeliveries.length > 0 && (
-                  <span className="ml-2 rounded-full bg-orange-500 px-2 py-0.5 text-[9px] text-white">
-                    {myDeliveries.length}
-                  </span>
-                )}
-              </button>
-              <button
-                onClick={() => setActiveTab("search")}
-                className={`flex-1 rounded-xl py-3.5 text-xs font-black uppercase tracking-widest transition-all ${activeTab === "search"
-                  ? "bg-white text-orange-600 shadow-md"
-                  : "text-slate-400 hover:text-slate-600 hover:bg-white/50"
-                  }`}
-              >
-                <Search className="mr-2 inline h-4 w-4" />
-                Find Parcels
-              </button>
-            </div>
-
-
-            {/* ══════════════════════════════════════════
-          TAB 1: MY DELIVERIES
-      ══════════════════════════════════════════ */}
-            <AnimatePresence mode="wait">
-              {activeTab === "deliveries" && (
-                <motion.div key="deliveries" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+      {flowStep === 0 && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+          <AnimatePresence mode="wait">
+              {activeTab === "deliveries" ? (
+                <motion.div key="list-deliveries" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }}>
                   {myDeliveries.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border py-20 text-center">
-                      <Truck className="mb-4 h-12 w-12 text-muted-foreground/40" />
-                      <p className="text-muted-foreground font-semibold">No active deliveries.</p>
-                      <p className="mt-1 text-sm text-muted-foreground/70 max-w-xs mx-auto">
-                        Once you request a parcel and the <strong>Sender accepts</strong>, it will appear here instantly.
-                      </p>
-                      <Button variant="outline" className="mt-6 border-secondary text-secondary hover:bg-secondary/10" onClick={() => setActiveTab("search")}>
+                    <div className="bg-white border-2 border-dashed border-[#dde2ea] rounded-[2rem] py-16 px-8 text-center shadow-sm">
+                      <div className="mb-4 opacity-30 flex justify-center">
+                        <Truck className="h-14 w-14 text-[#8896a8]" />
+                      </div>
+                      <h3 className="font-heading text-lg font-bold text-[#0f1f3d]">No active deliveries.</h3>
+                      <p className="text-sm text-[#8896a8] mt-2 leading-relaxed">Once you request a parcel and the <span className="text-[#f26522] font-semibold">Sender accepts</span>, it will appear here instantly.</p>
+                      <Button variant="outline" className="mt-8 border-[#f26522] text-[#f26522] rounded-full px-8 h-12 font-bold hover:bg-[#fff3ec]" onClick={() => setActiveTab("search")}>
                         Go Find Parcels
                       </Button>
                     </div>
                   ) : (
-                    <div className="grid gap-4">
-                      {myDeliveries.map((p) => (
-                        <motion.div
-                          key={p.id}
-                          layout
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          className="rounded-2xl border border-border bg-card shadow-md overflow-hidden cursor-pointer hover:border-secondary/30 transition-colors"
-                          onClick={() => setDetailParcel(p)}
-                        >
-                          {/* Status bar */}
-                          <div className="flex items-center justify-between bg-muted/40 px-4 py-2 border-b border-border">
-                            <div className="flex items-center gap-2">
+                    <div className="space-y-4">
+                      {myDeliveries.map(p => (
+                        <div key={p.id} className="bg-white rounded-[1.5rem] shadow-sm overflow-hidden border border-slate-100 transition-all hover:shadow-md cursor-pointer" onClick={() => { setActiveParcel(p); setFlowStep(1); }}>
+                           {/* Card Header */}
+                           <div className="bg-slate-50 border-b border-slate-100 p-5 flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                 <div className="h-11 w-11 bg-orange-500 rounded-xl flex items-center justify-center font-bold text-white text-lg shadow-lg shadow-orange-500/20">
+                                    {p.sender_name?.charAt(0) || "P"}
+                                 </div>
+                                 <div className="text-left">
+                                    <h4 className="text-slate-900 font-bold text-sm leading-tight">{p.sender_name}</h4>
+                                    <p className="text-slate-400 text-[10px] uppercase font-bold tracking-wide mt-1 flex items-center gap-1">
+                                       <Sparkles className="h-3 w-3 text-orange-500" /> Sender · Verified
+                                    </p>
+                                 </div>
+                              </div>
                               <StatusBadge status={p.status} />
-                              <span className="text-xs text-muted-foreground">
-                                {p.fromLocation} → {p.toLocation}
-                              </span>
-                            </div>
-                            <button
-                              onClick={() => setExpanded(expanded === p.id ? null : p.id)}
-                              className="text-muted-foreground hover:text-foreground"
-                            >
-                              {expanded === p.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                            </button>
-                          </div>
+                           </div>
 
-                          {/* Parcel Details */}
-                          <div className="p-4">
-                            <div className="grid gap-3 sm:grid-cols-2">
-                              {/* Parcel Info */}
-                              <div className="rounded-xl bg-muted/30 p-3 space-y-2">
-                                <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Parcel Info</p>
-                                <div className="flex items-center gap-2 text-sm">
-                                  <Box className="h-4 w-4 text-secondary" />
-                                  <span className="font-semibold text-foreground">{p.description || "Package"}</span>
-                                </div>
-                                <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                                  <span className="flex items-center gap-1"><Weight className="h-3 w-3" /> {p.weight}kg</span>
-                                  <span className="flex items-center gap-1"><Layers className="h-3 w-3" /> {p.itemCount} items</span>
-                                  <span className="capitalize">{p.size}</span>
-                                </div>
-                              </div>
-
-                              {/* Receiver Info */}
-                              <div className="rounded-xl bg-muted/30 p-3 space-y-2 relative overflow-hidden group/card shadow-sm border border-border/50">
-                                <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-1 opacity-60">Receiver</p>
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-2.5">
-                                    <div className="h-8 w-8 rounded-full bg-blue-500/10 flex items-center justify-center">
-                                      <User className="h-4 w-4 text-blue-500" />
+                           <div className="p-5 space-y-5">
+                              {/* Route Track */}
+                              <div className="bg-[#f4f6f9] p-4 rounded-2xl">
+                                 <div className="flex flex-col">
+                                    <div className="flex gap-3">
+                                       <div className="flex flex-col items-center shrink-0">
+                                          <div className="h-2 w-2 rounded-full bg-orange-500" />
+                                          <div className="w-[1px] h-4 bg-slate-200" />
+                                       </div>
+                                       <p className="text-xs font-bold text-[#0f1f3d]">{p.from_location}</p>
                                     </div>
-                                    <span className="font-bold text-sm text-foreground">{p.receiverName}</span>
-                                  </div>
-                                  <a 
-                                    href={`tel:${p.receiverPhone}`}
-                                    onClick={(e) => e.stopPropagation()}
-                                    className="h-10 w-10 flex items-center justify-center rounded-xl bg-blue-500 text-white shadow-lg shadow-blue-500/20 hover:scale-110 active:scale-95 transition-all"
-                                    title={`Call ${p.receiverName}`}
-                                  >
-                                    <Phone className="h-4 w-4" />
-                                  </a>
-                                </div>
-                              </div>
-
-                              {/* Sender Info */}
-                              <div className="rounded-xl bg-muted/30 p-3 space-y-2">
-                                <button
-                                  className="group flex flex-col gap-1 w-full text-left"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (p.senderData) setProfileUser(p.senderData);
-                                  }}
-                                >
-                                  <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-1 opacity-60">Sender</p>
-                                  <div className="flex items-center justify-between w-full">
-                                    <div className="flex items-center gap-2.5">
-                                      <div className="h-8 w-8 rounded-full bg-orange-500/10 flex items-center justify-center group-hover:bg-orange-500/20 transition-colors">
-                                        <User className="h-4 w-4 text-orange-500" />
-                                      </div>
-                                      <span className="font-bold text-sm text-foreground group-hover:text-orange-600 transition-colors">{p.senderName}</span>
+                                    <div className="flex gap-3">
+                                       <div className="h-2 w-2 rounded-full bg-slate-300" />
+                                       <p className="text-xs font-bold text-slate-400">{p.to_location}</p>
                                     </div>
-                                    <a 
-                                      href={`tel:${p.senderPhone}`}
-                                      onClick={(e) => e.stopPropagation()}
-                                      className="h-10 w-10 flex items-center justify-center rounded-xl bg-orange-500 text-white shadow-lg shadow-orange-500/20 hover:scale-110 active:scale-95 transition-all"
-                                      title={`Call ${p.senderName}`}
-                                    >
-                                      <Phone className="h-4 w-4 rotate-0" />
-                                    </a>
-                                  </div>
-                                </button>
+                                 </div>
                               </div>
 
-                              {/* Estimated Earning Info */}
-                              <div className="rounded-xl bg-muted/30 p-3 space-y-2">
-                                <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Estimated Earning</p>
-                                <div className="flex flex-col gap-1">
-                                  <span className="text-sm font-bold text-green-600">₹{((p.weight * 50 + 20) / 2).toFixed(2)}</span>
-                                  <p className="text-[9px] text-muted-foreground italic">Company pays 50% after delivery confirmation.</p>
-                                </div>
+                              <div className="flex items-center justify-between">
+                                 <div className="flex items-center gap-2">
+                                    <Box className="h-4 w-4 text-orange-500" />
+                                    <span className="text-[10px] font-bold text-slate-900 uppercase">{p.description}</span>
+                                 </div>
+                                 <span className="text-lg font-bold text-orange-600">₹{p.price}</span>
                               </div>
-                            </div>
 
-                            {/* Inline Actions for Accepted (Pickup) */}
-                            {p.status === "accepted" && (
-                              <motion.div
-                                initial={{ opacity: 0, y: 5 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                className="mt-4 rounded-xl border border-secondary/30 bg-secondary/5 p-4"
-                              >
-                                <div className="flex items-center gap-2 mb-3 text-secondary">
-                                  <Truck className="h-4 w-4" />
-                                  <span className="font-bold text-sm">Ready to Pick Up</span>
-                                </div>
-                                <p className="text-xs text-muted-foreground mb-4">
-                                  Confirm you have collected the parcel from <strong>{p.senderName}</strong> to start the delivery path.
-                                </p>
-                                <Button
-                                  className="w-full bg-secondary text-white hover:bg-secondary/90 shadow-md"
-                                  onClick={() => handleStartTransit(p.id, p)}
-                                  disabled={isConfirming}
-                                >
-                                  <Navigation className="h-4 w-4 mr-2" /> Start Journey
-                                </Button>
-                              </motion.div>
-                            )}
-
-                            {/* Inline Actions for In-Transit (Delivery) */}
-                            {p.status === "in-transit" && (
-                              <motion.div
-                                initial={{ opacity: 0, y: 5 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                className="mt-4 rounded-xl border border-green-500/30 bg-green-500/5 p-4"
-                              >
-                                <div className="flex items-center justify-between mb-4">
-                                  <div className="flex items-center gap-2 text-green-600">
-                                    <PackageCheck className="h-4 w-4" />
-                                    <span className="font-bold text-sm">Complete Hand-off</span>
-                                  </div>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="gap-2 border-green-600/50 text-green-700 hover:bg-green-50"
-                                    onClick={() => setNavParcel(p)}
-                                  >
-                                    <Navigation className="h-4 w-4" /> View Map
-                                  </Button>
-                                </div>
-                                <p className="text-xs text-muted-foreground mb-4">
-                                  Once you hand the parcel to <strong>{p.receiverName}</strong>, click confirm to close the delivery.
-                                </p>
-                                <Button
-                                  className="w-full bg-green-600 text-white hover:bg-green-700 shadow-md font-bold"
-                                  onClick={() => navigate(`/confirm-delivery/${p.id}`)}
-                                  disabled={isConfirming}
-                                >
-                                  <CheckCircle2 className="h-4 w-4 mr-2" /> Confirm Delivery
-                                </Button>
-                              </motion.div>
-                            )}
-
-                            <div className="mt-4 flex flex-wrap gap-2">
-                              {p.status === "delivered" && (
-                                <span className="flex items-center gap-2 text-sm font-semibold text-green-600">
-                                  <CheckCircle2 className="h-4 w-4" /> Delivered Successfully!
-                                </span>
-                              )}
-                            </div>
-
-                            {/* Expanded Route Map */}
-                            <AnimatePresence>
-                              {expanded === p.id && (
-                                <motion.div
-                                  initial={{ opacity: 0, height: 0 }}
-                                  animate={{ opacity: 1, height: "auto" }}
-                                  exit={{ opacity: 0, height: 0 }}
-                                  className="mt-4 overflow-hidden"
-                                >
-                                  <div className="h-[500px] rounded-[2.5rem] overflow-hidden border border-border mt-4">
-                                    <SnapMap from={p.fromLocation} to={p.toLocation} />
-                                  </div>
-                                </motion.div>
-                              )}
-                            </AnimatePresence>
-                          </div>
-                        </motion.div>
+                              {p.status === 'accepted' && (
+                                 <Button 
+                                   className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold h-10 rounded-xl uppercase tracking-widest text-[9px] shadow-lg shadow-orange-500/20"
+                                   onClick={(e) => { e.stopPropagation(); setActiveParcel(p); handleArrivedAtPickup(p.id); }}
+                                 >
+                                   <MapPin className="h-3 w-3 mr-2" /> Arrived at Pickup
+                                 </Button>
+                               )}
+                           </div>
+                        </div>
                       ))}
                     </div>
                   )}
                 </motion.div>
-              )}
+              ) : (
+                <motion.div key="list-search" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}>
+                   <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-100 mb-6">
+                      <h3 className="font-heading text-xl font-bold text-[#0f1f3d] mb-4">Find New Parcels</h3>
+                      <div className="space-y-4">
+                         <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold uppercase text-[#8896a8] tracking-widest ml-1">Current City</label>
+                            <Input 
+                               value={from} 
+                               list="locations-list"
+                               onChange={(e) => setFrom(e.target.value)} 
+                               placeholder="e.g. Kakinada" 
+                               className="h-14 rounded-2xl bg-[#f4f6f9] border-none font-bold text-[#0f1f3d]"
+                            />
+                         </div>
+                         <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold uppercase text-[#8896a8] tracking-widest ml-1">Destination (Optional)</label>
+                            <Input 
+                               value={to} 
+                               list="locations-list"
+                               onChange={(e) => setTo(e.target.value)} 
+                               placeholder="e.g. Rajahmundry" 
+                               className="h-14 rounded-2xl bg-[#f4f6f9] border-none font-bold text-[#0f1f3d]"
+                            />
+                         </div>
+                         <datalist id="locations-list">
+                            {locations.map(loc => (
+                               <option key={loc.name} value={loc.name}>{loc.mandal}</option>
+                            ))}
+                         </datalist>
+                         <Button 
+                            className="w-full h-14 bg-[#f26522] rounded-2xl font-bold uppercase tracking-[0.2em] text-sm shadow-xl shadow-[#f26522]/20 mt-2" 
+                            onClick={handleSearch}
+                            disabled={loading}
+                         >
+                            {loading ? <RefreshCw className="h-4 w-4 animate-spin" /> : "Search Local Feed"}
+                         </Button>
+                      </div>
+                   </div>
 
-              {/* ══════════════════════════════════════════
-            TAB 2: FIND PARCELS
-        ══════════════════════════════════════════ */}
-              {activeTab === "search" && (
-                <motion.div key="search" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                  {/* Smart Filtering & Location Control (Point 1 & 2) */}
-                  <div className="mb-8 rounded-3xl border-2 border-orange-500/20 bg-white p-8 shadow-[0_20px_50px_-12px_rgba(249,115,22,0.1)]">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                       <div className="flex items-center gap-4">
-                          <div className="h-16 w-16 rounded-3xl bg-orange-500/10 flex items-center justify-center text-orange-600 shadow-inner">
-                             <MapPin className="h-8 w-8" />
-                          </div>
-                          <div>
-                             <p className="text-[10px] font-black uppercase tracking-widest text-orange-600 mb-1">Set Your Journey Origin</p>
-                             <h3 className="text-xl font-black text-slate-900 leading-none">Starting from <span className="text-orange-600">{from || user?.city || "your city"}</span></h3>
-                          </div>
-                       </div>
-                       
-                       <div className="flex-1 max-w-sm">
-                          <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">Change Starting City</Label>
-                          <div className="flex gap-2">
-                             <div className="relative group flex-1">
-                                <Input 
-                                   value={from} 
-                                   onChange={(e) => setFrom(e.target.value)} 
-                                   placeholder="Enter current city..." 
-                                   className="h-12 pl-12 rounded-2xl border-slate-200 bg-slate-50 focus:bg-white transition-all group-hover:border-orange-200"
-                                />
-                                <Navigation2 className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-orange-500 transition-colors" />
+                   <div className="space-y-4">
+                     {results.length === 0 ? (
+                        <div className="text-center py-10 opacity-40">
+                           <Search className="h-10 w-10 mx-auto mb-2" />
+                           <p className="text-sm font-bold">Try searching for a different city</p>
+                        </div>
+                     ) : (
+                        results.map(p => (
+                          <div key={p.id} className="bg-white rounded-[1.5rem] p-5 shadow-sm border border-slate-100 flex flex-col gap-4">
+                             <div className="flex justify-between items-start">
+                                <div>
+                                   <div className="flex items-center gap-2 mb-1">
+                                      <div className="h-1.5 w-1.5 rounded-full bg-green-500" />
+                                      <h4 className="font-bold text-base text-[#0f1f3d]">{p.description}</h4>
+                                   </div>
+                                   <p className="text-xs text-[#8896a8] font-medium">{p.from_location} → {p.to_location}</p>
+                                </div>
+                                <div className="text-right">
+                                   <p className="text-xl font-bold text-[#f26522]">₹{p.price}</p>
+                                   <p className="text-[9px] font-bold text-[#8896a8] uppercase tracking-tighter">Est. Earning</p>
+                                </div>
                              </div>
                              <Button 
-                               onClick={handleSearch}
-                               className="h-12 px-6 bg-orange-500 text-white rounded-2xl hover:bg-orange-600 shadow-lg shadow-orange-500/20 font-black uppercase text-[10px] tracking-widest"
+                               className="w-full h-11 bg-orange-500 hover:bg-orange-600 rounded-xl font-bold uppercase tracking-widest text-[10px] mt-1 text-white shadow-lg shadow-orange-500/20"
+                               onClick={() => handleRequest(p.id)}
                              >
-                                <Search className="h-4 w-4 mr-2" /> Search
+                                Request To Carry
                              </Button>
                           </div>
-                       </div>
-                    </div>
-                  </div>
-
-                  {results.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border py-20 text-center">
-                      <Truck className="mb-4 h-12 w-12 text-muted-foreground/50" />
-                      <p className="text-muted-foreground">No parcels currently available from <strong>{user?.city || "your area"}</strong>.</p>
-                      <p className="text-[10px] text-slate-400 mt-2 font-bold uppercase tracking-tighter">New deliveries appear as senders book them</p>
-                    </div>
-                  ) : (
-                    <div className="grid gap-4">
-                      {results.map((p) => (
-                        <motion.div
-                          key={p.id}
-                          layout
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          className="rounded-xl border border-border bg-card p-5 shadow-card hover:border-secondary/40 transition-colors"
-                        >
-                          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-                            <div className="cursor-pointer flex-1" onClick={() => setExpanded(expanded === p.id ? null : p.id)}>
-                               <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-orange-100 w-fit text-[10px] font-bold text-orange-600 uppercase tracking-tight mb-2">
-                                  <Zap className="h-3 w-3" /> Matches Your Origin
-                               </div>
-                               <div className="flex items-center gap-2 mb-1">
-                                 <Package className="h-4 w-4 text-secondary" />
-                                 <p className="font-heading font-semibold text-foreground">{p.fromLocation}</p>
-                                 <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                                 <p className="font-heading font-semibold text-foreground">{p.toLocation}</p>
-                               </div>
-                               <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground mb-2">
-                                 <span className="flex items-center gap-1"><Weight className="h-3 w-3" /> {p.weight}kg</span>
-                                 <span className="flex items-center gap-1"><Layers className="h-3 w-3" /> {p.itemCount} items</span>
-                                 <button
-                                   className="text-orange-500 hover:underline cursor-pointer"
-                                   onClick={(e) => {
-                                     e.stopPropagation();
-                                     if (p.senderData) setProfileUser(p.senderData);
-                                   }}
-                                 >
-                                   Sender: {p.senderName}
-                                 </button>
-                                 <span>To: {p.receiverName}</span>
-                               </div>
-                              <div className="flex flex-wrap items-center gap-2">
-                                {p.vehicleType && (
-                                  <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-secondary">
-                                    {p.vehicleType === "bike" && <Bike className="h-3 w-3" />}
-                                    {p.vehicleType === "car" && <Car className="h-3 w-3" />}
-                                    {p.vehicleType === "van" && <Truck className="h-3 w-3" />}
-                                    {p.vehicleType === "bus" && <Bus className="h-3 w-3" />}
-                                    {p.vehicleType} Needed
-                                  </span>
-                                )}
-                                <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                                  <Box className="h-3 w-3" /> {p.size}
-                                </span>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <StatusBadge status={p.status} />
-                              {p.status === "open_for_travellers" && (
-                                <Button
-                                  size="sm"
-                                  className="bg-secondary text-secondary-foreground hover:bg-secondary/90"
-                                  onClick={() => handleRequest(p.id)}
-                                >
-                                  Request
-                                </Button>
-                              )}
-                              {p.status === "requested" && (
-                                <span className="text-xs font-medium text-amber-600 bg-amber-50 rounded-full px-2 py-1">
-                                  Awaiting approval
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          {expanded === p.id && (
-                            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4">
-                              {p.description && <p className="mb-3 text-sm text-muted-foreground">{p.description}</p>}
-                              <div className="rounded-[2.5rem] overflow-hidden border border-border mt-4 h-[500px]">
-                                <SnapMap from={p.fromLocation} to={p.toLocation} />
-                              </div>
-                            </motion.div>
-                          )}
-                        </motion.div>
-                      ))}
-                    </div>
-                  )}
+                        ))
+                     )}
+                   </div>
                 </motion.div>
               )}
             </AnimatePresence>
-          </>
-        )}
-      </AnimatePresence>
-      {/* Profile Modal */}
-      <UserProfileModal
-        user={profileUser}
-        isOpen={!!profileUser}
-        onClose={() => setProfileUser(null)}
+        </motion.div>
+      )}
+
+      {/* PAGE 1: ACCEPTED REQUEST / DETAILS */}
+      {flowStep === 1 && activeParcel && (
+        <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
+           <Button variant="ghost" onClick={resetFlow} className="mb-2"><ArrowLeft className="h-4 w-4 mr-2" /> Back</Button>
+           <div className="bg-white rounded-[2.5rem] p-8 shadow-xl border border-slate-100 space-y-6">
+              <div className="flex items-center justify-between border-b pb-6">
+                 <div>
+                    <p className="text-[10px] font-bold uppercase text-slate-400 tracking-widest">Parcel ID</p>
+                    <h3 className="text-xl font-bold text-slate-900">#{activeParcel.id.slice(-8).toUpperCase()}</h3>
+                 </div>
+                 <StatusBadge status={activeParcel.status} />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-6">
+                 <div>
+                    <label className="text-[10px] font-bold uppercase text-slate-400 tracking-widest mb-1 block">Description</label>
+                    <p className="font-bold text-slate-800">{activeParcel.description}</p>
+                 </div>
+                 <div>
+                    <label className="text-[10px] font-bold uppercase text-slate-400 tracking-widest mb-1 block">Weight</label>
+                    <p className="font-bold text-slate-800">{activeParcel.weight} kg</p>
+                 </div>
+              </div>
+
+              <div className="space-y-4 pt-4 border-t border-dashed">
+                 <div className="flex gap-4">
+                    <div className="h-10 w-10 bg-orange-100 rounded-xl flex items-center justify-center shrink-0">
+                       <MapPin className="h-5 w-5 text-orange-500" />
+                    </div>
+                    <div>
+                       <label className="text-[10px] font-bold uppercase text-slate-400 tracking-widest">Pickup Address</label>
+                       <p className="font-bold text-slate-800 text-sm">{activeParcel.from_location}</p>
+                    </div>
+                 </div>
+                 <div className="flex gap-4">
+                    <div className="h-10 w-10 bg-blue-100 rounded-xl flex items-center justify-center shrink-0">
+                       <Navigation2 className="h-5 w-5 text-blue-500" />
+                    </div>
+                    <div>
+                       <label className="text-[10px] font-bold uppercase text-slate-400 tracking-widest">Delivery Address</label>
+                       <p className="font-bold text-slate-800 text-sm">{activeParcel.to_location}</p>
+                    </div>
+                 </div>
+              </div>
+
+              <div className="bg-slate-50 rounded-3xl p-6 flex items-center justify-between mt-6">
+                 <div className="flex items-center gap-4">
+                    <div className="h-12 w-12 bg-white rounded-2xl shadow-sm flex items-center justify-center text-orange-500 font-bold">
+                       {activeParcel.sender_name.charAt(0)}
+                    </div>
+                    <div>
+                       <p className="text-xs font-bold text-slate-900">{activeParcel.sender_name}</p>
+                       <p className="text-[10px] font-bold text-slate-400">
+                         {activeParcel.status === 'requested' ? "Phone Hidden until Accepted" : (activeParcel.sender_phone || "Contact Sender")}
+                       </p>
+                    </div>
+                 </div>
+                 {activeParcel.status !== 'requested' && (
+                   <a href={`tel:${activeParcel.sender_phone}`} className="h-12 px-6 bg-orange-500 text-white rounded-2xl flex items-center justify-center gap-2 font-bold text-xs uppercase tracking-widest shadow-lg shadow-orange-500/20">
+                      <Phone className="h-4 w-4" /> Call Sender
+                   </a>
+                 )}
+              </div>
+
+              {activeParcel.status !== 'requested' ? (
+                <Button 
+                  className="w-full h-16 bg-orange-500 hover:bg-orange-600 rounded-[1.5rem] text-white font-bold uppercase tracking-widest text-sm shadow-xl shadow-orange-500/25 mt-8"
+                  onClick={() => handleArrivedAtPickup()}
+                >
+                   📦 Arrived – Start Verification
+                </Button>
+              ) : (
+                <div className="w-full h-16 bg-slate-100 rounded-[1.5rem] flex items-center justify-center text-slate-400 font-bold uppercase tracking-widest text-[10px] mt-8 border border-dashed border-slate-200">
+                   <Clock className="h-4 w-4 mr-2" /> Waiting for Approval
+                </div>
+              )}
+           </div>
+        </motion.div>
+      )}
+
+      {/* PAGE 2: PICKUP OTP + CAPTURE */}
+      {flowStep === 2 && activeParcel && (
+        <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
+           <div className="text-center space-y-2">
+              <h2 className="text-3xl font-bold text-slate-900 font-heading">Verify Pickup</h2>
+              <p className="text-slate-500 text-sm font-bold uppercase tracking-widest">Identify with Sender</p>
+           </div>
+
+           <div className="bg-white rounded-[2.5rem] p-8 shadow-xl border border-slate-100 space-y-8">
+              <div className="space-y-4">
+                 <div className="flex justify-center gap-3">
+                    {otpValue.map((digit, i) => (
+                       <input 
+                          key={i} id={`otp-${i}`}
+                          className="w-14 h-16 bg-slate-50 border-2 border-slate-100 rounded-2xl text-center text-2xl font-bold text-slate-900 focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 outline-none transition-all shadow-inner"
+                          value={digit}
+                          onChange={(e) => handleOtpInput(e.target.value, i)}
+                          onKeyDown={(e) => handleOtpKeyDown(e, i)}
+                          maxLength={1}
+                          inputMode="numeric"
+                       />
+                    ))}
+                 </div>
+                 <p className="text-[10px] text-center font-bold text-orange-500 uppercase tracking-widest">Ask Sender for 4-digit Pickup Code</p>
+              </div>
+
+              <div className="space-y-4">
+                 <div 
+                   className="h-64 bg-slate-50 border-2 border-dashed border-slate-200 rounded-[2rem] flex flex-col items-center justify-center relative overflow-hidden group transition-all"
+                 >
+                    {pickupPhoto ? (
+                       <div className="relative w-full h-full">
+                          <img src={pickupPhoto} className="w-full h-full object-cover" alt="Pickup proof" />
+                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                             <Button variant="secondary" size="sm" className="rounded-full font-bold uppercase text-[10px]" onClick={() => fileInputRef.current?.click()}><RefreshCw className="h-3 w-3 mr-2" /> Retake Photo</Button>
+                          </div>
+                       </div>
+                    ) : (
+                       <div className="text-center cursor-pointer p-10 w-full h-full flex flex-col items-center justify-center" onClick={() => fileInputRef.current?.click()}>
+                          <div className="h-16 w-16 bg-orange-100 rounded-2xl flex items-center justify-center mb-4 text-orange-500 group-hover:scale-110 transition-transform">
+                             <Camera className="h-8 w-8" />
+                          </div>
+                          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">📷 Capture Parcel Photo</p>
+                       </div>
+                    )}
+                    <input type="file" ref={fileInputRef} className="hidden" accept="image/*" capture="environment" onChange={(e) => handleImageCapture(e, 'pickup')} />
+                 </div>
+              </div>
+
+              {otpError && <div className="bg-red-50 text-red-500 p-3 rounded-xl border border-red-100 text-center font-bold text-[10px] uppercase tracking-widest">{otpError}</div>}
+
+              <Button 
+                className="w-full h-16 bg-orange-500 hover:bg-orange-600 rounded-[1.5rem] text-white font-bold uppercase tracking-widest text-sm shadow-xl shadow-orange-500/25 transition-all active:scale-95 disabled:opacity-50"
+                onClick={handleConfirmPickup}
+                disabled={isProcessing}
+              >
+                 {isProcessing ? (
+                    <span className="flex items-center gap-2"><RefreshCw className="h-5 w-5 animate-spin" /> Verifying...</span>
+                 ) : (
+                    <span className="flex items-center gap-2">✅ Confirm Pickup & Start Delivery</span>
+                 )}
+              </Button>
+           </div>
+        </motion.div>
+      )}
+
+      {/* PAGE 3: LIVE MAP / NAVIGATION */}
+      {flowStep === 3 && activeParcel && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-[calc(100vh-200px)] flex flex-col">
+           {showMap ? (
+             <div className="flex-1 relative rounded-[3rem] overflow-hidden bg-slate-900 shadow-2xl border-4 border-white">
+                {/* Simulated Map Placeholder */}
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_30%,#1e293b,transparent),radial-gradient(circle_at_80%_70%,#0f172a,transparent)] bg-slate-800" />
+                
+                {/* Route Line */}
+                <div className="absolute inset-0 flex items-center justify-center">
+                   <div className="relative w-full px-12">
+                      <div className="h-1 w-full bg-orange-500/20 rounded-full" />
+                      <motion.div 
+                        animate={{ width: ["0%", "100%", "0%"] }} 
+                        transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+                        className="absolute top-0 left-12 h-1 bg-orange-500 rounded-full shadow-[0_0_15px_#f97316]"
+                      />
+                      <motion.div 
+                        animate={{ left: ["10%", "90%", "10%"] }} 
+                        transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+                        className="absolute -top-1.5 h-4 w-4 bg-orange-500 border-2 border-white rounded-full shadow-lg z-10"
+                      />
+                   </div>
+                </div>
+
+                <div className="absolute top-8 left-8 right-8 flex justify-between items-start pointer-events-none">
+                   <div className="bg-white/90 backdrop-blur px-6 py-3 rounded-2xl shadow-xl pointer-events-auto border border-white">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Target Destination</p>
+                      <p className="text-sm font-bold text-slate-900">{activeParcel.to_location}</p>
+                   </div>
+                   <Button variant="outline" className="bg-white rounded-full h-10 w-10 p-0 pointer-events-auto shadow-lg" onClick={() => setShowMap(false)}>
+                      <X className="h-4 w-4" />
+                   </Button>
+                </div>
+
+                <div className="absolute bottom-10 left-1/2 -translate-x-1/2 text-center w-full">
+                    <p className="text-white/60 text-xs font-bold uppercase tracking-[0.3em] animate-pulse">Navigating to Receiver...</p>
+                </div>
+             </div>
+           ) : (
+             <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
+                <div className="h-20 w-20 bg-orange-100 rounded-full flex items-center justify-center mb-4">
+                   <MapPin className="h-10 w-10 text-orange-500" />
+                </div>
+                <h3 className="text-xl font-bold text-slate-900">Map closed.</h3>
+                <p className="text-slate-500 font-bold mt-2">Tap 'Arrived at Receiver' to continue delivery.</p>
+                <Button variant="ghost" className="mt-4 text-orange-500 font-bold h-12 uppercase tracking-widest text-[10px]" onClick={() => setShowMap(true)}>Re-open Map</Button>
+             </div>
+           )}
+
+           <Button 
+             className="w-full h-16 bg-orange-500 hover:bg-orange-600 rounded-[1.5rem] text-white font-bold uppercase tracking-widest text-sm shadow-xl shadow-orange-500/25 mt-6"
+             onClick={handleArrivedAtReceiver}
+           >
+              🏁 Arrived at Receiver
+           </Button>
+        </motion.div>
+      )}
+
+      {/* PAGE 4: RECEIVER OTP + DELIVERY CONFIRM */}
+      {flowStep === 4 && activeParcel && (
+        <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
+           <div className="text-center space-y-2">
+              <h2 className="text-3xl font-bold text-slate-900 font-heading tracking-tight">Confirm Delivery</h2>
+              <p className="text-slate-500 text-sm font-bold uppercase tracking-widest">Handover to Receiver</p>
+           </div>
+
+           <div className="bg-white rounded-[2.5rem] p-8 shadow-xl border border-slate-100 space-y-6">
+              <div className="bg-slate-50 p-5 rounded-3xl border border-slate-100">
+                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Recipient</p>
+                 <p className="font-bold text-lg text-slate-900">{activeParcel.receiver_name}</p>
+                 <p className="text-xs font-bold text-orange-500">{activeParcel.to_location}</p>
+              </div>
+
+              <div className="space-y-4">
+                 <div className="flex justify-center gap-3">
+                    {otpValue.map((digit, i) => (
+                       <input 
+                          key={i} id={`otp-${i}`}
+                          className="w-14 h-16 bg-slate-50 border-2 border-slate-100 rounded-2xl text-center text-2xl font-bold text-slate-900 focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 outline-none transition-all shadow-inner"
+                          value={digit}
+                          onChange={(e) => handleOtpInput(e.target.value, i)}
+                          onKeyDown={(e) => handleOtpKeyDown(e, i)}
+                          maxLength={1}
+                          inputMode="numeric"
+                       />
+                    ))}
+                 </div>
+                 <p className="text-[10px] text-center font-bold text-orange-500 uppercase tracking-widest">Enter 4-digit code from Receiver</p>
+              </div>
+
+              <div 
+                className="h-64 bg-slate-50 border-2 border-dashed border-slate-200 rounded-[2rem] flex flex-col items-center justify-center relative overflow-hidden group transition-all"
+              >
+                 {deliveryPhoto ? (
+                    <div className="relative w-full h-full">
+                       <img src={deliveryPhoto} className="w-full h-full object-cover" alt="Delivery proof" />
+                       <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Button variant="secondary" size="sm" className="rounded-full font-bold uppercase text-[10px]" onClick={() => fileInputRef.current?.click()}><RefreshCw className="h-3 w-3 mr-2" /> Retake Photo</Button>
+                       </div>
+                    </div>
+                 ) : (
+                    <div className="text-center cursor-pointer p-10 w-full h-full flex flex-col items-center justify-center" onClick={() => fileInputRef.current?.click()}>
+                       <div className="h-16 w-16 bg-orange-100 rounded-2xl flex items-center justify-center mb-4 text-orange-500 group-hover:scale-110 transition-transform">
+                          <Camera className="h-8 w-8" />
+                       </div>
+                       <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">📷 Capture Delivery Photo</p>
+                    </div>
+                 )}
+                 <input type="file" ref={fileInputRef} className="hidden" accept="image/*" capture="environment" onChange={(e) => handleImageCapture(e, 'delivery')} />
+              </div>
+
+              <Button 
+                className="w-full h-16 bg-orange-500 hover:bg-orange-600 rounded-[1.5rem] text-white font-bold uppercase tracking-widest text-sm shadow-xl shadow-orange-500/25 transition-all active:scale-95 disabled:opacity-50"
+                onClick={handleConfirmDelivery}
+                disabled={isProcessing}
+              >
+                 {isProcessing ? (
+                    <span className="flex items-center gap-2"><RefreshCw className="h-5 w-5 animate-spin" /> Finalizing...</span>
+                 ) : (
+                    <span className="flex items-center gap-2">✅ Confirm Delivery</span>
+                 )}
+              </Button>
+           </div>
+        </motion.div>
+      )}
+
+      {/* PAGE 5: DELIVERY COMPLETE */}
+      {flowStep === 5 && activeParcel && (
+        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center text-center py-10">
+           <div className="relative mb-12">
+              <motion.div 
+                initial={{ scale: 0 }} 
+                animate={{ scale: 1 }} 
+                transition={{ type: "spring", stiffness: 200, damping: 10 }}
+                className="h-32 w-32 bg-emerald-500 rounded-full flex items-center justify-center text-white shadow-2xl z-10 relative border-4 border-white"
+              >
+                 <Check className="h-16 w-16" />
+              </motion.div>
+              <div className="absolute inset-0 bg-emerald-500/20 rounded-full blur-2xl animate-pulse -m-4" />
+           </div>
+           
+           <h3 className="font-heading text-4xl font-bold text-slate-900 mb-4 tracking-tight">🎉 Delivery Completed!</h3>
+           <p className="text-slate-500 font-bold max-w-xs mx-auto mb-8">Amazing job! The receiver has confirmed the parcel handover.</p>
+           
+           <div className="bg-slate-900 rounded-[2.5rem] p-8 w-full mb-10 text-left relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl" />
+              <div className="relative z-10">
+                 <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4">Earnings Breakdown</p>
+                 <div className="flex justify-between items-end">
+                    <div>
+                       <p className="text-xs font-bold text-slate-400 capitalize">#Delivery Fee</p>
+                       <p className="text-4xl font-bold text-white mt-1">₹{activeParcel.price}</p>
+                    </div>
+                    <div className="text-right">
+                       <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Timestamp</p>
+                       <p className="text-xs font-bold text-orange-500">{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                    </div>
+                 </div>
+              </div>
+           </div>
+
+           <Button 
+             className="w-full h-16 bg-orange-500 hover:bg-orange-600 rounded-[1.5rem] text-white font-bold uppercase tracking-widest text-sm shadow-xl shadow-orange-500/25"
+             onClick={resetFlow}
+           >
+              Back to Dashboard
+           </Button>
+        </motion.div>
+      )}
+
+
+      {/* Chat Sub-component (Point 11) */}
+      {activeChat && (
+        <ParcelChat 
+          deliveryId={activeChat} 
+          currentUserId={user?.id || ""} 
+          onClose={() => setActiveChat(null)} 
+        />
+      )}
+
+      {/* Profile Modal Integration */}
+      <UserProfileModal 
+         user={profileUser}
+         isOpen={!!profileUser}
+         onClose={() => setProfileUser(null)}
       />
     </div>
   );

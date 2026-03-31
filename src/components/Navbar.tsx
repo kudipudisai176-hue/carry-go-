@@ -41,7 +41,7 @@ export default function Navbar() {
     bio: user.bio,
     rating: user.rating || 5.0,
     totalTrips: user.totalTrips || 0,
-    adharNumber: user.idNumber,
+    aadharNumber: user.aadharNumber || user.idNumber,
     vehicleType: (user as any).vehicleType,
   } : null;
 
@@ -99,7 +99,7 @@ export default function Navbar() {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button className="rounded-full bg-orange-500/10 hover:bg-orange-500/20 px-3 py-1.5 transition-all text-orange-600 gap-2 border-none">
-                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-orange-500 text-white shadow-sm font-black text-[10px]">
+                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-orange-500 text-white shadow-sm font-bold text-[10px]">
                     {user.name.charAt(0).toUpperCase()}
                   </div>
                   <span className="hidden sm:inline font-bold text-xs">{user.name.split(' ')[0]}</span>

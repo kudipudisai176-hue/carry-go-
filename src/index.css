@@ -1,4 +1,4 @@
-@import "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap";
+@import "https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&family=Poppins:wght@400;500;600;700;800;900&display=swap";
 
 @tailwind base;
 @tailwind components;
@@ -50,8 +50,8 @@
     --warning: 40 96% 50%;
     --warning-foreground: 222 47% 11%;
 
-    --font-heading: 'Space Grotesk', sans-serif;
-    --font-body: 'Inter', sans-serif;
+    --font-heading: 'Poppins', sans-serif;
+    --font-body: 'Nunito', sans-serif;
 
     --gradient-hero: linear-gradient(135deg, hsl(222 60% 18%) 0%, hsl(222 50% 28%) 50%, hsl(28 100% 55%) 100%);
     --gradient-card: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(220 20% 97%) 100%);
@@ -137,6 +137,7 @@
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
+    -webkit-text-fill-color: transparent;
   }
 }
 
@@ -147,7 +148,6 @@
 /* --- Keyframes --- */
 
 @keyframes float-up-down {
-
   0%,
   100% {
     transform: translateY(0px);
@@ -159,7 +159,6 @@
 }
 
 @keyframes float-slow {
-
   0%,
   100% {
     transform: translateY(0px) rotate(0deg);
@@ -185,7 +184,6 @@
 }
 
 @keyframes glow-pulse {
-
   0%,
   100% {
     box-shadow: 0 0 20px hsl(28 100% 55% / 0.3), 0 0 60px hsl(28 100% 55% / 0.1);
@@ -197,7 +195,6 @@
 }
 
 @keyframes glow-text-pulse {
-
   0%,
   100% {
     text-shadow: 0 0 20px hsl(28 100% 55% / 0.4);
@@ -279,7 +276,6 @@
 }
 
 @keyframes cursor-blink {
-
   0%,
   100% {
     opacity: 1;
@@ -301,7 +297,6 @@
 }
 
 @keyframes gradient-x {
-
   0%,
   100% {
     background-position: 0% 50%;

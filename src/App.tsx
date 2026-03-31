@@ -11,10 +11,12 @@ import Signup from "./pages/Signup";
 import Dashboard from "./pages/Dashboard";
 import Sender from "./pages/Sender";
 import Traveller from "./pages/Traveller";
+import Receiver from "./pages/Receiver";
 import ConfirmDelivery from "./pages/ConfirmDelivery";
 import Profile from "./pages/Profile";
 import Support from "./pages/Support";
 import NotFound from "./pages/NotFound";
+import PaymentStatus from "./pages/PaymentStatus";
 import ChatSupport from "@/components/ChatSupport";
 
 const queryClient = new QueryClient();
@@ -61,6 +63,7 @@ function AppInner() {
             </ProtectedRoute>
           } 
         />
+
         <Route 
           path="/confirm-delivery/:id" 
           element={
@@ -78,6 +81,7 @@ function AppInner() {
           } 
         />
         <Route path="/support" element={<Support />} />
+        <Route path="/payment/status" element={<PaymentStatus />} />
         
         {/* Fallback */}
         <Route path="*" element={<NotFound />} />

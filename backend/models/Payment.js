@@ -4,11 +4,11 @@ const Payment = {
   create: async (paymentData) => {
     const normalized = {
       ...paymentData,
-      parcel_id: paymentData.parcel,
-      sender_id: paymentData.sender
+      parcel_id: paymentData.parcel_id || paymentData.parcel,
+      sender_id: paymentData.sender_id || paymentData.sender
     };
-    delete normalized.parcel;
-    delete normalized.sender;
+    if (normalized.parcel) delete normalized.parcel;
+    if (normalized.sender) delete normalized.sender;
     
     const { data, error } = await supabase
       .from('payments')

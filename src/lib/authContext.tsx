@@ -23,7 +23,7 @@ export interface User {
   bio?: string;
   rating?: number;
   totalTrips?: number;
-  adharNumber?: string;
+  aadharNumber?: string;
   vehicleType?: string;
   idPhoto?: string;
   livePhoto?: string;

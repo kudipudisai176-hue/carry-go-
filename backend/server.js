@@ -29,6 +29,7 @@ app.use('/api/parcels', require('./routes/parcelRoutes'));
 app.use('/api/reviews', require('./routes/reviewRoutes'));
 app.use('/api/messages', require('./routes/messageRoutes'));
 app.use('/api/notifications', require('./routes/notificationRoutes'));
+app.use('/api/payment', require('./routes/payment'));
 
 
 const PORT = process.env.PORT || 5000;

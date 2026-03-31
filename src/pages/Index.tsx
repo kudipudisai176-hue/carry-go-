@@ -142,14 +142,14 @@ export default function Index() {
                     duration: 0.5, 
                     ease: [0.23, 1, 0.32, 1] 
                   }}
-                  className="inline-block font-black text-secondary bg-clip-text"
+                  className="inline-block font-bold text-secondary bg-clip-text"
                 >
                   {words[wordIndex]}
                 </motion.span>
               </AnimatePresence>
             </span>{" "}
             anything,{" "}
-            <span className="text-shimmer font-black ml-1">
+            <span className="text-shimmer font-bold ml-1">
               anywhere in India.
             </span>
           </motion.p>
@@ -222,10 +222,10 @@ export default function Index() {
             viewport={{ once: true }}
             className="mb-20 text-center"
           >
-            <span className="mb-4 inline-block rounded-full bg-orange-100 px-6 py-2 text-xs font-black uppercase tracking-widest text-orange-600">
+            <span className="mb-4 inline-block rounded-full bg-orange-100 px-6 py-2 text-xs font-bold uppercase tracking-widest text-orange-600">
                Step-by-Step Process
             </span>
-            <h2 className="mb-6 font-heading text-4xl font-black text-slate-900 md:text-6xl tracking-tight">
+            <h2 className="mb-6 font-heading text-4xl font-bold text-slate-900 md:text-6xl tracking-tight">
                How CarryGo Works
             </h2>
             <p className="mx-auto max-w-xl text-slate-500 font-medium">
@@ -248,12 +248,12 @@ export default function Index() {
                    <div className="h-24 w-24 rounded-[2rem] bg-orange-50 border-2 border-orange-100 flex items-center justify-center transition-all duration-500 group-hover:bg-orange-500 group-hover:rotate-12 group-hover:scale-110 shadow-xl shadow-orange-500/5 group-hover:shadow-orange-500/30">
                       <s.icon className="h-10 w-10 text-orange-500 group-hover:text-white transition-colors" />
                    </div>
-                   <div className="absolute -top-4 -right-4 h-10 w-10 border-4 border-white rounded-2xl bg-slate-900 flex items-center justify-center text-white font-black text-sm shadow-xl">
+                   <div className="absolute -top-4 -right-4 h-10 w-10 border-4 border-white rounded-2xl bg-slate-900 flex items-center justify-center text-white font-bold text-sm shadow-xl">
                       {s.num}
                    </div>
                 </div>
 
-                <h3 className="mb-4 font-heading text-2xl font-black text-slate-900 group-hover:text-orange-500 transition-colors">
+                <h3 className="mb-4 font-heading text-2xl font-bold text-slate-900 group-hover:text-orange-500 transition-colors">
                    {s.title}
                 </h3>
                 <p className="text-slate-500 font-medium leading-relaxed">
@@ -278,16 +278,16 @@ export default function Index() {
                <div className="absolute bottom-0 left-0 w-48 h-48 bg-orange-500/5 rounded-full translate-y-1/2 -translate-x-1/2 blur-2xl" />
                
                <div className="relative z-10 max-w-2xl mx-auto">
-                  <h2 className="text-4xl font-black text-slate-900 mb-6 font-heading tracking-tight">Join the CarryGo movement</h2>
+                  <h2 className="text-4xl font-bold text-slate-900 mb-6 font-heading tracking-tight">Join the CarryGo movement</h2>
                   <p className="text-slate-500 font-bold mb-10">Create your account today and start sending or carrying parcels within minutes. It's free to join!</p>
                   
                   <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                     <Button asChild size="lg" className="h-16 px-10 rounded-2xl bg-orange-500 text-white font-black hover:bg-orange-600 shadow-xl shadow-orange-500/30 transition-all hover:scale-105 uppercase tracking-widest text-xs">
+                     <Button asChild size="lg" className="h-16 px-10 rounded-2xl bg-orange-500 text-white font-bold hover:bg-orange-600 shadow-xl shadow-orange-500/30 transition-all hover:scale-105 uppercase tracking-widest text-xs">
                         <Link to="/signup">
                            <UserPlus className="h-5 w-5 mr-2" /> Sign Up Now
                         </Link>
                      </Button>
-                     <Button asChild variant="outline" size="lg" className="h-16 px-10 rounded-2xl border-2 border-slate-200 text-slate-600 font-black hover:bg-slate-50 transition-all uppercase tracking-widest text-xs">
+                     <Button asChild variant="outline" size="lg" className="h-16 px-10 rounded-2xl border-2 border-slate-200 text-slate-600 font-bold hover:bg-slate-50 transition-all uppercase tracking-widest text-xs">
                         <Link to="/login">
                            Member Login
                         </Link>

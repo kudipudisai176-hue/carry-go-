@@ -30,7 +30,7 @@ export default function UserProfileModal({ user: initialUser, isOpen, onClose }:
   const [photo, setPhoto] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [adharNumber, setAdharNumber] = useState("");
+  const [aadharNumber, setAadharNumber] = useState("");
   const [vehicleType, setVehicleType] = useState("");
 
   // Sync state when modal opens or user changes
@@ -41,7 +41,7 @@ export default function UserProfileModal({ user: initialUser, isOpen, onClose }:
       setPhoto(initialUser.profilePhoto || "");
       setEmail(initialUser.email || "");
       setPhone(initialUser.phone || "");
-      setAdharNumber(initialUser.adharNumber || "");
+      setAadharNumber(initialUser.aadharNumber || "");
       setVehicleType(initialUser.vehicleType || "");
       setIsEditing(false); // Reset editing mode when opening/switching
     }
@@ -80,7 +80,7 @@ export default function UserProfileModal({ user: initialUser, isOpen, onClose }:
         phone,
         profilePhoto: photo,
         bio,
-        adharNumber,
+        aadharNumber,
         vehicleType,
       });
 
@@ -231,7 +231,7 @@ export default function UserProfileModal({ user: initialUser, isOpen, onClose }:
                         <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1 flex items-center gap-1.5">
                           Aadhaar
                         </label>
-                        <Input value={adharNumber} onChange={e => setAdharNumber(e.target.value)} className="rounded-2xl bg-muted/30 border-none h-11" />
+                        <Input value={aadharNumber} onChange={e => setAadharNumber(e.target.value)} className="rounded-2xl bg-muted/30 border-none h-11" />
                       </div>
                       <div className="space-y-1.5">
                         <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1 flex items-center gap-1.5">
@@ -334,7 +334,7 @@ export default function UserProfileModal({ user: initialUser, isOpen, onClose }:
                              <div>
                                 <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60 leading-none mb-1">Aadhaar</p>
                                 <p className="font-bold text-foreground">
-                                   {initialUser.adharNumber ? `•••• •••• ${initialUser.adharNumber.slice(-4)}` : "Unverified"}
+                                   {initialUser.aadharNumber ? `•••• •••• ${initialUser.aadharNumber.slice(-4)}` : "Unverified"}
                                 </p>
                              </div>
                           </div>

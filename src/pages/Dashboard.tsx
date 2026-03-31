@@ -51,12 +51,12 @@ export default function Dashboard() {
               <motion.div 
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="inline-flex items-center gap-2 rounded-full bg-orange-500/10 px-4 py-1.5 text-xs font-black uppercase tracking-widest text-orange-600 mb-4"
+                className="inline-flex items-center gap-2 rounded-full bg-orange-500/10 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-orange-600 mb-4"
               >
                 <div className="h-2 w-2 rounded-full bg-orange-500 animate-pulse" />
                 DASHBOARD ACTIVE
               </motion.div>
-              <h1 className="text-4xl font-black text-slate-900 tracking-tight sm:text-5xl">
+              <h1 className="text-4xl font-bold text-slate-900 tracking-tight sm:text-5xl">
                 Welcome, <span className="text-orange-500">{user.name.split(' ')[0]}!</span>
               </h1>
               <p className="mt-3 text-lg font-medium text-slate-500 max-w-lg">
@@ -70,7 +70,7 @@ export default function Dashboard() {
               </div>
               <div>
                 <div className="flex items-center gap-1.5">
-                   <p className="font-black text-slate-900 leading-none">Verified Member</p>
+                   <p className="font-bold text-slate-900 leading-none">Verified Member</p>
                    <ShieldCheck className="h-4 w-4 text-emerald-500" />
                 </div>
                 <div className="flex items-center gap-2 mt-1">
@@ -106,13 +106,13 @@ export default function Dashboard() {
                      <div className={`flex h-16 w-16 items-center justify-center rounded-3xl bg-gradient-to-br ${act.color} text-white shadow-xl group-hover:rotate-6 transition-transform`}>
                         <act.icon className="h-8 w-8" />
                      </div>
-                     <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-gradient-to-r ${act.color} text-white opacity-0 group-hover:opacity-100 transition-opacity`}>
+                     <span className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest bg-gradient-to-r ${act.color} text-white opacity-0 group-hover:opacity-100 transition-opacity`}>
                         {act.badge}
                      </span>
                   </div>
                   
                   <div className="mt-8">
-                     <h3 className="text-2xl font-black text-slate-900 tracking-tight">{act.title}</h3>
+                     <h3 className="text-2xl font-bold text-slate-900 tracking-tight">{act.title}</h3>
                      <p className="mt-2 text-sm font-medium text-slate-500 leading-relaxed uppercase tracking-wide">
                         {act.desc}
                      </p>
@@ -126,7 +126,7 @@ export default function Dashboard() {
                            <User className="h-4 w-4 text-slate-300" />
                         </div>
                       ))}
-                      <div className="h-8 w-8 rounded-full border-2 border-white bg-slate-900 flex items-center justify-center text-[10px] font-black text-white">
+                      <div className="h-8 w-8 rounded-full border-2 border-white bg-slate-900 flex items-center justify-center text-[10px] font-bold text-white">
                          +2k
                       </div>
                    </div>
