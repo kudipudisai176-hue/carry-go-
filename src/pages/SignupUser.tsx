@@ -156,7 +156,7 @@ export default function SignupUser() {
     if (result.success) {
       setIsSuccess(true);
       setTimeout(() => {
-        navigate("/user/dashboard");
+        navigate("/dashboard", { replace: true });
       }, 3000);
     } else {
       toast.error(result.message || "Registration failed. Please try again.");

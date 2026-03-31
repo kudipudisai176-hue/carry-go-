@@ -1,16 +1,15 @@
 import { useState, useEffect, useCallback } from "react";
-import { Bell, Check, Trash2, Clock, Info, MessageSquare, Truck, CheckCircle2 } from "lucide-react";
-import api from "@/lib/api";
+import { Bell, Check, Clock, MessageSquare, Truck, CheckCircle2 } from "lucide-react";
+import { supabase } from "@/lib/supabaseClient";
 import { motion, AnimatePresence } from "framer-motion";
-import { Button } from "./ui/button";
 
 export interface Notification {
-  _id: string;
+  id: string;
   title: string;
   message: string;
   type: string;
   read: boolean;
-  createdAt: string;
+  created_at: string;
   referenceId?: string;
 }
 
@@ -21,8 +20,18 @@ export default function NotificationTray() {
 
   const loadNotifications = useCallback(async () => {
     try {
-      const { data } = await api.get('/notifications');
-      setNotifications(data);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('userId', user.id)
+        .order('created_at', { ascending: false })
+        .limit(20);
+      
+      if (error) throw error;
+      setNotifications(data || []);
     } catch (err) {
       console.error("Failed to load notifications", err);
     }
@@ -36,7 +45,12 @@ export default function NotificationTray() {
 
   const markRead = async (id: string) => {
     try {
-      await api.put(`/notifications/${id}/read`);
+      const { error } = await supabase
+        .from('notifications')
+        .update({ read: true })
+        .eq('id', id);
+      
+      if (error) throw error;
       loadNotifications();
     } catch (err) {
       console.error(err);
@@ -45,7 +59,15 @@ export default function NotificationTray() {
 
   const markAllRead = async () => {
     try {
-      await api.put('/notifications/read-all');
+       const { data: { user } } = await supabase.auth.getUser();
+       if (!user) return;
+
+      const { error } = await supabase
+        .from('notifications')
+        .update({ read: true })
+        .eq('userId', user.id);
+      
+      if (error) throw error;
       loadNotifications();
     } catch (err) {
       console.error(err);
@@ -106,9 +128,9 @@ export default function NotificationTray() {
                   <div className="divide-y divide-border/50">
                     {notifications.map((n) => (
                       <div 
-                        key={n._id} 
+                        key={n.id} 
                         className={`p-4 flex gap-3 transition-colors hover:bg-muted/30 cursor-pointer ${!n.read ? "bg-indigo-50/30" : ""}`}
-                        onClick={() => markRead(n._id)}
+                        onClick={() => markRead(n.id)}
                       >
                         <div className={`mt-0.5 h-8 w-8 rounded-full flex items-center justify-center shrink-0 ${!n.read ? "bg-indigo-100" : "bg-muted"}`}>
                           {getIcon(n.type)}
@@ -117,7 +139,7 @@ export default function NotificationTray() {
                           <p className={`text-xs ${!n.read ? "font-bold text-foreground" : "text-muted-foreground"}`}>{n.title}</p>
                           <p className="text-[11px] text-muted-foreground/80 line-clamp-2 mt-0.5">{n.message}</p>
                           <p className="text-[9px] text-muted-foreground/50 mt-1 uppercase tracking-tighter">
-                            {new Date(n.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            {new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </p>
                         </div>
                         {!n.read && (

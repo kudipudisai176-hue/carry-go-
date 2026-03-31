@@ -155,7 +155,7 @@ export default function SignupTraveller() {
     if (result.success) {
       setIsSuccess(true);
       setTimeout(() => {
-        navigate("/traveller/dashboard");
+        navigate("/traveller", { replace: true });
       }, 3000);
     } else {
       toast.error(result.message || "Registration failed. Please try again.");

@@ -1,5 +1,4 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
-import api from "./api";
 import { supabase } from "./supabaseClient";
 
 export type UserRole = "traveller" | "sender_receiver";
@@ -43,6 +42,7 @@ interface AuthContextType {
     email: string,
     password: string,
     role: UserRole,
+    sub_role?: UserSubRole,
     phone: string,
     dob?: string,
     gender?: string,
@@ -66,149 +66,170 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
 
+const mapSupabaseUser = (sbUser: any, profile: any): User => {
+  return {
+    id: sbUser.id,
+    name: profile?.name || sbUser.user_metadata?.name || '',
+    email: sbUser.email || '',
+    role: profile?.role || sbUser.user_metadata?.role || "sender_receiver",
+    sub_role: profile?.sub_role || sbUser.user_metadata?.sub_role,
+    phone: profile?.phone || sbUser.phone || '',
+    dob: profile?.dob,
+    gender: profile?.gender,
+    address: profile?.address,
+    city: profile?.city,
+    state: profile?.state,
+    pincode: profile?.pincode,
+    profilePhoto: profile?.profilePhoto,
+    walletBalance: profile?.walletBalance || 0,
+    bio: profile?.bio,
+    rating: profile?.rating || 5,
+    totalTrips: profile?.totalTrips || 0,
+    adharNumber: profile?.adharNumber,
+    vehicleType: profile?.vehicleType,
+    idPhoto: profile?.idPhoto,
+    livePhoto: profile?.livePhoto,
+    idNumber: profile?.idNumber,
+    idProofType: profile?.idProofType,
+    personalOtp: profile?.personalOtp,
+    personalOtpUsed: profile?.personalOtpUsed
+  };
+};
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const saveUserToStorage = (userData: User) => {
-    try {
-      // Strip large fields before saving to localStorage to avoid QuotaExceededError
-      const { profilePhoto, idPhoto, livePhoto, ...safeUser } = userData;
-      localStorage.setItem('user', JSON.stringify(safeUser));
-    } catch (err) {
-      console.error("Failed to save user to storage:", err);
-      // If it still fails, clear the user key to prevent staleness
-      localStorage.removeItem('user');
-    }
-  };
-
   useEffect(() => {
     const initAuth = async () => {
-      const token = localStorage.getItem('token');
-      const savedUser = localStorage.getItem('user');
+      const { data: { session } } = await supabase.auth.getSession();
       
-      if (token && savedUser) {
+      if (session?.user) {
         try {
-          const parsedUser = JSON.parse(savedUser);
-          console.log("AuthContext: Initializing with saved user:", parsedUser.id || parsedUser._id);
-          setUser(parsedUser);
+          const { data: profile, error } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
           
-          // Verify/Refresh profile from backend
-          const userId = parsedUser.id || parsedUser._id;
-          if (!userId) {
-            console.warn("AuthContext: No userId in savedUser, logging out");
-            logout();
-            return;
-          }
-
-          const { data } = await api.get(`/users/${userId}`);
-          console.log("AuthContext: Profile refreshed from backend:", data.role);
-          const mappedUser = {
-            ...data,
-            id: data._id || data.id,
-          };
-          setUser(mappedUser);
-          saveUserToStorage(mappedUser);
-        } catch (err: any) {
-          console.error("Auth initialization failed:", err);
-          // Only logout if it's a 401 (Unauthorized) or 404 (Not Found)
-          // Don't logout on 500 (Server Error) to avoid kicking users out during backend issues
-          const status = err.response?.status;
-          if (status === 401 || status === 404) {
-            console.warn("AuthContext: Critical auth error, logging out user");
-            if (localStorage.getItem('token') === token) {
-              logout();
-            }
+          if (!error && profile) {
+            const mappedUser = mapSupabaseUser(session.user, profile);
+            setUser(mappedUser);
           } else {
-            console.log("AuthContext: Non-critical error, keeping local session for now");
+             // If no profile, try to use metadata
+             setUser(mapSupabaseUser(session.user, {}));
           }
+        } catch (err) {
+          console.error("Auth initialization failed:", err);
         }
       }
       setIsLoading(false);
     };
 
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+         const { data: profile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
+         setUser(mapSupabaseUser(session.user, profile || {}));
+      } else if (event === 'SIGNED_OUT') {
+         setUser(null);
+      }
+    });
+
     initAuth();
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
   }, []);
 
   const signup = async (params: any) => {
     try {
-      const { data } = await api.post('/users/register', params);
+      const { email, password, name, role, sub_role, phone, ...rest } = params;
       
-      const mappedUser = {
-        ...data,
-        id: data._id || data.id,
-      };
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { name, role, sub_role, phone }
+        }
+      });
 
-      localStorage.setItem('token', data.token);
-      saveUserToStorage(mappedUser);
-      setUser(mappedUser);
+      if (authError) throw authError;
+      if (!authData.user) throw new Error("Signup failed: No user returned");
+
+      // Create profile record (Supabase uses Trigger/Functions for this usually, but we do it manually to match Node logic)
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .insert({
+          id: authData.user.id,
+          name,
+          email,
+          phone,
+          role,
+          sub_role,
+          ...rest
+        });
+
+      if (profileError) {
+        console.warn("Auth user created but profile creation failed:", profileError);
+        // Continue anyway as metadata might work, or let trigger handle it
+      }
       
       return { success: true };
     } catch (err: any) {
-      console.error("Signup error:", err.response?.data?.message || err.message);
-      return { success: false, message: err.response?.data?.message || err.message };
+      console.error("Signup error:", err.message);
+      return { success: false, message: err.message };
     }
   };
 
   const login = async (email: string, password: string) => {
     try {
-      const { data } = await api.post('/users/login', { email, password });
-      
-      const mappedUser = {
-        ...data,
-        id: data._id || data.id,
-      };
-
-      localStorage.setItem('token', data.token);
-      saveUserToStorage(mappedUser);
-      setUser(mappedUser);
-      
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
       return { success: true };
     } catch (err: any) {
-      console.error("Login error:", err.response?.data?.message || err.message);
-      return { success: false, message: err.response?.data?.message || err.message };
+      console.error("Login error:", err.message);
+      return { success: false, message: err.message };
     }
   };
 
   const loginWithPhone = async (phone: string) => {
     try {
-      // Sync with our own backend after Supabase handles OTP
-      const { data } = await api.post('/users/login-otp', { phone });
-
-      const mappedUser = {
-        ...data,
-        id: data._id || data.id,
-      };
-
-      localStorage.setItem('token', data.token);
-      saveUserToStorage(mappedUser);
-      setUser(mappedUser);
-
-      return { success: true };
+      const { error } = await supabase.auth.signInWithOtp({ phone });
+      if (error) throw error;
+      return { success: true, message: "OTP sent to your phone" };
     } catch (err: any) {
-      console.error("Phone login error:", err);
-      return { success: false, message: err.response?.data?.message || err.message };
+      console.error("Phone login error:", err.message);
+      return { success: false, message: err.message };
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+  const logout = async () => {
+    await supabase.auth.signOut();
     setUser(null);
   };
 
   const updateUser = async (data: any) => {
     if (!user) return false;
     try {
-      const { data: updatedData } = await api.put('/users/profile', data);
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update(data)
+        .eq('id', user.id);
       
-      const mappedUser = {
-        ...updatedData,
-        id: updatedData._id || updatedData.id,
-      };
+      if (profileError) throw profileError;
 
-      setUser(mappedUser);
-      saveUserToStorage(mappedUser);
+      // Also update auth metadata if relevant
+      if (data.name || data.role) {
+         await supabase.auth.updateUser({
+            data: { name: data.name, role: data.role }
+         });
+      }
+
+      setUser({ ...user, ...data });
       return true;
     } catch (err) {
       console.error("Update profile error:", err);
@@ -219,8 +240,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const deleteUser = async () => {
     if (!user) return false;
     try {
-      await api.delete('/users/profile');
-      logout();
+      // Deleting from profiles (Supabase RPC or Auth function needed for full deletion)
+      await supabase.from('profiles').delete().eq('id', user.id);
+      await logout();
       return true;
     } catch (err) {
       console.error("Delete user error:", err);
@@ -231,20 +253,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const switchSubRole = async (subRole: UserSubRole) => {
     if (!user) return false;
     try {
-      // 1. Update Supabase (User's request)
       const { error } = await supabase
         .from('profiles')
         .update({ sub_role: subRole })
         .eq('id', user.id);
 
-      if (error) console.warn("Supabase record not found, skipping storage sync.");
+      if (error) throw error;
 
-      // 2. Update MongoDB Backend (Persistence for legacy accounts)
-      await api.put('/users/profile', { sub_role: subRole });
-
-      const newUser = { ...user, sub_role: subRole };
-      setUser(newUser);
-      saveUserToStorage(newUser);
+      setUser({ ...user, sub_role: subRole });
       return true;
     } catch (err) {
       console.error("Switch role error:", err);
@@ -265,9 +281,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (error) throw error;
 
-      const newUser = { ...user, role, sub_role: updateData.sub_role };
-      setUser(newUser);
-      saveUserToStorage(newUser);
+      setUser({ ...user, ...updateData });
       return true;
     } catch (err) {
       console.error("Switch main role error:", err);

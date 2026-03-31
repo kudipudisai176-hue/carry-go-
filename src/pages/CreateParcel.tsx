@@ -31,7 +31,7 @@ export default function CreateParcel() {
       setShowSwitchModal(true);
     } else {
       // Already a sender, go to dashboard with openForm state
-      navigate("/user/dashboard", { state: { openForm: true }, replace: true });
+      navigate("/dashboard", { state: { openForm: true }, replace: true });
     }
   }, [user, isLoading, navigate]);
 
@@ -39,7 +39,7 @@ export default function CreateParcel() {
     const ok = await switchSubRole('sender');
     if (ok) {
       toast.success("Switched to Sender mode!");
-      navigate("/user/dashboard", { state: { openForm: true }, replace: true });
+      navigate("/dashboard", { state: { openForm: true }, replace: true });
     } else {
       toast.error("Failed to switch mode.");
     }
@@ -67,7 +67,7 @@ export default function CreateParcel() {
               <Button onClick={handleSwitch} className="h-12 rounded-2xl bg-orange-500 text-white font-bold text-lg shadow-xl shadow-orange-500/20">
                 Switch to Sender <Package className="ml-2 h-5 w-5" />
               </Button>
-              <Button variant="ghost" onClick={() => navigate("/user/dashboard")} className="h-12 rounded-2xl font-bold text-slate-400">
+              <Button variant="ghost" onClick={() => navigate("/dashboard")} className="h-12 rounded-2xl font-bold text-slate-400">
                 Cancel
               </Button>
             </div>
