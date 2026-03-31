@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import BottomNav from "@/components/BottomNav";
 import { Box, Navigation, MapPin, ArrowRight, Shield, Zap, Globe, Users, Star, User, UserPlus } from "lucide-react";
 import { motion, useScroll, useTransform, type Variants, AnimatePresence } from "framer-motion";
 import { useRef, useState, useEffect } from "react";
@@ -42,7 +43,6 @@ const itemVariants = {
   hidden: { opacity: 0, y: 28 },
   visible: { opacity: 1, y: 0, transition: { duration: 0.6 } },
 };
-import BottomNav from "@/components/BottomNav";
 
 export default function Index() {
   const { user } = useAuth();

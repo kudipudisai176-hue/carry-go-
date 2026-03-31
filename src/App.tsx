@@ -16,6 +16,7 @@ import Profile from "./pages/Profile";
 import Support from "./pages/Support";
 import NotFound from "./pages/NotFound";
 import PaymentStatus from "./pages/PaymentStatus";
+import ConfirmDelivery from "./pages/ConfirmDelivery";
 
 const queryClient = new QueryClient();
 
@@ -56,10 +57,10 @@ function AppInner() {
           } 
         />
         <Route 
-          path="/receiver" 
+          path="/confirm-delivery/:id" 
           element={
             <ProtectedRoute>
-              <Receiver />
+              <ConfirmDelivery />
             </ProtectedRoute>
           } 
         />

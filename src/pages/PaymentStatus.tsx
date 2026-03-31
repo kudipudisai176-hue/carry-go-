@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import api from '@/lib/api';
 import { CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -21,11 +20,12 @@ const PaymentStatus = () => {
 
     const checkStatus = async () => {
       try {
-        const res = await api.get(
-          `/payment/status/${txnId}?parcelId=${parcelId}`
+        const res = await fetch(
+          `http://localhost:5000/api/payment/status/${txnId}?parcelId=${parcelId}`
         );
+        const data = await res.json();
 
-        if (res.data.code === 'PAYMENT_SUCCESS') {
+        if (data.code === 'PAYMENT_SUCCESS') {
           setStatus('success');
           toast.success('Payment Successful! Your parcel is now posted.');
           setTimeout(() => navigate('/dashboard'), 3000);
