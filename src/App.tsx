@@ -11,7 +11,6 @@ import Signup from "./pages/Signup";
 import Dashboard from "./pages/Dashboard";
 import Sender from "./pages/Sender";
 import Traveller from "./pages/Traveller";
-import Receiver from "./pages/Receiver";
 import ConfirmDelivery from "./pages/ConfirmDelivery";
 import Profile from "./pages/Profile";
 import Support from "./pages/Support";
