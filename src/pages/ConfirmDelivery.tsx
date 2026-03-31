@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { getParcelById, updateParcelStatus, generateDeliveryOtp, type Parcel } from "@/lib/parcelStore";
 import { useAuth } from "@/lib/authContext";
+import BottomNav from "@/components/BottomNav";
 
 export default function ConfirmDelivery() {
   const { user, isLoading: authLoading } = useAuth();
@@ -37,7 +38,7 @@ export default function ConfirmDelivery() {
     try {
       const res = await generateDeliveryOtp(parcelId);
       if (res) {
-        toast.info("A 6-digit OTP has been generated for authentication.");
+        toast.info("A 4-digit OTP has been generated for authentication.");
         // OTP is normally sent to receiver phone, for demo we can see it
         console.log("New Delivery OTP:", res.otp);
       }
@@ -293,6 +294,7 @@ export default function ConfirmDelivery() {
            </div>
         </motion.div>
       </div>
+      <BottomNav activeTab="sender" />
     </div>
   );
 }

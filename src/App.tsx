@@ -17,7 +17,6 @@ import Profile from "./pages/Profile";
 import Support from "./pages/Support";
 import NotFound from "./pages/NotFound";
 import PaymentStatus from "./pages/PaymentStatus";
-import ChatSupport from "@/components/ChatSupport";
 
 const queryClient = new QueryClient();
 
@@ -63,6 +62,14 @@ function AppInner() {
             </ProtectedRoute>
           } 
         />
+        <Route 
+          path="/receiver" 
+          element={
+            <ProtectedRoute>
+              <Receiver />
+            </ProtectedRoute>
+          } 
+        />
 
         <Route 
           path="/confirm-delivery/:id" 
@@ -86,7 +93,6 @@ function AppInner() {
         {/* Fallback */}
         <Route path="*" element={<NotFound />} />
       </Routes>
-      <ChatSupport />
     </>
   );
 }

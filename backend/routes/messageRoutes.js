@@ -28,13 +28,12 @@ router.post('/', protect, async (req, res) => {
       return res.status(400).json({ message: 'Delivery ID and message are required' });
     }
 
-    const newMessage = new Message({
+    // Since Message is an adapter object now, not a Mongoose class constructor
+    const savedMessage = await Message.create({
       delivery: deliveryId,
       sender: req.user._id,
       message,
     });
-
-    const savedMessage = await newMessage.save();
     
     // 🔔 Create In-App Notification for recipient
     try {
@@ -53,10 +52,11 @@ router.post('/', protect, async (req, res) => {
       }
     } catch (notifErr) { console.error("Chat notification failed:", notifErr); }
 
-    // Populate sender info for the frontend
+    // Use our new findById helper to get a populated result for the frontend
     const populatedMessage = await Message.findById(savedMessage._id).populate('sender', 'name profilePhoto');
     res.status(201).json(populatedMessage);
   } catch (error) {
+    console.error("DEBUG: Message POST error ->", error.message || error);
     res.status(400).json({ message: error.message });
   }
 });

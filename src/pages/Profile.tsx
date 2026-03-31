@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import BottomNav from "@/components/BottomNav";
 
 export default function Profile() {
   const { user, logout, updateUser } = useAuth();
@@ -315,6 +316,7 @@ export default function Profile() {
           </motion.div>
         )}
       </div>
+      <BottomNav activeTab={null} />
     </div>
   );
 }

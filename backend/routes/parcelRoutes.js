@@ -237,9 +237,7 @@ router.put('/:id/status', protect, async (req, res) => {
     }
     
     if (newStatus === 'in-transit' || newStatus === 'picked-up') {
-        if (!req.body.otp || req.body.otp !== parcel.pickup_otp) {
-           return res.status(400).json({ message: `Invalid Pickup OTP. Expected ${parcel.pickup_otp}` });
-        }
+       // [Removed OTP check as requested by User]
        
        if (req.body.pickup_photo || req.body.pickupPhoto) {
           parcel.pickup_photo = req.body.pickup_photo || req.body.pickupPhoto;

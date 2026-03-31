@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Package, Truck, MapPin, ArrowRight, Shield, Zap, Globe, Users, Star, User, UserPlus } from "lucide-react";
+import { Box, Navigation, MapPin, ArrowRight, Shield, Zap, Globe, Users, Star, User, UserPlus } from "lucide-react";
 import { motion, useScroll, useTransform, type Variants, AnimatePresence } from "framer-motion";
 import { useRef, useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
@@ -8,8 +8,8 @@ import ParticleCanvas from "@/components/ParticleCanvas";
 import BusTravelAnimation from "@/components/BusTravelAnimation";
 
 const features = [
-  { icon: Package, title: "Send Parcels", desc: "Create shipments in seconds and track them live.", link: "/dashboard" },
-  { icon: Truck, title: "Carry & Earn", desc: "Browse parcels on your route and earn by delivering.", link: "/dashboard" },
+  { icon: Box, title: "Send Parcels", desc: "Create shipments in seconds and track them live.", link: "/dashboard" },
+  { icon: Navigation, title: "Carry & Earn", desc: "Browse parcels on your route and earn by delivering.", link: "/dashboard" },
   { icon: MapPin, title: "Live Tracking", desc: "Track your parcel in real-time on an interactive map.", link: "/dashboard" },
 ];
 
@@ -27,9 +27,9 @@ const testimonials = [
 ];
 
 const steps = [
-  { num: "01", icon: Package, title: "Create a Shipment", desc: "Enter your parcel details, select a destination, and set your price in seconds." },
+  { num: "01", icon: Box, title: "Create a Shipment", desc: "Enter your parcel details, select a destination, and set your price in seconds." },
   { num: "02", icon: MapPin, title: "Locate Travellers", desc: "Our smart algorithm matches you with a verified traveller heading to your destination." },
-  { num: "03", icon: Truck, title: "Handover & Earn", desc: "Hand over the parcel with a secure OTP and earn/save as the delivery completes." },
+  { num: "03", icon: Navigation, title: "Handover & Earn", desc: "Hand over the parcel with a secure OTP and earn/save as the delivery completes." },
 ];
 
 // Stagger container variant
@@ -42,6 +42,7 @@ const itemVariants = {
   hidden: { opacity: 0, y: 28 },
   visible: { opacity: 1, y: 0, transition: { duration: 0.6 } },
 };
+import BottomNav from "@/components/BottomNav";
 
 export default function Index() {
   const { user } = useAuth();
@@ -97,7 +98,7 @@ export default function Index() {
             className="mx-auto mb-8 logo-pulse"
           >
             <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-secondary shadow-elevated animate-glow-pulse">
-              <Package className="h-10 w-10 text-secondary-foreground" />
+              <Box className="h-10 w-10 text-secondary-foreground" />
             </div>
           </motion.div>
 
@@ -422,7 +423,7 @@ export default function Index() {
             transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
             className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-secondary animate-glow-pulse"
           >
-            <Package className="h-8 w-8 text-secondary-foreground" />
+            <Box className="h-8 w-8 text-secondary-foreground" />
           </motion.div>
           <h2 className="mb-4 font-heading text-3xl font-bold text-primary-foreground md:text-5xl">
             Ready to <span className="text-shimmer">CarryGo?</span>
@@ -451,7 +452,7 @@ export default function Index() {
               className="flex items-center gap-2"
             >
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-                <Package className="h-4 w-4 text-primary-foreground" />
+                <Box className="h-4 w-4 text-primary-foreground" />
               </div>
               <span className="font-heading text-lg font-bold text-foreground">
                 Carry<span className="text-secondary">Go</span>
@@ -475,6 +476,7 @@ export default function Index() {
           </div>
         </div>
       </footer>
+      {user && <BottomNav activeTab="home" />}
     </div>
   );
 }

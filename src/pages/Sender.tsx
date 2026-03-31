@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import {
-  Package, Plus, Check, Trash2, MapPin, Weight, ArrowRight, ArrowLeft, Sparkles, Box, Bike, Bus, Car, Truck, Info, Layers, CreditCard, QrCode, ExternalLink, X, KeyRound, Navigation, Bell, CheckCircle2, Camera, RefreshCw, Edit2, Search, PackageCheck, Handshake, User, Phone, MessageCircle, Navigation2, Lock as LockIcon, ShieldCheck, Loader2, Zap, Clock
+  Box, Plus, Check, Trash2, MapPin, Weight, ArrowRight, ArrowLeft, Sparkles, Bike, Bus, Car, Navigation, Info, Layers, CreditCard, QrCode, ExternalLink, X, KeyRound, Bell, CheckCircle2, Camera, RefreshCw, Edit2, Search, PackageCheck, Handshake, User, Phone, MessageCircle, Navigation2, Lock as LockIcon, ShieldCheck, Loader2, Zap, Clock
 } from "lucide-react";
 import { locations } from '@/lib/locations';
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import StatusBadge from "@/components/StatusBadge";
+import BottomNav from "@/components/BottomNav";
 import {
   createParcel, getAllParcels, updateParcelStatus, deleteParcel,
   updateParcelPayment, acceptRequest, releaseParcelPayment, updateParcel, 
@@ -323,20 +324,29 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
 
     if (w <= 10 && size === 'small' && n <= 2) return { id: 'bike', label: 'Bike', icon: Bike, color: 'text-blue-400' };
     if (w <= 50 && (size === 'small' || size === 'medium') && n <= 10) return { id: 'car', label: 'Car', icon: Car, color: 'text-green-400' };
-    if (w <= 200 && size !== 'very-large' && n <= 50) return { id: 'van', label: 'Van', icon: Truck, color: 'text-purple-400' };
+    if (w <= 200 && size !== 'very-large' && n <= 50) return { id: 'van', label: 'Van', icon: Navigation, color: 'text-purple-400' };
     return { id: 'bus', label: 'Bus', icon: Bus, color: 'text-orange-400' };
   };
 
   const recommended = getRecommendedVehicle();
 
+  const [isAccepting, setIsAccepting] = useState<string | null>(null);
+
   const handleAccept = async (id: string) => {
-    const result = await updateParcelStatus(id, "accepted");
-    toast.success("Traveller request accepted! Share the OTP with them.");
-    await refresh();
-    // Re-fetch the fresh parcel with OTP from backend list
-    const fresh = await getAllParcels('sender');
-    const updated = fresh.find(p => p.id === id);
-    if (updated) setDetailModal(updated);
+    setIsAccepting(id);
+    try {
+      const result = await updateParcelStatus(id, "accepted");
+      toast.success("Traveller request accepted! Share the OTP with them.");
+      await refresh();
+      // Re-fetch the fresh parcel with OTP from backend list
+      const fresh = await getAllParcels('sender');
+      const updated = fresh.find(p => p.id === id);
+      if (updated) setDetailModal(updated);
+    } catch (err) {
+       toast.error("Failed to accept request");
+    } finally {
+       setIsAccepting(null);
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -431,7 +441,7 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
           <div>
             <div className="mb-2 flex items-center gap-3">
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-500 shadow-lg shadow-orange-500/20">
-                <Package className="h-6 w-6 text-white" />
+                <Box className="h-6 w-6 text-white" />
               </div>
               <div>
                 <h1 className="font-heading text-3xl font-bold text-slate-900 tracking-tight">Active Dashboard</h1>
@@ -463,7 +473,7 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
                : "bg-transparent text-black hover:bg-slate-200/50"
                }`}
           >
-            <Package className="h-4 w-4" />
+            <Box className="h-4 w-4" />
             SENT (OUTBOX)
           </button>
           <button
@@ -537,11 +547,11 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-dashed border-border pt-4">
                             <div>
                                <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">From City</Label>
-                               <Input name="fromLocation" list="locations-list" placeholder="e.g. Kakinada" defaultValue={editingParcel?.from_location} className="mt-1 bg-slate-50 focus:bg-white border-slate-200" required />
+                               <Input name="fromLocation" list="locations-list" placeholder="kakinada rtc bus stand" defaultValue={editingParcel?.from_location} className="mt-1 bg-slate-50 focus:bg-white border-slate-200" required />
                             </div>
                             <div>
                                <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">To City</Label>
-                               <Input name="toLocation" list="locations-list" placeholder="e.g. Rajahmundry" defaultValue={editingParcel?.to_location} className="mt-1 bg-slate-50 focus:bg-white border-slate-200" required />
+                               <Input name="toLocation" list="locations-list" placeholder="yerravaram bus stop" defaultValue={editingParcel?.to_location} className="mt-1 bg-slate-50 focus:bg-white border-slate-200" required />
                             </div>
                             <datalist id="locations-list">
                                {locations.map(loc => (
@@ -621,7 +631,7 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
               >
                 {filteredParcels.length === 0 ? (
                   <div className="flex flex-col items-center justify-center p-12 text-center rounded-3xl border-2 border-dashed border-border/50 opacity-60">
-                     <Package className="h-12 w-12 text-muted-foreground/30 mb-2" />
+                     <Box className="h-12 w-12 text-muted-foreground/30 mb-2" />
                      <p className="font-bold text-muted-foreground">No {filter !== 'all' ? filter : ""} parcels found</p>
                   </div>
                 ) : (
@@ -638,7 +648,7 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
                       >
                          <div className="flex items-start justify-between gap-4">
                             <div className="flex items-start gap-3">
-                               <div className="h-10 w-10 bg-secondary/10 rounded-xl flex items-center justify-center text-secondary"><Package className="h-5 w-5" /></div>
+                               <div className="h-10 w-10 bg-secondary/10 rounded-xl flex items-center justify-center text-secondary"><Box className="h-5 w-5" /></div>
                                <div>
                                   <div className="flex items-center gap-2 mb-1">
                                      <StatusBadge status={p.status} />
@@ -662,27 +672,6 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
                                   className="mt-6 border-t border-border pt-6 overflow-hidden"
                                >
                                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                      {/* Receiver Box */}
-                                      <div className="flex items-center justify-between p-4 bg-white border border-border shadow-sm rounded-3xl group/card">
-                                        <div className="flex items-center gap-3">
-                                          <div className="h-10 w-10 bg-blue-500/10 text-blue-500 rounded-2xl flex items-center justify-center">
-                                            <User className="h-5 w-5" />
-                                          </div>
-                                          <div>
-                                            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest opacity-60">Receiver</p>
-                                            <p className="font-bold text-sm text-slate-800">{p.receiver_name}</p>
-                                          </div>
-                                        </div>
-                                        <a 
-                                          href={`tel:${p.receiver_phone}`}
-                                          onClick={(e) => e.stopPropagation()}
-                                          className="h-10 w-10 bg-blue-500 text-white rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20 hover:scale-110 active:scale-95 transition-all"
-                                          title={`Call ${p.receiver_name}`}
-                                        >
-                                          <Phone className="h-4 w-4" />
-                                        </a>
-                                      </div>
-
                                       {/* Traveller Box (If Assigned) */}
                                       {p.traveller_name || (p.status === 'requested') ? (
                                          <div className="flex flex-col gap-3 w-full">
@@ -709,14 +698,22 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
                                               )}
                                             </div>
                                             
-                                            {p.status === 'requested' && (
-                                              <Button 
-                                                onClick={(e) => { e.stopPropagation(); handleAccept(p.id); }}
-                                                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-12 rounded-2xl shadow-lg shadow-emerald-600/20 uppercase tracking-widest text-[10px] animate-pulse"
-                                              >
-                                                <Handshake className="h-4 w-4 mr-2" /> Approve Traveller to Deliver
-                                              </Button>
-                                            )}
+                                              {p.status === 'requested' && (
+                                                <Button 
+                                                  disabled={isAccepting === p.id}
+                                                  onClick={(e) => { e.stopPropagation(); handleAccept(p.id); }}
+                                                  className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-bold h-12 rounded-[1.25rem] shadow-lg shadow-emerald-500/20 uppercase tracking-widest text-[10px] transform transition-all active:scale-95 flex items-center justify-center gap-3 overflow-hidden group"
+                                                >
+                                                  {isAccepting === p.id ? (
+                                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                                  ) : (
+                                                    <>
+                                                      <Handshake className="h-4 w-4 group-hover:scale-110 transition-transform" /> 
+                                                      <span>ACCEPT REQUEST</span>
+                                                    </>
+                                                  )}
+                                                </Button>
+                                              )}
                                          </div>
                                        ) : (
                                          <div className="flex items-center gap-3 p-4 bg-muted/20 border border-dashed border-border rounded-3xl w-full">
@@ -729,13 +726,34 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
                                            </div>
                                          </div>
                                        )}
+
+                                      {/* Receiver Box */}
+                                      <div className="flex items-center justify-between p-4 bg-white border border-border shadow-sm rounded-3xl group/card">
+                                        <div className="flex items-center gap-3">
+                                          <div className="h-10 w-10 bg-blue-500/10 text-blue-500 rounded-2xl flex items-center justify-center">
+                                            <User className="h-5 w-5" />
+                                          </div>
+                                          <div>
+                                            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest opacity-60">Receiver</p>
+                                            <p className="font-bold text-sm text-slate-800">{p.receiver_name}</p>
+                                          </div>
+                                        </div>
+                                        <a 
+                                          href={`tel:${p.receiver_phone}`}
+                                          onClick={(e) => e.stopPropagation()}
+                                          className="h-10 w-10 bg-blue-500 text-white rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20 hover:scale-110 active:scale-95 transition-all"
+                                          title={`Call ${p.receiver_name}`}
+                                        >
+                                          <Phone className="h-4 w-4" />
+                                        </a>
+                                      </div>
                                    </div>
 
                                   {/* Extra details when expanded */}
                                   <div className="grid grid-cols-2 gap-4 mt-4">
                                      <div className="flex items-center gap-3 p-3 bg-muted/40 rounded-xl">
                                        <div className="p-2 rounded-lg bg-white shadow-sm text-secondary">
-                                         <Package className="h-4 w-4" />
+                                         <Box className="h-4 w-4" />
                                        </div>
                                        <div>
                                          <p className="text-[10px] font-bold text-muted-foreground uppercase">Items</p>
@@ -760,12 +778,7 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
                                     </div>
                                   )}
 
-                                  {p.status === 'accepted' && p.pickup_otp && (
-                                    <div className="mb-6 mt-4 rounded-3xl bg-secondary p-6 text-center shadow-lg shadow-secondary/20 border-2 border-white/20">
-                                        <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-white/70 mb-1">Pickup Authorization (Share with Traveller)</p>
-                                        <p className="text-4xl font-bold text-white tracking-[0.4em] font-mono">{p.pickup_otp}</p>
-                                     </div>
-                                 )}
+
 
                                   <div className="mt-6 flex gap-2">
 
@@ -801,7 +814,7 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
               </div>
               <div className="flex items-center gap-3">
                  <div className="hidden sm:flex h-12 w-12 items-center justify-center rounded-2xl bg-secondary/10">
-                   <Package className="h-6 w-6 text-secondary" />
+                   <Box className="h-6 w-6 text-secondary" />
                  </div>
               </div>
             </div>
@@ -939,6 +952,7 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
         )}
       </AnimatePresence>
 
+      <BottomNav activeTab="sender" />
     </div>
   );
 }

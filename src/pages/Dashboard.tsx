@@ -1,7 +1,8 @@
-import { Package, Truck, MapPin, User, ChevronRight, Star, ShieldCheck, Clock } from "lucide-react";
+import { Box, Navigation, MapPin, User, ChevronRight, Star, ShieldCheck, Clock } from "lucide-react";
 import { Link, Navigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useAuth } from "@/lib/authContext";
+import BottomNav from "@/components/BottomNav";
 
 export default function Dashboard() {
   const { user, isLoading } = useAuth();
@@ -21,7 +22,7 @@ export default function Dashboard() {
     {
       title: "Send Parcel",
       desc: "Fastest peer-to-peer delivery for your items",
-      icon: Package,
+      icon: Box,
       path: "/sender",
       color: "from-orange-500 via-orange-600 to-orange-700",
       shadow: "shadow-orange-200/50 hover:shadow-orange-500/40",
@@ -32,7 +33,7 @@ export default function Dashboard() {
     {
       title: "Earn as Traveller",
       desc: "Monetize your journey and cover travel costs",
-      icon: Truck,
+      icon: Navigation,
       path: "/traveller",
       color: "from-purple-500 via-purple-600 to-purple-700",
       shadow: "shadow-purple-200/50 hover:shadow-purple-500/40",
@@ -140,6 +141,7 @@ export default function Dashboard() {
         </div>
 
       </div>
+      <BottomNav activeTab="home" />
     </div>
   );
 }

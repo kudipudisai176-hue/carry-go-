@@ -56,5 +56,6 @@
   "deliveryOtpExpiry",
   "delivery_photo",
   "received_photo",
-  "receiver_rating"
+  "receiver_rating",
+  "pickup_photo"
 ]

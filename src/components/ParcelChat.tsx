@@ -9,7 +9,7 @@ import { supabase } from "@/lib/supabaseClient";
 
 interface Message {
   _id: string;
-  sender: string;
+  sender: string | { _id?: string, id?: string, name?: string, profilePhoto?: string } | null;
   message: string;
   createdAt: string;
 }
@@ -50,14 +50,13 @@ export default function ParcelChat({ deliveryId, currentUserId, showHeader = tru
            _id: newMsg.id || newMsg._id,
            sender: newMsg.sender_id || newMsg.sender,
            message: newMsg.message,
-           createdAt: newMsg.created_at || newMsg.createdAt || new Date().toISOString()
+           createdAt: newMsg.created_at || newMsg.createdAt
         };
         
-        return [...prev, formattedMsg as Message];
+        const updated = [...prev, formattedMsg as unknown as Message];
+        setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+        return updated;
       });
-      
-      // Auto-scroll on new message
-      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
     });
 
     return () => {
@@ -67,35 +66,37 @@ export default function ParcelChat({ deliveryId, currentUserId, showHeader = tru
 
   const sendMessage = async () => {
     if (!newMessage.trim()) return;
-    
-    const msgContent = newMessage;
-    setNewMessage("");
 
     try {
-      await api.post("/messages", {
+      const res = await api.post("/messages", {
         deliveryId,
-        message: msgContent
+        message: newMessage,
       });
-      fetchMessages(true);
+
+      // Update UI immediately (the subscription will also catch it but this is snappier)
+      setMessages((prev) => [...prev, res.data]);
+      setNewMessage("");
+      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
     } catch (error) {
-      toast.error("Failed to send message");
-      setNewMessage(msgContent); // Restore on failure
+      console.error("Send message error:", error);
+      toast.error("Failed to send message. Please check connection.");
     }
   };
 
+  if (!isOpen) return null;
+
   return (
-    <div className={`flex flex-col overflow-hidden bg-white transition-all duration-300 ${className || 'h-[500px] rounded-[2rem] border border-border shadow-2xl'}`}>
+    <div className={`flex flex-col h-[560px] bg-white rounded-t-[3rem] shadow-2xl overflow-hidden border-t border-slate-100 ${className}`}>
       {showHeader && (
-        <div className="flex items-center justify-between bg-secondary p-6 text-white shadow-lg shrink-0">
+        <div className="bg-gradient-to-r from-secondary to-orange-400 p-6 flex items-center justify-between shadow-lg">
           <div className="flex items-center gap-3">
-            <div className="relative">
-              <div className="h-2.5 w-2.5 rounded-full bg-green-400 animate-pulse" />
-              <div className="absolute inset-0 h-2.5 w-2.5 rounded-full bg-green-400 animate-ping opacity-75" />
-            </div>
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/70">Conversation Channel</p>
-              <h3 className="font-bold text-base leading-tight">Chat with Delivery Partner</h3>
-            </div>
+             <div className="h-10 w-10 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-md">
+               <MessageSquare className="h-5 w-5 text-white" />
+             </div>
+             <div>
+               <h3 className="text-white font-black text-sm uppercase tracking-widest leading-none mb-1">Secure Inbox</h3>
+               <p className="text-white/60 text-[9px] font-bold uppercase tracking-tighter">Real-time Encrypted Chat</p>
+             </div>
           </div>
           {onClose && (
             <Button size="icon" variant="ghost" onClick={onClose} className="rounded-full text-white/50 hover:bg-white/10 hover:text-white">
@@ -105,41 +106,64 @@ export default function ParcelChat({ deliveryId, currentUserId, showHeader = tru
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto p-6 space-y-5 bg-muted/5 custom-scrollbar">
-        {loading && messages.length === 0 ? (
-          <div className="flex h-full items-center justify-center text-muted-foreground gap-2 text-sm font-medium">
-            <Loader2 className="h-5 w-5 animate-spin text-secondary" /> Initializing secure connection...
+      <div className="flex-1 overflow-y-auto bg-muted/5 custom-scrollbar">
+        {loading ? (
+          <div className="flex h-full flex-col items-center justify-center space-y-3">
+            <div className="relative">
+              <div className="h-10 w-10 border-4 border-slate-100 border-t-orange-500 rounded-full animate-spin" />
+              <div className="absolute inset-0 flex items-center justify-center">
+                 <div className="h-2 w-2 bg-orange-500 rounded-full animate-ping" />
+              </div>
+            </div>
+            <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest animate-pulse">Establishing Secure Channel...</p>
           </div>
         ) : messages.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center text-muted-foreground gap-3 text-center px-10">
-            <div className="h-16 w-16 rounded-full bg-secondary/10 flex items-center justify-center mb-2">
-               <MessageSquare className="h-8 w-8 text-secondary opacity-40" />
+          <div className="flex h-full flex-col items-center justify-center p-8 text-center space-y-4">
+            <div className="h-16 w-16 bg-slate-100 rounded-3xl flex items-center justify-center text-slate-300">
+               <MessageSquare className="h-8 w-8" />
             </div>
-            <p className="text-xs font-black uppercase tracking-widest text-secondary">No Messages Yet</p>
-            <p className="text-[11px] font-medium leading-relaxed opacity-60">Start a conversation to coordinate delivery details with your partner.</p>
+            <div className="space-y-1">
+              <h4 className="font-bold text-slate-900">No messages yet</h4>
+              <p className="text-xs text-slate-400 leading-relaxed">Start the conversation! Say hello to coordinate the pickup.</p>
+            </div>
           </div>
         ) : (
-          messages.map((m) => {
-            const isMe = m.sender === currentUserId;
-            return (
-              <div key={m._id} className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
-                <div
-                  className={`max-w-[85%] rounded-[1.5rem] px-5 py-3 text-sm shadow-md transition-all ${
-                    isMe
-                      ? "bg-secondary text-white rounded-tr-none shadow-secondary/20"
-                      : "bg-white text-foreground border border-border/50 rounded-tl-none"
-                  }`}
-                >
-                  <p className="leading-relaxed font-medium">{m.message}</p>
-                  <p className={`text-[9px] mt-1.5 font-black uppercase tracking-tighter opacity-50 ${isMe ? 'text-right' : 'text-left'}`}>
-                    {new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </p>
+          <div className="px-6 py-6 space-y-6">
+            {/* Support Bot Welcome (SIMULATION) */}
+            <div className="flex justify-start">
+               <div className="max-w-[85%] bg-slate-100 rounded-[1.25rem] rounded-tl-none p-4 text-xs font-bold text-slate-600 border border-slate-200/50 shadow-sm">
+                  <div className="flex items-center gap-1.5 mb-1 text-orange-600">
+                     <div className="h-1.5 w-1.5 bg-orange-500 rounded-full animate-pulse" />
+                     <span className="text-[9px] uppercase tracking-widest">Support Bot</span>
+                  </div>
+                  👋 Welcome to the secure chat! Please use this to coordinate your delivery. 
+                  Never share personal data like passwords or credit card details here.
+               </div>
+            </div>
+            
+            {messages.map((m) => {
+              const senderId = (m.sender && typeof m.sender === 'object') ? (m.sender._id || m.sender.id) : m.sender;
+              const isMe = senderId === currentUserId;
+              return (
+                <div key={m._id} className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
+                  <div
+                    className={`max-w-[85%] rounded-[1.5rem] px-5 py-3 text-sm shadow-md transition-all ${
+                      isMe
+                        ? "bg-secondary text-white rounded-tr-none shadow-secondary/20"
+                        : "bg-white text-foreground border border-border/50 rounded-tl-none"
+                    }`}
+                  >
+                    <p className="leading-relaxed font-medium">{m.message}</p>
+                    <p className={`text-[9px] mt-1.5 font-black uppercase tracking-tighter opacity-50 ${isMe ? 'text-right' : 'text-left'}`}>
+                      {m.createdAt ? new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now'}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            );
-          })
+              );
+            })}
+            <div ref={bottomRef} />
+          </div>
         )}
-        <div ref={bottomRef} />
       </div>
 
       <div className="border-t border-border/40 p-5 bg-white flex gap-3 items-center">

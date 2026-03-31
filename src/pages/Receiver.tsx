@@ -13,6 +13,7 @@ import { useAuth } from "@/lib/authContext";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
 import ParcelChat from "@/components/ParcelChat";
+import BottomNav from "@/components/BottomNav";
 
 // SwiftParcel Premium CSS (Common with Traveller Dashboard)
 const styles = `
@@ -391,6 +392,7 @@ export default function Receiver() {
           </div>
         </DialogContent>
       </Dialog>
+      <BottomNav activeTab="sender" />
     </div>
   );
 }

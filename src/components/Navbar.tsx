@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Package, Truck, MapPin, Home, LogIn, UserPlus, LogOut, User } from "lucide-react";
+import { Box, Truck, MapPin, Home, LogIn, UserPlus, LogOut, User } from "lucide-react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/authContext";
@@ -21,7 +21,7 @@ const publicNavItems = [
 
 const authNavItems = [
   ...publicNavItems,
-  { path: "/dashboard", label: "Dashboard", icon: Package },
+  { path: "/dashboard", label: "Dashboard", icon: Box },
   { path: "/profile", label: "Profile", icon: User },
 ];
 
@@ -58,7 +58,7 @@ export default function Navbar() {
         {/* Logo */}
         <Link to="/" className="flex items-center gap-2">
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-orange-500 transition-transform hover:scale-105 active:scale-95">
-            <Package className="h-5 w-5 text-white" />
+            <Box className="h-5 w-5 text-white" />
           </div>
           <span className="font-heading text-xl font-bold text-foreground">
             Carry<span className="text-orange-500">Go</span>
