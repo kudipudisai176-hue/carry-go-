@@ -5,14 +5,13 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/lib/authContext";
 import Navbar from "@/components/Navbar";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import Dashboard from "./pages/Dashboard";
 import Sender from "./pages/Sender";
 import Traveller from "./pages/Traveller";
-import Receiver from "./pages/Receiver";
-import ConfirmDelivery from "./pages/ConfirmDelivery";
 import Profile from "./pages/Profile";
 import Support from "./pages/Support";
 import NotFound from "./pages/NotFound";
@@ -20,12 +19,6 @@ import PaymentStatus from "./pages/PaymentStatus";
 
 const queryClient = new QueryClient();
 
-const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { user, isLoading } = useAuth();
-  if (isLoading) return <div className="flex h-screen items-center justify-center">Loading session...</div>;
-  if (!user) return <Navigate to="/login" replace />;
-  return <>{children}</>;
-};
 
 function AppInner() {
   return (
@@ -71,14 +64,6 @@ function AppInner() {
           } 
         />
 
-        <Route 
-          path="/confirm-delivery/:id" 
-          element={
-            <ProtectedRoute>
-              <ConfirmDelivery />
-            </ProtectedRoute>
-          } 
-        />
         <Route 
           path="/profile" 
           element={

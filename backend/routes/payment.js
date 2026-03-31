@@ -1,7 +1,7 @@
 const express = require('express');
 const axios = require('axios');
 const crypto = require('crypto');
-const { v4: uuidv4 } = require('uuid');
+
 const router = express.Router();
 const Parcel = require('../models/Parcel'); // Corrected path
 
@@ -9,7 +9,7 @@ const Parcel = require('../models/Parcel'); // Corrected path
 router.post('/initiate', async (req, res) => {
   try {
     const { amount, userId, parcelId } = req.body;
-    const transactionId = uuidv4();
+    const transactionId = crypto.randomUUID();
 
     console.log('--- MOCK Payment Initiation ---');
     console.log('Amount:', amount);

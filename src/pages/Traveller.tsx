@@ -133,7 +133,79 @@ export default function Traveller() {
       };
    }, [user?.id, loadMyDeliveries, sendBrowserNotification]);
 
+<<<<<<< HEAD
    useEffect(() => {
+=======
+  useEffect(() => {
+    loadMyDeliveries();
+  }, [loadMyDeliveries]);
+
+  const handleSearch = useCallback(async () => {
+    setLoading(true);
+    try {
+      const origin = from || user?.city || "";
+      const data = await searchParcels(origin, to || "");
+      const filtered = data.filter(p => p.senderId !== user?.id);
+      setResults(filtered);
+    } catch {
+      toast.error("Failed to load local parcels");
+    } finally {
+      setLoading(false);
+    }
+  }, [from, to, user?.id, user?.city]);
+
+  useEffect(() => {
+    if (activeTab === "search" && results.length === 0) {
+      handleSearch();
+    }
+  }, [activeTab, results.length, handleSearch]);
+
+  const handleRequest = async (id: string) => {
+    if (!user) return;
+    try {
+      await requestParcel(id, user.name);
+      toast.success("Request sent! Waiting for Sender to approve.");
+      handleSearch();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to send request");
+    }
+  };
+
+  const handleArrivedAtPickup = async (parcelId?: string) => {
+    const id = parcelId || activeParcel?.id;
+    if (!id) return;
+    
+    try {
+      // 📍 Optional: Notify sender/receiver via backend (Point 15)
+      await updateParcelStatus(id, 'arrived');
+      toast.info("Sender notified of your arrival!");
+    } catch (e) {
+      console.warn("Status update failed:", e);
+    }
+    setFlowStep(2);
+    setOtpError(null);
+    setOtpValue(["", "", "", ""]);
+  };
+
+  const handleConfirmPickup = async () => {
+    if (!activeParcel || !pickupPhotoFile) {
+        toast.error("Please capture a photo first!");
+        return;
+    }
+    const otpCode = otpValue.join("");
+    if (otpCode.length < 4) {
+        setOtpError("Enter 4-digit OTP");
+        return;
+    }
+
+    setIsProcessing(true);
+    try {
+      const photoUrl = await uploadParcelPhoto(activeParcel.id, pickupPhotoFile, "pickup");
+      await updateParcelStatus(activeParcel.id, "picked-up", undefined, otpCode, photoUrl);
+      toast.success("Pickup Confirmed!");
+      setFlowStep(3);
+      setShowMap(true);
+>>>>>>> origin/main
       loadMyDeliveries();
    }, [loadMyDeliveries]);
 
@@ -363,6 +435,7 @@ export default function Traveller() {
             </div>
          </motion.div>
 
+<<<<<<< HEAD
          <main className="relative">
             {/* SEARCH TAB */}
             {activeTab === "search" && flowStep === 0 && (
@@ -379,6 +452,104 @@ export default function Traveller() {
                               placeholder="e.g. Kakinada"
                               className="h-14 rounded-2xl bg-[#f4f6f9] border-none font-bold text-[#0f1f3d]"
                            />
+=======
+        {/* --- Unified Tabs --- */}
+        <div className="mt-10 flex gap-2 rounded-[1.5rem] bg-slate-100 p-1.5 relative z-10 border border-slate-200">
+          <button
+            onClick={() => setActiveTab("deliveries")}
+            className={`flex-1 flex items-center justify-center gap-2 rounded-2xl py-3 text-[10px] font-bold uppercase tracking-widest transition-all ${activeTab === "deliveries"
+               ? "bg-orange-500 text-white shadow-lg shadow-orange-500/20"
+               : "bg-transparent text-black hover:bg-slate-200/50"
+               }`}
+          >
+            <History className="h-4 w-4" />
+            MY DELIVERIES
+          </button>
+          <button
+            onClick={() => setActiveTab("search")}
+            className={`flex-1 flex items-center justify-center gap-2 rounded-2xl py-3 text-[10px] font-bold uppercase tracking-widest transition-all ${activeTab === "search"
+               ? "bg-orange-500 text-white shadow-lg shadow-orange-500/20"
+               : "bg-transparent text-black hover:bg-slate-200/50"
+               }`}
+          >
+            <Search className="h-4 w-4" />
+            FIND PARCELS
+          </button>
+        </div>
+      </motion.div>
+
+      {flowStep === 0 && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+          <AnimatePresence mode="wait">
+              {activeTab === "deliveries" ? (
+                <motion.div key="list-deliveries" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }}>
+                  {myDeliveries.length === 0 ? (
+                    <div className="bg-white border-2 border-dashed border-[#dde2ea] rounded-[2rem] py-16 px-8 text-center shadow-sm">
+                      <div className="mb-4 opacity-30 flex justify-center">
+                        <Truck className="h-14 w-14 text-[#8896a8]" />
+                      </div>
+                      <h3 className="font-heading text-lg font-bold text-[#0f1f3d]">No active deliveries.</h3>
+                      <p className="text-sm text-[#8896a8] mt-2 leading-relaxed">Once you request a parcel and the <span className="text-[#f26522] font-semibold">Sender accepts</span>, it will appear here instantly.</p>
+                      <Button variant="outline" className="mt-8 border-[#f26522] text-[#f26522] rounded-full px-8 h-12 font-bold hover:bg-[#fff3ec]" onClick={() => setActiveTab("search")}>
+                        Go Find Parcels
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {myDeliveries.map(p => (
+                        <div key={p.id} className="bg-white rounded-[1.5rem] shadow-sm overflow-hidden border border-slate-100 transition-all hover:shadow-md cursor-pointer" onClick={() => { setActiveParcel(p); setFlowStep(1); }}>
+                           {/* Card Header */}
+                           <div className="bg-slate-50 border-b border-slate-100 p-5 flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                 <div className="h-11 w-11 bg-orange-500 rounded-xl flex items-center justify-center font-bold text-white text-lg shadow-lg shadow-orange-500/20">
+                                    {p.senderName?.charAt(0) || "P"}
+                                 </div>
+                                 <div className="text-left">
+                                    <h4 className="text-slate-900 font-bold text-sm leading-tight">{p.senderName}</h4>
+                                    <p className="text-slate-400 text-[10px] uppercase font-bold tracking-wide mt-1 flex items-center gap-1">
+                                       <Sparkles className="h-3 w-3 text-orange-500" /> Sender · Verified
+                                    </p>
+                                 </div>
+                              </div>
+                              <StatusBadge status={p.status} />
+                           </div>
+
+                           <div className="p-5 space-y-5">
+                              {/* Route Track */}
+                              <div className="bg-[#f4f6f9] p-4 rounded-2xl">
+                                 <div className="flex flex-col">
+                                    <div className="flex gap-3">
+                                       <div className="flex flex-col items-center shrink-0">
+                                          <div className="h-2 w-2 rounded-full bg-orange-500" />
+                                          <div className="w-[1px] h-4 bg-slate-200" />
+                                       </div>
+                                       <p className="text-xs font-bold text-[#0f1f3d]">{p.fromLocation}</p>
+                                    </div>
+                                    <div className="flex gap-3">
+                                       <div className="h-2 w-2 rounded-full bg-slate-300" />
+                                       <p className="text-xs font-bold text-slate-400">{p.toLocation}</p>
+                                    </div>
+                                 </div>
+                              </div>
+
+                              <div className="flex items-center justify-between">
+                                 <div className="flex items-center gap-2">
+                                    <Box className="h-4 w-4 text-orange-500" />
+                                    <span className="text-[10px] font-bold text-slate-900 uppercase">{p.description}</span>
+                                 </div>
+                                 <span className="text-lg font-bold text-orange-600">₹{p.price}</span>
+                              </div>
+
+                              {p.status === 'accepted' && (
+                                 <Button 
+                                   className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold h-10 rounded-xl uppercase tracking-widest text-[9px] shadow-lg shadow-orange-500/20"
+                                   onClick={(e) => { e.stopPropagation(); setActiveParcel(p); handleArrivedAtPickup(p.id); }}
+                                 >
+                                   <MapPin className="h-3 w-3 mr-2" /> Arrived at Pickup
+                                 </Button>
+                               )}
+                           </div>
+>>>>>>> origin/main
                         </div>
                         <div className="space-y-1.5">
                            <label className="text-[10px] font-bold uppercase text-[#8896a8] tracking-widest ml-1">Destination</label>
@@ -413,6 +584,7 @@ export default function Traveller() {
                         </div>
                      ) : (
                         results.map(p => (
+<<<<<<< HEAD
                            <div key={p.id} className="bg-white rounded-[1.5rem] p-5 shadow-sm border border-slate-100 flex flex-col gap-4">
                               <div className="flex justify-between items-start">
                                  <div>
@@ -434,6 +606,29 @@ export default function Traveller() {
                                  Request To Carry
                               </Button>
                            </div>
+=======
+                          <div key={p.id} className="bg-white rounded-[1.5rem] p-5 shadow-sm border border-slate-100 flex flex-col gap-4">
+                             <div className="flex justify-between items-start">
+                                <div>
+                                   <div className="flex items-center gap-2 mb-1">
+                                      <div className="h-1.5 w-1.5 rounded-full bg-green-500" />
+                                      <h4 className="font-bold text-base text-[#0f1f3d]">{p.description}</h4>
+                                   </div>
+                                   <p className="text-xs text-[#8896a8] font-medium">{p.fromLocation} → {p.toLocation}</p>
+                                </div>
+                                <div className="text-right">
+                                   <p className="text-xl font-bold text-[#f26522]">₹{p.price}</p>
+                                   <p className="text-[9px] font-bold text-[#8896a8] uppercase tracking-tighter">Est. Earning</p>
+                                </div>
+                             </div>
+                             <Button 
+                               className="w-full h-11 bg-orange-500 hover:bg-orange-600 rounded-xl font-bold uppercase tracking-widest text-[10px] mt-1 text-white shadow-lg shadow-orange-500/20"
+                               onClick={() => handleRequest(p.id)}
+                             >
+                                Request To Carry
+                             </Button>
+                          </div>
+>>>>>>> origin/main
                         ))
                      )}
                   </div>
@@ -576,6 +771,7 @@ export default function Traveller() {
                       <p className="text-sm text-slate-400 font-bold leading-relaxed mb-10">Once you request a parcel and the <span className="text-orange-500">Sender accepts</span>, it will appear here instantly.</p>
                       <Button onClick={() => setActiveTab("search")} className="h-16 w-full bg-orange-500 text-white rounded-[1.5rem] font-black uppercase tracking-[0.2em] text-xs shadow-xl shadow-orange-500/20 hover:scale-[1.02] active:scale-95 transition-all">Go Find Parcels</Button>
                     </div>
+<<<<<<< HEAD
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
                       {myDeliveries.map(p => (
@@ -609,6 +805,42 @@ export default function Traveller() {
                   <h2 className="text-3xl font-bold text-slate-900 font-heading">Verify Pickup</h2>
                   <p className="text-slate-500 text-sm font-bold uppercase tracking-widest">Identify with Sender</p>
                </div>
+=======
+                    <div>
+                       <label className="text-[10px] font-bold uppercase text-slate-400 tracking-widest">Pickup Address</label>
+                       <p className="font-bold text-slate-800 text-sm">{activeParcel.fromLocation}</p>
+                    </div>
+                 </div>
+                 <div className="flex gap-4">
+                    <div className="h-10 w-10 bg-blue-100 rounded-xl flex items-center justify-center shrink-0">
+                       <Navigation2 className="h-5 w-5 text-blue-500" />
+                    </div>
+                    <div>
+                       <label className="text-[10px] font-bold uppercase text-slate-400 tracking-widest">Delivery Address</label>
+                       <p className="font-bold text-slate-800 text-sm">{activeParcel.toLocation}</p>
+                    </div>
+                 </div>
+              </div>
+
+              <div className="bg-slate-50 rounded-3xl p-6 flex items-center justify-between mt-6">
+                 <div className="flex items-center gap-4">
+                    <div className="h-12 w-12 bg-white rounded-2xl shadow-sm flex items-center justify-center text-orange-500 font-bold">
+                       {activeParcel.senderName.charAt(0)}
+                    </div>
+                    <div>
+                       <p className="text-xs font-bold text-slate-900">{activeParcel.senderName}</p>
+                       <p className="text-[10px] font-bold text-slate-400">
+                         {activeParcel.status === 'requested' ? "Phone Hidden until Accepted" : (activeParcel.senderPhone || "Contact Sender")}
+                       </p>
+                    </div>
+                 </div>
+                 {activeParcel.status !== 'requested' && (
+                   <a href={`tel:${activeParcel.senderPhone}`} className="h-12 px-6 bg-orange-500 text-white rounded-2xl flex items-center justify-center gap-2 font-bold text-xs uppercase tracking-widest shadow-lg shadow-orange-500/20">
+                      <Phone className="h-4 w-4" /> Call Sender
+                   </a>
+                 )}
+              </div>
+>>>>>>> origin/main
 
                <div className="bg-white rounded-[2.5rem] p-8 shadow-xl border border-slate-100 space-y-8">
                   <div className="space-y-2 text-center">
@@ -705,6 +937,7 @@ export default function Traveller() {
                   </div>
                )}
 
+<<<<<<< HEAD
                <Button
                   className="w-full h-16 bg-orange-500 hover:bg-orange-600 rounded-[1.5rem] text-white font-bold uppercase tracking-widest text-sm shadow-xl shadow-orange-500/25 mt-6"
                   onClick={handleArrivedAtReceiver}
@@ -713,6 +946,17 @@ export default function Traveller() {
                </Button>
             </motion.div>
          )}
+=======
+                <div className="absolute top-8 left-8 right-8 flex justify-between items-start pointer-events-none">
+                   <div className="bg-white/90 backdrop-blur px-6 py-3 rounded-2xl shadow-xl pointer-events-auto border border-white">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Target Destination</p>
+                      <p className="text-sm font-bold text-slate-900">{activeParcel.toLocation}</p>
+                   </div>
+                   <Button variant="outline" className="bg-white rounded-full h-10 w-10 p-0 pointer-events-auto shadow-lg" onClick={() => setShowMap(false)}>
+                      <X className="h-4 w-4" />
+                   </Button>
+                </div>
+>>>>>>> origin/main
 
          {/* PAGE 4: RECEIVER OTP + DELIVERY CONFIRM */}
          {flowStep === 4 && activeParcel && (
@@ -746,6 +990,7 @@ export default function Traveller() {
                      <p className="text-[10px] text-center font-bold text-orange-500 uppercase tracking-widest">Enter 4-digit code from Receiver</p>
                   </div>
 
+<<<<<<< HEAD
                   <div
                      className="h-64 bg-slate-50 border-2 border-dashed border-slate-200 rounded-[2rem] flex flex-col items-center justify-center relative overflow-hidden group transition-all"
                   >
@@ -766,6 +1011,14 @@ export default function Traveller() {
                      )}
                      <input type="file" ref={fileInputRef} className="hidden" accept="image/*" capture="environment" onChange={(e) => handleImageCapture(e, 'delivery')} />
                   </div>
+=======
+           <div className="bg-white rounded-[2.5rem] p-8 shadow-xl border border-slate-100 space-y-6">
+              <div className="bg-slate-50 p-5 rounded-3xl border border-slate-100">
+                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Recipient</p>
+                 <p className="font-bold text-lg text-slate-900">{activeParcel.receiverName}</p>
+                 <p className="text-xs font-bold text-orange-500">{activeParcel.toLocation}</p>
+              </div>
+>>>>>>> origin/main
 
                   <Button
                      className="w-full h-16 bg-orange-500 hover:bg-orange-600 rounded-[1.5rem] text-white font-bold uppercase tracking-widest text-sm shadow-xl shadow-orange-500/25 transition-all active:scale-95 disabled:opacity-50"

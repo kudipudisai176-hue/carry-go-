@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { Star, X, MessageSquare, CheckCircle2 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
-import api from "@/lib/api";
+import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
 
 interface RatingModalProps {
@@ -28,16 +28,23 @@ export default function RatingModal({ parcelId, revieweeId, revieweeName, onClos
 
     setLoading(true);
     try {
-      await api.post("/reviews", {
-        parcel: parcelId,
-        reviewee: revieweeId,
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Authentication required");
+
+      const { error } = await supabase.from("reviews").insert({
+        parcelId,
+        revieweeId,
+        reviewerId: user.id,
         rating,
         comment,
       });
+
+      if (error) throw error;
+
       toast.success("Review submitted! Thank you.");
       onSuccess();
-    } catch (err) {
-      toast.error("Failed to submit review");
+    } catch (err: any) {
+      toast.error("Failed to submit review: " + err.message);
     } finally {
       setLoading(false);
     }

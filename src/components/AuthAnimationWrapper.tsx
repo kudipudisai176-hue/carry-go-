@@ -50,7 +50,7 @@ export default function AuthAnimationWrapper({
                         y: [0, 30, 0],
                     }}
                     transition={{ duration: 20, repeat: Infinity, ease: "easeInOut" }}
-                    className="absolute -top-1/4 -left-1/4 w-[60%] h-[60%] bg-orange-500/5 blur-[120px] rounded-full"
+                    className="absolute -top-1/4 -left-1/4 w-[60%] h-[60%] bg-orange-500/5 blur-[80px] rounded-full"
                 />
                 <motion.div
                     animate={{
@@ -59,7 +59,7 @@ export default function AuthAnimationWrapper({
                         y: [0, -50, 0],
                     }}
                     transition={{ duration: 25, repeat: Infinity, ease: "easeInOut" }}
-                    className="absolute -bottom-1/4 -right-1/4 w-[70%] h-[70%] bg-orange-600/[0.03] blur-[140px] rounded-full"
+                    className="absolute -bottom-1/4 -right-1/4 w-[70%] h-[70%] bg-orange-600/[0.03] blur-[100px] rounded-full"
                 />
 
                 {/* ⬛ Subtle Grid Pattern */}

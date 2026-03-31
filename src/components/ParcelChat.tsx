@@ -1,44 +1,51 @@
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MessageSquare, Send, X, Loader2 } from "lucide-react";
-import api from "@/lib/api";
-import { toast } from "sonner";
-import { subscribeToMessages } from "@/lib/parcelStore";
+import { MessageSquare, Send, Loader2, X } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
+import { toast } from "sonner";
 
 interface Message {
+<<<<<<< HEAD
   _id: string;
   sender: string | { _id?: string, id?: string, name?: string, profilePhoto?: string } | null;
+=======
+  id: string;
+  senderId: string;
+>>>>>>> origin/main
   message: string;
-  createdAt: string;
+  created_at: string;
 }
 
 export default function ParcelChat({ deliveryId, currentUserId, showHeader = true, className = "", onClose }: { deliveryId: string, currentUserId: string, showHeader?: boolean, className?: string, onClose?: () => void }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
-  const [isOpen, setIsOpen] = useState(true);
   const [loading, setLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  const fetchMessages = async (silent = false) => {
-    if (!silent) setLoading(true);
-    try {
-      const { data } = await api.get(`/messages/${deliveryId}`);
-      setMessages(data);
-      if (!silent) {
-        setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
-      }
-    } catch (error) {
-      console.error("Failed to fetch messages:", error);
-    } finally {
-      if (!silent) setLoading(false);
-    }
-  };
-
   useEffect(() => {
+    const fetchMessages = async () => {
+      setLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('messages')
+          .select('*')
+          .eq('deliveryId', deliveryId)
+          .order('created_at', { ascending: true });
+        
+        if (error) throw error;
+        setMessages(data || []);
+        setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+      } catch (error) {
+        console.error("Failed to fetch messages:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     fetchMessages();
 
+<<<<<<< HEAD
     // 📡 Use Realtime subscriptions for instant updates (Point 11)
     const subscription = subscribeToMessages(deliveryId, (newMsg) => {
       setMessages(prev => {
@@ -58,9 +65,24 @@ export default function ParcelChat({ deliveryId, currentUserId, showHeader = tru
         return updated;
       });
     });
+=======
+    // Real-time subscription
+    const channel = supabase
+      .channel(`delivery:${deliveryId}`)
+      .on('postgres_changes', { 
+        event: 'INSERT', 
+        schema: 'public', 
+        table: 'messages',
+        filter: `deliveryId=eq.${deliveryId}`
+      }, (payload) => {
+        setMessages(prev => [...prev, payload.new as Message]);
+        setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+      })
+      .subscribe();
+>>>>>>> origin/main
 
     return () => {
-      supabase.removeChannel(subscription);
+      supabase.removeChannel(channel);
     };
   }, [deliveryId]);
 
@@ -68,6 +90,7 @@ export default function ParcelChat({ deliveryId, currentUserId, showHeader = tru
     if (!newMessage.trim()) return;
 
     try {
+<<<<<<< HEAD
       const res = await api.post("/messages", {
         deliveryId,
         message: newMessage,
@@ -77,6 +100,17 @@ export default function ParcelChat({ deliveryId, currentUserId, showHeader = tru
       setMessages((prev) => [...prev, res.data]);
       setNewMessage("");
       setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+=======
+      const { error } = await supabase
+        .from('messages')
+        .insert({
+          deliveryId,
+          senderId: currentUserId,
+          message: msgContent
+        });
+      
+      if (error) throw error;
+>>>>>>> origin/main
     } catch (error) {
       console.error("Send message error:", error);
       toast.error("Failed to send message. Please check connection.");
@@ -128,6 +162,7 @@ export default function ParcelChat({ deliveryId, currentUserId, showHeader = tru
             </div>
           </div>
         ) : (
+<<<<<<< HEAD
           <div className="px-6 py-6 space-y-6">
             {/* Support Bot Welcome (SIMULATION) */}
             <div className="flex justify-start">
@@ -158,6 +193,23 @@ export default function ParcelChat({ deliveryId, currentUserId, showHeader = tru
                       {m.createdAt ? new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now'}
                     </p>
                   </div>
+=======
+          messages.map((m) => {
+            const isMe = m.senderId === currentUserId;
+            return (
+              <div key={m.id} className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
+                <div
+                  className={`max-w-[85%] rounded-[1.5rem] px-5 py-3 text-sm shadow-md transition-all ${
+                    isMe
+                      ? "bg-secondary text-white rounded-tr-none shadow-secondary/20"
+                      : "bg-white text-foreground border border-border/50 rounded-tl-none"
+                  }`}
+                >
+                  <p className="leading-relaxed font-medium">{m.message}</p>
+                  <p className={`text-[9px] mt-1.5 font-black uppercase tracking-tighter opacity-50 ${isMe ? 'text-right' : 'text-left'}`}>
+                    {new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </p>
+>>>>>>> origin/main
                 </div>
               );
             })}
