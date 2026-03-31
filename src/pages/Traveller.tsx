@@ -133,7 +133,7 @@ export default function Traveller() {
     try {
       const origin = from || user?.city || "";
       const data = await searchParcels(origin, to || "");
-      const filtered = data.filter(p => p.sender_id !== user?.id);
+      const filtered = data.filter(p => p.senderId !== user?.id);
       setResults(filtered);
     } catch {
       toast.error("Failed to load local parcels");
@@ -362,10 +362,10 @@ export default function Traveller() {
                            <div className="bg-slate-50 border-b border-slate-100 p-5 flex items-center justify-between">
                               <div className="flex items-center gap-3">
                                  <div className="h-11 w-11 bg-orange-500 rounded-xl flex items-center justify-center font-bold text-white text-lg shadow-lg shadow-orange-500/20">
-                                    {p.sender_name?.charAt(0) || "P"}
+                                    {p.senderName?.charAt(0) || "P"}
                                  </div>
                                  <div className="text-left">
-                                    <h4 className="text-slate-900 font-bold text-sm leading-tight">{p.sender_name}</h4>
+                                    <h4 className="text-slate-900 font-bold text-sm leading-tight">{p.senderName}</h4>
                                     <p className="text-slate-400 text-[10px] uppercase font-bold tracking-wide mt-1 flex items-center gap-1">
                                        <Sparkles className="h-3 w-3 text-orange-500" /> Sender · Verified
                                     </p>
@@ -383,11 +383,11 @@ export default function Traveller() {
                                           <div className="h-2 w-2 rounded-full bg-orange-500" />
                                           <div className="w-[1px] h-4 bg-slate-200" />
                                        </div>
-                                       <p className="text-xs font-bold text-[#0f1f3d]">{p.from_location}</p>
+                                       <p className="text-xs font-bold text-[#0f1f3d]">{p.fromLocation}</p>
                                     </div>
                                     <div className="flex gap-3">
                                        <div className="h-2 w-2 rounded-full bg-slate-300" />
-                                       <p className="text-xs font-bold text-slate-400">{p.to_location}</p>
+                                       <p className="text-xs font-bold text-slate-400">{p.toLocation}</p>
                                     </div>
                                  </div>
                               </div>
@@ -469,7 +469,7 @@ export default function Traveller() {
                                       <div className="h-1.5 w-1.5 rounded-full bg-green-500" />
                                       <h4 className="font-bold text-base text-[#0f1f3d]">{p.description}</h4>
                                    </div>
-                                   <p className="text-xs text-[#8896a8] font-medium">{p.from_location} → {p.to_location}</p>
+                                   <p className="text-xs text-[#8896a8] font-medium">{p.fromLocation} → {p.toLocation}</p>
                                 </div>
                                 <div className="text-right">
                                    <p className="text-xl font-bold text-[#f26522]">₹{p.price}</p>
@@ -523,7 +523,7 @@ export default function Traveller() {
                     </div>
                     <div>
                        <label className="text-[10px] font-bold uppercase text-slate-400 tracking-widest">Pickup Address</label>
-                       <p className="font-bold text-slate-800 text-sm">{activeParcel.from_location}</p>
+                       <p className="font-bold text-slate-800 text-sm">{activeParcel.fromLocation}</p>
                     </div>
                  </div>
                  <div className="flex gap-4">
@@ -532,7 +532,7 @@ export default function Traveller() {
                     </div>
                     <div>
                        <label className="text-[10px] font-bold uppercase text-slate-400 tracking-widest">Delivery Address</label>
-                       <p className="font-bold text-slate-800 text-sm">{activeParcel.to_location}</p>
+                       <p className="font-bold text-slate-800 text-sm">{activeParcel.toLocation}</p>
                     </div>
                  </div>
               </div>
@@ -540,17 +540,17 @@ export default function Traveller() {
               <div className="bg-slate-50 rounded-3xl p-6 flex items-center justify-between mt-6">
                  <div className="flex items-center gap-4">
                     <div className="h-12 w-12 bg-white rounded-2xl shadow-sm flex items-center justify-center text-orange-500 font-bold">
-                       {activeParcel.sender_name.charAt(0)}
+                       {activeParcel.senderName.charAt(0)}
                     </div>
                     <div>
-                       <p className="text-xs font-bold text-slate-900">{activeParcel.sender_name}</p>
+                       <p className="text-xs font-bold text-slate-900">{activeParcel.senderName}</p>
                        <p className="text-[10px] font-bold text-slate-400">
-                         {activeParcel.status === 'requested' ? "Phone Hidden until Accepted" : (activeParcel.sender_phone || "Contact Sender")}
+                         {activeParcel.status === 'requested' ? "Phone Hidden until Accepted" : (activeParcel.senderPhone || "Contact Sender")}
                        </p>
                     </div>
                  </div>
                  {activeParcel.status !== 'requested' && (
-                   <a href={`tel:${activeParcel.sender_phone}`} className="h-12 px-6 bg-orange-500 text-white rounded-2xl flex items-center justify-center gap-2 font-bold text-xs uppercase tracking-widest shadow-lg shadow-orange-500/20">
+                   <a href={`tel:${activeParcel.senderPhone}`} className="h-12 px-6 bg-orange-500 text-white rounded-2xl flex items-center justify-center gap-2 font-bold text-xs uppercase tracking-widest shadow-lg shadow-orange-500/20">
                       <Phone className="h-4 w-4" /> Call Sender
                    </a>
                  )}
@@ -666,7 +666,7 @@ export default function Traveller() {
                 <div className="absolute top-8 left-8 right-8 flex justify-between items-start pointer-events-none">
                    <div className="bg-white/90 backdrop-blur px-6 py-3 rounded-2xl shadow-xl pointer-events-auto border border-white">
                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Target Destination</p>
-                      <p className="text-sm font-bold text-slate-900">{activeParcel.to_location}</p>
+                      <p className="text-sm font-bold text-slate-900">{activeParcel.toLocation}</p>
                    </div>
                    <Button variant="outline" className="bg-white rounded-full h-10 w-10 p-0 pointer-events-auto shadow-lg" onClick={() => setShowMap(false)}>
                       <X className="h-4 w-4" />
@@ -708,8 +708,8 @@ export default function Traveller() {
            <div className="bg-white rounded-[2.5rem] p-8 shadow-xl border border-slate-100 space-y-6">
               <div className="bg-slate-50 p-5 rounded-3xl border border-slate-100">
                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Recipient</p>
-                 <p className="font-bold text-lg text-slate-900">{activeParcel.receiver_name}</p>
-                 <p className="text-xs font-bold text-orange-500">{activeParcel.to_location}</p>
+                 <p className="font-bold text-lg text-slate-900">{activeParcel.receiverName}</p>
+                 <p className="text-xs font-bold text-orange-500">{activeParcel.toLocation}</p>
               </div>
 
               <div className="space-y-4">

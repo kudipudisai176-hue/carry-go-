@@ -62,60 +62,61 @@ export const mapParcel = (p: any): Parcel => {
   if (!p) return {} as Parcel;
   return {
     id: p.id,
-    senderId: p.senderId,
-    senderName: p.senderName,
-    senderPhone: p.senderPhone,
-    receiverName: p.receiverName,
-    receiverPhone: p.receiverPhone,
-    fromLocation: p.fromLocation,
-    toLocation: p.toLocation,
+    senderId: p.sender_id || p.senderId,
+    senderName: p.sender_name || p.senderName,
+    senderPhone: p.sender_phone || p.senderPhone,
+    receiverName: p.receiver_name || p.receiverName,
+    receiverPhone: p.receiver_phone || p.receiverPhone,
+    fromLocation: p.from_location || p.fromLocation,
+    toLocation: p.to_location || p.toLocation,
     weight: p.weight,
     size: p.size,
-    itemCount: p.itemCount,
+    itemCount: p.item_count || p.itemCount,
     city: p.city,
     village: p.village,
-    vehicleType: p.vehicleType,
-    paymentMethod: p.paymentMethod,
-    paymentStatus: p.paymentStatus,
+    vehicleType: p.vehicle_type || p.vehicleType,
+    paymentMethod: p.payment_method || p.paymentMethod,
+    paymentStatus: p.payment_status || p.paymentStatus,
     escrow_status: p.escrow_status,
     distance: p.distance || 0,
     price: p.price || 0,
-    parcelCharge: p.parcelCharge,
-    platformFee: p.platformFee,
+    parcelCharge: p.parcel_charge || p.parcelCharge,
+    platformFee: p.platform_fee || p.platformFee,
     description: p.description,
     status: p.status,
-    travellerId: p.travellerId,
-    travellerName: p.travellerName,
-    travellerPhone: p.travellerPhone,
-    pickupOtp: p.pickupOtp,
-    deliveryOtp: p.deliveryOtp,
-    paymentReleased: p.paymentReleased,
-    parcelPhoto: p.parcelPhoto,
-    deliveryPhoto: p.deliveryPhoto,
-    receivedPhoto: p.receivedPhoto,
-    receiverRating: p.receiverRating,
+    travellerId: p.traveller_id || p.travellerId,
+    travellerName: p.traveller_name || p.travellerName,
+    travellerPhone: p.traveller_phone || p.travellerPhone,
+    pickupOtp: p.pickup_otp || p.pickupOtp,
+    deliveryOtp: p.delivery_otp || p.deliveryOtp,
+    paymentReleased: p.payment_released || p.paymentReleased,
+    parcelPhoto: p.parcel_photo || p.parcelPhoto,
+    deliveryPhoto: p.delivery_photo || p.deliveryPhoto,
+    receivedPhoto: p.received_photo || p.receivedPhoto,
+    receiverRating: p.receiver_rating || p.receiverRating,
     createdAt: p.created_at || p.createdAt,
     updatedAt: p.updated_at || p.updatedAt,
-    senderData: p.profiles_sender ? {
-      id: p.profiles_sender.id,
-      name: p.profiles_sender.name,
-      email: p.profiles_sender.email,
-      phone: p.profiles_sender.phone,
-      profilePhoto: p.profiles_sender.profilePhoto,
-      rating: p.profiles_sender.rating || 5,
-      totalTrips: p.profiles_sender.totalTrips || 0
+    senderData: (p.senderData || p.profiles_sender) ? {
+      id: (p.senderData || p.profiles_sender).id,
+      name: (p.senderData || p.profiles_sender).name,
+      email: (p.senderData || p.profiles_sender).email,
+      phone: (p.senderData || p.profiles_sender).phone,
+      profilePhoto: (p.senderData || p.profiles_sender).profilePhoto,
+      rating: (p.senderData || p.profiles_sender).rating || 5,
+      totalTrips: (p.senderData || p.profiles_sender).totalTrips || 0
     } : undefined,
-    travellerData: p.profiles_traveller ? {
-      id: p.profiles_traveller.id,
-      name: p.profiles_traveller.name,
-      email: p.profiles_traveller.email,
-      phone: p.profiles_traveller.phone,
-      profilePhoto: p.profiles_traveller.profilePhoto,
-      rating: p.profiles_traveller.rating || 5,
-      totalTrips: p.profiles_traveller.totalTrips || 0
+    travellerData: (p.travellerData || p.profiles_traveller) ? {
+      id: (p.travellerData || p.profiles_traveller).id,
+      name: (p.travellerData || p.profiles_traveller).name,
+      email: (p.travellerData || p.profiles_traveller).email,
+      phone: (p.travellerData || p.profiles_traveller).phone,
+      profilePhoto: (p.travellerData || p.profiles_traveller).profilePhoto,
+      rating: (p.travellerData || p.profiles_traveller).rating || 5,
+      totalTrips: (p.travellerData || p.profiles_traveller).totalTrips || 0
     } : undefined
   };
 };
+
 
 export const createParcel = async (parcelData: Omit<Parcel, 'id' | 'status' | 'createdAt'>, photoBase64?: string) => {
   const { data, error } = await supabase
@@ -337,3 +338,33 @@ export const subscribeToMessages = (deliveryId: string, callback: (payload: any)
     )
     .subscribe();
 };
+
+export async function requestParcel(id: string, travellerName: string) {
+  return updateParcelStatus(id, 'requested', travellerName);
+}
+
+export async function acceptRequest(id: string) {
+  return updateParcelStatus(id, 'accepted');
+}
+
+export async function getParcelsByPhone(phone: string): Promise<Parcel[]> {
+  const { data, error } = await supabase
+    .from('parcels')
+    .select('*, profiles_sender:senderId(*), profiles_traveller:travellerId(*)')
+    .eq('receiverPhone', phone)
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return (data || []).map(mapParcel);
+}
+
+export async function uploadParcelPhoto(id: string, file: File, type: 'pickup' | 'delivery' | 'received'): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = error => reject(error);
+  });
+}
+
+

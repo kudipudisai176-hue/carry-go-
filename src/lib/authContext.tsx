@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
 import { supabase } from "./supabaseClient";
+import { type User as SBUser } from "@supabase/supabase-js";
 
 export type UserRole = "traveller" | "sender_receiver";
 export type UserSubRole = "sender" | "receiver";
@@ -66,7 +67,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
 
-const mapSupabaseUser = (sbUser: any, profile: any): User => {
+const mapSupabaseUser = (sbUser: SBUser, profile: Partial<User>): User => {
   return {
     id: sbUser.id,
     name: profile?.name || sbUser.user_metadata?.name || '',
@@ -85,7 +86,7 @@ const mapSupabaseUser = (sbUser: any, profile: any): User => {
     bio: profile?.bio,
     rating: profile?.rating || 5,
     totalTrips: profile?.totalTrips || 0,
-    adharNumber: profile?.adharNumber,
+    aadharNumber: profile?.aadharNumber,
     vehicleType: profile?.vehicleType,
     idPhoto: profile?.idPhoto,
     livePhoto: profile?.livePhoto,
@@ -145,7 +146,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const signup = async (params: any) => {
+  const signup = async (params: {
+    name: string,
+    email: string,
+    password: string,
+    role: UserRole,
+    sub_role?: UserSubRole,
+    phone: string,
+    [key: string]: any
+  }) => {
     try {
       const { email, password, name, role, sub_role, phone, ...rest } = params;
       
@@ -179,9 +188,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       
       return { success: true };
-    } catch (err: any) {
-      console.error("Signup error:", err.message);
-      return { success: false, message: err.message };
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Signup failed";
+      console.error("Signup error:", message);
+      return { success: false, message: message };
     }
   };
 
@@ -190,9 +200,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
       return { success: true };
-    } catch (err: any) {
-      console.error("Login error:", err.message);
-      return { success: false, message: err.message };
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Login failed";
+      console.error("Login error:", message);
+      return { success: false, message: message };
     }
   };
 
@@ -201,9 +212,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { error } = await supabase.auth.signInWithOtp({ phone });
       if (error) throw error;
       return { success: true, message: "OTP sent to your phone" };
-    } catch (err: any) {
-      console.error("Phone login error:", err.message);
-      return { success: false, message: err.message };
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Phone login failed";
+      console.error("Phone login error:", message);
+      return { success: false, message: message };
     }
   };
 
@@ -212,7 +224,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   };
 
-  const updateUser = async (data: any) => {
+  const updateUser = async (data: Partial<User>) => {
     if (!user) return false;
     try {
       const { error: profileError } = await supabase
@@ -271,7 +283,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const switchMainRole = async (role: UserRole) => {
     if (!user) return false;
     try {
-      const updateData: any = { role };
+      const updateData: Partial<User> = { role };
       if (role === 'sender_receiver') updateData.sub_role = 'sender';
       
       const { error } = await supabase
