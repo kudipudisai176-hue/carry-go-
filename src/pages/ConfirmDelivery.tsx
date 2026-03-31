@@ -99,7 +99,7 @@ export default function ConfirmDelivery() {
 
   useEffect(() => {
     // 9. Security: Only traveller should be here
-    if (!authLoading && user && user.role !== 'traveller') {
+    if (!authLoading && user && user.role !== 'traveller' && user.role !== 'sender_receiver') {
       toast.error("Unauthorized: Only travellers can confirm deliveries.");
       navigate("/dashboard");
     }

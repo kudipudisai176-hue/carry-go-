@@ -227,7 +227,7 @@ export default function Profile() {
               </div>
 
               <div className="space-y-4">
-                {user.role === 'traveller' && (
+                {(user.role === 'traveller' || user.role === 'sender_receiver') && (
                   <>
                     <div className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50/50 p-4">
                       <div className="rounded-xl bg-white p-2 text-slate-400 shadow-sm">
