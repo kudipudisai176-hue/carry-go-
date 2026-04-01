@@ -55,7 +55,10 @@ export default function Login() {
         toast.success("Welcome back to CarryGo!");
         navigate("/dashboard", { replace: true });
       } else {
-        toast.error(result.message || "Invalid email or password");
+        const errorMsg = result.message === "Invalid login credentials" 
+          ? "Incorrect email or password. Please try again." 
+          : (result.message || "Invalid email or password");
+        toast.error(errorMsg);
       }
     } catch (error) {
       console.error("Login error:", error);
