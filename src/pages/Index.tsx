@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import BottomNav from "@/components/BottomNav";
+
 import { Box, Navigation, MapPin, ArrowRight, Shield, Zap, Globe, Users, Star, User, UserPlus } from "lucide-react";
 import { motion, useScroll, useTransform, type Variants, AnimatePresence } from "framer-motion";
 import { useRef, useState, useEffect } from "react";
@@ -476,7 +476,7 @@ export default function Index() {
           </div>
         </div>
       </footer>
-      {user && <BottomNav activeTab="home" />}
+
     </div>
   );
 }

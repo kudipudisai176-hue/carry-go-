@@ -18,6 +18,8 @@ const mapUser = (data) => {
     aadharPhoto: data.aadhar_photo,
     idPhoto: data.id_photo,
     livePhoto: data.live_photo,
+    idProofType: data.id_proof_type,
+    idNumber: data.id_number,
     save: async function () {
       const updateData = {
         name: this.name, email: this.email, phone: this.phone,
@@ -93,6 +95,10 @@ const User = {
       rating: userData.rating || 5.0,
       total_trips: userData.totalTrips || 0,
       aadhar_number: userData.aadharNumber,
+      id_proof_type: userData.idProofType,
+      id_number: userData.idNumber,
+      id_photo: userData.idPhoto,
+      live_photo: userData.livePhoto,
       aadhar_photo: userData.aadharPhoto,
       personal_otp: userData.personalOtp,
       personal_otp_expires_at: userData.personalOtpExpiresAt,

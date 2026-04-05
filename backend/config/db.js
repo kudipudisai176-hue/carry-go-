@@ -1,3 +1,7 @@
+const dns = require('dns');
+if (dns.setDefaultResultOrder) {
+  dns.setDefaultResultOrder('ipv4first');
+}
 const { createClient } = require('@supabase/supabase-js');
 // dotenv is loaded in server.js before this file is required
 
@@ -14,19 +18,39 @@ const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: { persistSession: false }
 });
 
+const axios = require('axios');
+
 const connectDB = async () => {
   try {
-    // Light check - just verify the Supabase client can communicate
-    const { error } = await supabase.from('users').select('id').limit(1);
-    if (error && error.code !== 'PGRST116') { // PGRST116 = empty result, which is fine
-      console.warn(`⚠️  Supabase ping warning: ${error.message}`);
-      console.warn("   Make sure you have run the SQL schema in your Supabase dashboard.");
-    } else {
-      console.log(`✅ Supabase Connected to: ${supabaseUrl}`);
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error("Missing Supabase credentials");
     }
-  } catch (error) {
-    console.warn(`⚠️  Supabase setup issue: ${error.message}`);
-    console.warn("   Server will continue but DB calls may fail until tables are created.");
+
+    // Attempt a light check using axios to bypass potential fetch specific network layer issues
+    await axios.get(`${supabaseUrl}/rest/v1/`, { 
+      headers: { 'apikey': supabaseKey },
+      timeout: 5000 
+    });
+    
+    console.log(`✅ Supabase Connected (axios ping) to: ${supabaseUrl}`);
+    
+    // Also verify the table availability silently
+    const { error } = await supabase.from('users').select('id').limit(1);
+    if (error && error.code === '42P01') {
+       console.warn("⚠️  Table 'users' not found. Run SQL schema in Supabase dashboard.");
+    }
+  } catch (err) {
+    if (err.response && (err.response.status === 200 || err.response.status === 401)) {
+        // 401 might mean key is valid but maybe needs more? No, axios ping usually works.
+        console.log(`✅ Supabase Reachable (axios code: ${err.response.status})`);
+    } else {
+        console.warn(`\n⚠️  Supabase Connectivity Issue: ${err.message}`);
+        console.error("   ❌ Failed to reach Supabase endpoint via axios.");
+        console.error(`   Endpoint: ${supabaseUrl}`);
+    }
+    
+    // Continue starting server regardless
+    console.warn("   Server will continue, but verify your internet or project status.");
   }
 };
 

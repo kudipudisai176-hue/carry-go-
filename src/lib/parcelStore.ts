@@ -11,7 +11,7 @@ export interface UserData {
   bio?: string;
   rating: number;
   totalTrips: number;
-  adharNumber?: string;
+  aadharNumber?: string;
   vehicleType?: string;
   idPhoto?: string;
   personalOtp?: string;
@@ -96,23 +96,23 @@ export const mapParcel = (p: any): Parcel => {
     receiverRating: p.receiver_rating || p.receiverRating,
     createdAt: p.created_at || p.createdAt,
     updatedAt: p.updated_at || p.updatedAt,
-    senderData: (p.senderData || p.profiles_sender) ? {
-      id: (p.senderData || p.profiles_sender).id,
-      name: (p.senderData || p.profiles_sender).name,
-      email: (p.senderData || p.profiles_sender).email,
-      phone: (p.senderData || p.profiles_sender).phone,
-      profilePhoto: (p.senderData || p.profiles_sender).profilePhoto,
-      rating: (p.senderData || p.profiles_sender).rating || 5,
-      totalTrips: (p.senderData || p.profiles_sender).totalTrips || 0
+    senderData: (p.senderData || p.users_sender) ? {
+      id: (p.senderData || p.users_sender).id,
+      name: (p.senderData || p.users_sender).name,
+      email: (p.senderData || p.users_sender).email,
+      phone: (p.senderData || p.users_sender).phone,
+      profilePhoto: (p.senderData || p.users_sender).profile_photo,
+      rating: (p.senderData || p.users_sender).rating || 5,
+      totalTrips: (p.senderData || p.users_sender).total_trips || 0
     } : undefined,
-    travellerData: (p.travellerData || p.profiles_traveller) ? {
-      id: (p.travellerData || p.profiles_traveller).id,
-      name: (p.travellerData || p.profiles_traveller).name,
-      email: (p.travellerData || p.profiles_traveller).email,
-      phone: (p.travellerData || p.profiles_traveller).phone,
-      profilePhoto: (p.travellerData || p.profiles_traveller).profilePhoto,
-      rating: (p.travellerData || p.profiles_traveller).rating || 5,
-      totalTrips: (p.travellerData || p.profiles_traveller).totalTrips || 0
+    travellerData: (p.travellerData || p.users_traveller) ? {
+      id: (p.travellerData || p.users_traveller).id,
+      name: (p.travellerData || p.users_traveller).name,
+      email: (p.travellerData || p.users_traveller).email,
+      phone: (p.travellerData || p.users_traveller).phone,
+      profilePhoto: (p.travellerData || p.users_traveller).profile_photo,
+      rating: (p.travellerData || p.users_traveller).rating || 5,
+      totalTrips: (p.travellerData || p.users_traveller).total_trips || 0
     } : undefined
   };
 };
@@ -152,20 +152,30 @@ export const unmapParcel = (p: Partial<Parcel>): any => {
 };
 
 
-export const createParcel = async (parcelData: Omit<Parcel, 'id' | 'status' | 'createdAt'>, photoBase64?: string) => {
-  const dbData = unmapParcel(parcelData as any);
-  const { data, error } = await supabase
-    .from('parcels')
-    .insert({
-      ...dbData,
-      status: 'pending_payment',
-      parcel_photo: photoBase64
-    })
-    .select()
-    .single();
+import axios from "axios";
 
-  if (error) throw error;
-  return mapParcel(data);
+const BACKEND_URL = '/api';
+
+// Create an axial instance with a base URL
+const api = axios.create({
+  baseURL: BACKEND_URL,
+});
+
+// Add an interceptor to automatically add the Supabase token to every request
+api.interceptors.request.use(async (config) => {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session?.access_token) {
+    config.headers.Authorization = `Bearer ${session.access_token}`;
+  }
+  return config;
+});
+
+export const createParcel = async (parcelData: Omit<Parcel, 'id' | 'status' | 'createdAt'>, photoBase64?: string) => {
+  const resp = await api.post('/parcels', {
+    ...parcelData,
+    parcel_photo: photoBase64
+  });
+  return mapParcel(resp.data);
 };
 
 export const simulatePayment = async (id: string) => {
@@ -203,7 +213,7 @@ export async function updateParcel(id: string, updates: Partial<Parcel>, photoBa
 export async function getParcelById(id: string): Promise<Parcel | null> {
   const { data, error } = await supabase
     .from('parcels')
-    .select('*, profiles_sender:senderId(*), profiles_traveller:travellerId(*)')
+    .select('*, users_sender:sender_id(*), users_traveller:traveller_id(*)')
     .eq('id', id)
     .single();
 
@@ -212,27 +222,13 @@ export async function getParcelById(id: string): Promise<Parcel | null> {
 }
 
 export async function getAllParcels(mode?: 'sender' | 'search' | 'receiver'): Promise<Parcel[]> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return [];
-
-  let query = supabase.from('parcels').select('*, profiles_sender:senderId(*), profiles_traveller:travellerId(*)');
-
-  if (mode === 'sender') {
-    query = query.eq('senderId', user.id);
-  } else if (mode === 'receiver') {
-    const { data: profile } = await supabase.from('profiles').select('phone').eq('id', user.id).single();
-    if (profile?.phone) {
-      query = query.eq('receiverPhone', profile.phone);
-    } else {
-      return [];
-    }
-  } else if (mode === 'search') {
-    query = query.eq('status', 'open_for_travellers').neq('senderId', user.id);
+  try {
+    const response = await api.get('/parcels', { params: { mode } });
+    return (response.data || []).map(mapParcel);
+  } catch (err) {
+    console.error("Fetch parcels failed:", err);
+    return [];
   }
-
-  const { data, error } = await query.order('created_at', { ascending: false });
-  if (error) throw error;
-  return (data || []).map(mapParcel);
 }
 
 export async function getMyDeliveries(): Promise<Parcel[]> {
@@ -241,8 +237,8 @@ export async function getMyDeliveries(): Promise<Parcel[]> {
 
   const { data, error } = await supabase
     .from('parcels')
-    .select('*, profiles_sender:senderId(*), profiles_traveller:travellerId(*)')
-    .eq('travellerId', user.id)
+    .select('*, users_sender:sender_id(*), users_traveller:traveller_id(*)')
+    .eq('traveller_id', user.id)
     .order('created_at', { ascending: false });
 
   if (error) throw error;
@@ -250,34 +246,13 @@ export async function getMyDeliveries(): Promise<Parcel[]> {
 }
 
 export async function updateParcelStatus(id: string, status: ParcelStatus, travellerName?: string, otp?: string, photoBase64?: string): Promise<Parcel | null> {
-  const updateData: any = { status };
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (status === 'requested' && user) {
-    updateData.traveller_id = user.id;
-    updateData.traveller_name = travellerName;
-  }
-  
-  if (photoBase64) {
-    if (status === 'delivered') updateData.delivery_photo = photoBase64;
-    if (status === 'received') updateData.received_photo = photoBase64;
-  }
-
-  if (otp) {
-     if (status === 'delivered' || status === 'picked-up') {
-        // we might check otp here if we want verification on backend
-     }
-  }
-
-  const { data, error } = await supabase
-    .from('parcels')
-    .update(updateData)
-    .eq('id', id)
-    .select()
-    .single();
-
-  if (error) throw error;
-  return mapParcel(data);
+  const response = await api.put(`/parcels/${id}/status`, {
+    status,
+    traveller_name: travellerName,
+    otp,
+    photoBase64
+  });
+  return mapParcel(response.data);
 }
 
 export async function markReceived(id: string, photoBase64?: string, rating?: number): Promise<Parcel | null> {
@@ -314,7 +289,7 @@ export async function releaseParcelPayment(id: string): Promise<Parcel | null> {
 }
 
 export async function searchParcels(from?: string, to?: string, search?: string): Promise<Parcel[]> {
-  let query = supabase.from('parcels').select('*, profiles_sender:senderId(*), profiles_traveller:travellerId(*)').eq('status', 'open_for_travellers');
+  let query = supabase.from('parcels').select('*, users_sender:sender_id(*), users_traveller:traveller_id(*)').eq('status', 'open_for_travellers');
 
   if (from) query = query.ilike('from_location', `%${from}%`);
   if (to) query = query.ilike('to_location', `%${to}%`);
@@ -391,7 +366,7 @@ export async function acceptRequest(id: string) {
 export async function getParcelsByPhone(phone: string): Promise<Parcel[]> {
   const { data, error } = await supabase
     .from('parcels')
-    .select('*, profiles_sender:senderId(*), profiles_traveller:travellerId(*)')
+    .select('*, users_sender:sender_id(*), users_traveller:traveller_id(*)')
     .eq('receiver_phone', phone)
     .order('created_at', { ascending: false });
 

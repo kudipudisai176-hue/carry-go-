@@ -8,6 +8,7 @@ import { UserData } from "@/lib/parcelStore";
 import { useAuth } from "@/lib/authContext";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
+import { compressImage } from "@/lib/imageUtils";
 
 import * as Portal from "@radix-ui/react-portal";
 
@@ -55,14 +56,15 @@ export default function UserProfileModal({ user: initialUser, isOpen, onClose }:
     if (isEditing) fileInputRef.current?.click();
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPhoto(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      try {
+        const base64 = await compressImage(file);
+        setPhoto(base64);
+      } catch (err) {
+        console.error("Profile photo update failed:", err);
+      }
     }
   };
 

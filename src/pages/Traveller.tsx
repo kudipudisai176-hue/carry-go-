@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     MapPin, PackageCheck, Handshake, CheckCircle2, Star, Navigation, Zap, Box,
@@ -18,7 +18,7 @@ import {
     requestParcel, getMyDeliveries, type Parcel, type UserData, mapParcel, uploadParcelPhoto,
     subscribeToParcel
 } from "@/lib/parcelStore";
-import BottomNav from "@/components/BottomNav";
+
 import UserProfileModal from "@/components/UserProfileModal";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/authContext";
@@ -55,6 +55,16 @@ export default function Traveller() {
     const [activeChat, setActiveChat] = useState<string | null>(null);
     const [showMap, setShowMap] = useState(true);
 
+    const locationsDatalist = useMemo(() => (
+      <datalist id="locs">
+        {locations.map((loc) => (
+          <option key={loc.name} value={loc.name}>
+             {loc.type} - {loc.mandal}
+          </option>
+        ))}
+      </datalist>
+    ), []);
+
     const loadMyDeliveries = useCallback(async () => {
         try {
             const data = await getMyDeliveries();
@@ -76,8 +86,7 @@ export default function Traveller() {
     useEffect(() => {
         if (!user?.id) return;
         loadMyDeliveries();
-        const interval = setInterval(loadMyDeliveries, 5000);
-        return () => clearInterval(interval);
+        // 📡 Removed redundant setInterval poll. Relying on Realtime and manual updates.
     }, [user?.id, loadMyDeliveries]);
 
     const handleSearch = useCallback(async () => {
@@ -214,49 +223,54 @@ export default function Traveller() {
 
     if (!user) return null;
 
-    return (
-        <div className="min-h-screen bg-slate-50 mx-auto max-w-4xl px-4 pb-20 pt-20">
-            <Button
-                variant="ghost" 
-                size="sm" 
-                onClick={() => navigate('/dashboard')}
-                className="group mb-4 -ml-2 text-muted-foreground hover:text-foreground"
-            >
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Dashboard
-            </Button>
+  return (
+    <div className="min-h-screen bg-slate-50 mx-auto max-w-4xl px-4 pb-20 pt-20">
+      {/* Breadcrumbs */}
+      <div className="mb-6 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400/60">
+        <span className="hover:text-orange-500 cursor-pointer transition-colors" onClick={() => navigate('/dashboard')}>Dashboard</span>
+        <span className="opacity-40">/</span>
+        <span className="hover:text-orange-500 cursor-pointer transition-colors" onClick={() => setActiveTab('deliveries')}>Logistics</span>
+        <span className="opacity-40">/</span>
+        <span className="text-slate-900">Traveller Portal</span>
+      </div>
 
             <motion.div
                 initial={{ opacity: 0, y: -24 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="relative mb-8 overflow-hidden rounded-[2.5rem] p-10 shadow-xl border border-white bg-white"
+                className="relative mb-8 overflow-hidden rounded-[2.5rem] p-8 shadow-xl shadow-slate-200/50 border border-slate-100 bg-white"
             >
                 <div className="relative flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-500 shadow-lg text-white">
-                            <Navigation className="h-6 w-6" />
+                    <div className="flex items-center gap-5">
+                        <div className="group relative flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-orange-600 shadow-xl shadow-orange-500/30 text-white transition-transform hover:scale-105">
+                            <Navigation className="h-8 w-8 animate-float-slow" />
+                            <div className="absolute inset-0 rounded-2xl bg-white opacity-0 group-hover:opacity-20 transition-opacity" />
                         </div>
                         <div>
-                            <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Traveller Hub</h1>
-                            <p className="text-sm font-bold text-slate-400">Manage deliveries and earn</p>
+                            <h1 className="text-3xl font-black text-slate-900 tracking-tight leading-tight">Traveller Hub</h1>
+                            <p className="text-sm font-medium text-slate-400 mt-1">Accept local deliveries and earn on your way</p>
                         </div>
                     </div>
-                    <div className="text-right">
-                       <span className="text-[10px] font-bold uppercase text-slate-400 block tracking-widest">Earnings</span>
-                       <span className="text-2xl font-black text-orange-600">₹{myDeliveries.reduce((acc, curr) => acc + (curr.status === 'delivered' ? curr.price || 0 : 0), 0)}</span>
+                    <div className="flex items-center gap-4 bg-orange-50/50 p-4 rounded-3xl border border-orange-100">
+                       <div className="text-right">
+                          <span className="text-[10px] font-black uppercase text-slate-400 block tracking-widest leading-none mb-1">TOTAL EARNINGS</span>
+                          <span className="text-3xl font-black text-orange-600 leading-none">₹{myDeliveries.reduce((acc, curr) => acc + (curr.status === 'delivered' ? curr.price || 0 : 0), 0)}</span>
+                       </div>
+                       <div className="h-10 w-10 bg-orange-500 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-orange-500/20">
+                          <CreditCard className="h-5 w-5" />
+                       </div>
                     </div>
                 </div>
 
-                <div className="mt-10 flex gap-2 rounded-[1.5rem] bg-slate-100 p-1.5 border border-slate-200">
+                <div className="mt-10 flex gap-2 rounded-2xl bg-slate-100 p-1.5 border border-slate-200">
                     <button
                         onClick={() => setActiveTab("deliveries")}
-                        className={`flex-1 flex items-center justify-center gap-2 rounded-2xl py-3 text-[10px] font-bold uppercase tracking-widest transition-all ${activeTab === "deliveries" ? "bg-orange-500 text-white shadow-lg" : "text-black hover:bg-slate-200/50"}`}
+                        className={`flex-1 flex items-center justify-center gap-2 rounded-xl py-3 text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${activeTab === "deliveries" ? "bg-white text-orange-600 shadow-sm" : "text-slate-400 hover:text-slate-600"}`}
                     >
                         <History className="h-4 w-4" /> MY DELIVERIES
                     </button>
                     <button
                         onClick={() => setActiveTab("search")}
-                        className={`flex-1 flex items-center justify-center gap-2 rounded-2xl py-3 text-[10px] font-bold uppercase tracking-widest transition-all ${activeTab === "search" ? "bg-orange-500 text-white shadow-lg" : "text-black hover:bg-slate-200/50"}`}
+                        className={`flex-1 flex items-center justify-center gap-2 rounded-xl py-3 text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${activeTab === "search" ? "bg-white text-orange-600 shadow-sm" : "text-slate-400 hover:text-slate-600"}`}
                     >
                         <Search className="h-4 w-4" /> FIND PARCELS
                     </button>
@@ -271,14 +285,14 @@ export default function Traveller() {
                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                   <div>
                                      <Label className="text-[10px] font-bold uppercase text-slate-400 ml-1">From City</Label>
-                                     <Input value={from} onChange={e => setFrom(e.target.value)} placeholder="e.g. Kakinada" list="locs" className="mt-1" />
+                                     <Input value={from} onChange={e => setFrom(e.target.value)} placeholder="e.g. Kakinada" list="locs" className="mt-1" autoComplete="off" />
                                   </div>
                                   <div>
                                      <Label className="text-[10px] font-bold uppercase text-slate-400 ml-1">To City</Label>
-                                     <Input value={to} onChange={e => setTo(e.target.value)} placeholder="e.g. Rajahmundry" list="locs" className="mt-1" />
+                                     <Input value={to} onChange={e => setTo(e.target.value)} placeholder="e.g. Rajahmundry" list="locs" className="mt-1" autoComplete="off" />
                                   </div>
                                </div>
-                               <datalist id="locs">{locations.map(l => <option key={l.name} value={l.name} />)}</datalist>
+                               {locationsDatalist}
                                <Button className="w-full h-12 bg-orange-500 rounded-xl" onClick={handleSearch} disabled={loading}>{loading ? "..." : "SEARCH FEED"}</Button>
                             </div>
                         </div>
@@ -438,7 +452,7 @@ export default function Traveller() {
                 )}
             </AnimatePresence>
 
-            <BottomNav activeTab="traveller" />
+
 
             {profileUser && <UserProfileModal user={profileUser} isOpen={!!profileUser} onClose={() => setProfileUser(null)} />}
             

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth, UserRole } from "@/lib/authContext";
+import { compressImage } from "@/lib/imageUtils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -51,41 +52,15 @@ export default function Signup() {
     }
   }, [user, isLoading, navigate]);
 
-  // Integrated Advanced File Handler with Compression from SignupUser.tsx
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, setter: (val: string) => void) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, setter: (val: string) => void) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const img = new Image();
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          let width = img.width;
-          let height = img.height;
-          const max_size = 1200;
-
-          if (width > height) {
-            if (width > max_size) {
-              height *= max_size / width;
-              width = max_size;
-            }
-          } else {
-            if (height > max_size) {
-              width *= max_size / height;
-              height = max_size;
-            }
-          }
-
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          ctx?.drawImage(img, 0, 0, width, height);
-          const dataUrl = canvas.toDataURL('image/jpeg', 0.8); // 80% quality
-          setter(dataUrl);
-        };
-        img.src = event.target?.result as string;
-      };
-      reader.readAsDataURL(file);
+      try {
+        const base64 = await compressImage(file);
+        setter(base64);
+      } catch (err) {
+        console.error("Image compression failed:", err);
+      }
     }
   };
 

@@ -11,8 +11,15 @@ const { sendSMS } = require('../services/smsService');
 // @desc    Create a new parcel
 router.post('/', protect, async (req, res) => {
   try {
-    const weightVal = req.body && req.body.weight ? parseFloat(req.body.weight) : 1;
-    const parcel_charge = weightVal * 50;
+    let weightVal = 1;
+    try {
+      weightVal = parseFloat(req.body.weight || req.body.weightVal || 1);
+      if (isNaN(weightVal)) weightVal = 1;
+    } catch (e) {
+      weightVal = 1;
+    }
+    
+    const parcel_charge = Math.max(0, weightVal * 50);
     const platform_fee = Math.round(parcel_charge * 0.10); // 10% fee rounded
     const totalPrice = parcel_charge + platform_fee;
 
@@ -43,8 +50,8 @@ router.post('/', protect, async (req, res) => {
       price: totalPrice,
       sender_id: req.user._id,
       receiver_id: receiverUser ? receiverUser._id : null,
-      sender_name: req.user.name,
-      sender_phone: req.user.phone,
+      sender_name: (req.user && (req.user.name || req.user.full_name)) || "Sender",
+      sender_phone: (req.user && req.user.phone) || "9999999999",
       payment_method: req.body.payment_method || req.body.paymentMethod || 'pay-now',
       payment_status: 'paid', // 💸 Payment handled outside or skipped (User request)
       status: 'open_for_travellers', // 🚀 Go live immediately
@@ -53,16 +60,24 @@ router.post('/', protect, async (req, res) => {
       delivery_otp: Math.floor(1000 + Math.random() * 9000).toString(),
     });
 
-    // 📱 Send SMS to Receiver (Delivery OTP)
+    // 📱 Send SMS in background (don't wait)
     const smsMessage = `Your CarryGo OTP is ${createdParcel.delivery_otp} for parcel delivery from ${req.user.name}. Track: ${process.env.FRONTEND_URL}/sender`;
-    try {
-      await sendSMS(createdParcel.receiver_phone, smsMessage);
-    } catch (smsErr) { console.error("Initial Receiver SMS failed:", smsErr.message); }
+    sendSMS(createdParcel.receiver_phone, smsMessage).catch(err => console.error("Initial Receiver SMS failed:", err.message));
 
     res.status(201).json(createdParcel);
   } catch (error) {
-    console.error("[Parcel Route] Creation Error:", error.message);
-    res.status(400).json({ message: error.message });
+    console.error("[Parcel Route] Creation Error Detail:", {
+      message: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint,
+      body: req.body
+    });
+    res.status(400).json({ 
+      message: error.message, 
+      details: error.details,
+      code: error.code 
+    });
   }
 });
 
@@ -109,9 +124,7 @@ router.get('/', protect, async (req, res) => {
     const { mode, from, to, city, village, search } = req.query;
 
     if (mode === 'sender') {
-      const parcels = await Parcel.find({ sender_id: userId })
-        .populate('traveller_id', 'name profilePhoto rating totalTrips bio phone email aadharNumber vehicleType idPhoto')
-        .sort({ created_at: -1 });
+      const parcels = await Parcel.find({ sender_id: userId });
 
       console.log(`[Parcel API] Found ${parcels.length} parcels for sender ${userId}`);
       return res.json(parcels);
@@ -129,9 +142,7 @@ router.get('/', protect, async (req, res) => {
              { receiver_phone: cleanUserPhone },
              { receiver_phone: prefixedUserPhone }
           ]
-       }).populate('sender_id', 'name profilePhoto rating totalTrips bio phone email aadharNumber vehicleType idPhoto')
-        .populate('traveller_id', 'name profilePhoto rating totalTrips bio phone email aadharNumber vehicleType idPhoto')
-        .sort({ created_at: -1 });
+       });
       return res.json(parcels);
     }
     
@@ -162,10 +173,7 @@ router.get('/', protect, async (req, res) => {
       query.village = { $regex: village.trim(), $options: 'i' };
     }
 
-    const parcels = await Parcel.find(query)
-      .populate('sender_id', 'name profilePhoto rating totalTrips bio phone email aadharNumber vehicleType idPhoto')
-      .populate('traveller_id', 'name profilePhoto rating totalTrips bio phone email aadharNumber vehicleType idPhoto')
-      .sort({ created_at: -1 });
+    const parcels = await Parcel.find(query);
     
     res.json(parcels);
   } catch (error) {
@@ -176,9 +184,7 @@ router.get('/', protect, async (req, res) => {
 // @desc    Get parcel by ID
 router.get('/id/:id', protect, async (req, res) => {
   try {
-    const parcel = await Parcel.findById(req.params.id)
-      .populate('sender_id', 'name profilePhoto rating totalTrips bio phone email aadharNumber vehicleType idPhoto')
-      .populate('traveller_id', 'name profilePhoto rating totalTrips bio phone email aadharNumber vehicleType idPhoto');
+    const parcel = await Parcel.findById(req.params.id);
     if (!parcel) return res.status(404).json({ message: 'Parcel not found' });
     res.json(parcel);
   } catch (error) {
@@ -188,9 +194,7 @@ router.get('/id/:id', protect, async (req, res) => {
 
 router.get('/mydeliveries', protect, async (req, res) => {
   try {
-    const parcels = await Parcel.find({ traveller_id: req.user._id })
-      .populate('sender_id', 'name profilePhoto rating totalTrips bio phone email aadharNumber vehicleType idPhoto')
-      .sort({ created_at: -1 });
+    const parcels = await Parcel.find({ traveller_id: req.user._id });
     res.json(parcels);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -208,9 +212,7 @@ router.get('/byphone/:phone', protect, async (req, res) => {
     const phoneWithPrefix = `+91${cleanPhone}`;
     const parcels = await Parcel.find({ 
       receiver_phone: { $in: [phone, cleanPhone, phoneWithPrefix] } 
-    }).populate('sender_id', 'name profilePhoto rating totalTrips bio phone email aadharNumber vehicleType idPhoto')
-      .populate('traveller_id', 'name profilePhoto rating totalTrips bio phone email aadharNumber vehicleType idPhoto')
-      .sort({ created_at: -1 });
+    });
     res.json(parcels);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -239,8 +241,8 @@ router.put('/:id/status', protect, async (req, res) => {
     if (newStatus === 'in-transit' || newStatus === 'picked-up') {
        // [Removed OTP check as requested by User]
        
-       if (req.body.pickup_photo || req.body.pickupPhoto) {
-          parcel.pickup_photo = req.body.pickup_photo || req.body.pickupPhoto;
+       if (req.body.pickup_photo || req.body.pickupPhoto || req.body.photoBase64) {
+          parcel.pickup_photo = req.body.pickup_photo || req.body.pickupPhoto || req.body.photoBase64;
        }
 
        if (!parcel.delivery_otp) {
@@ -283,8 +285,8 @@ router.put('/:id/status', protect, async (req, res) => {
            return res.status(400).json({ message: 'Photo proof of delivery is mandatory for secure handover.' });
         }
         
-       if (req.body.delivery_photo || req.body.deliveryPhoto) {
-          parcel.delivery_photo = req.body.delivery_photo || req.body.deliveryPhoto;
+       if (req.body.delivery_photo || req.body.deliveryPhoto || req.body.photoBase64) {
+          parcel.delivery_photo = req.body.delivery_photo || req.body.deliveryPhoto || req.body.photoBase64;
        }
 
        if (parcel.payment_status === 'paid' && parcel.escrow_status === 'held') {
@@ -320,8 +322,8 @@ router.put('/:id/status', protect, async (req, res) => {
     }
 
     if (newStatus === 'received') {
-       if (req.body.received_photo || req.body.receivedPhoto) {
-          parcel.received_photo = req.body.received_photo || req.body.receivedPhoto;
+       if (req.body.received_photo || req.body.receivedPhoto || req.body.photoBase64) {
+          parcel.received_photo = req.body.received_photo || req.body.receivedPhoto || req.body.photoBase64;
        }
        if (req.body.receiver_rating || req.body.receiverRating) {
           parcel.receiver_rating = req.body.receiver_rating || req.body.receiverRating;
@@ -331,50 +333,51 @@ router.put('/:id/status', protect, async (req, res) => {
     parcel.status = newStatus;
     const updatedParcel = await parcel.save();
 
-    try {
-      if (newStatus === 'requested') {
-         await Notification.create({
-           recipient_id: parcel.sender_id,
-           title: "New Delivery Request!",
-           message: `${req.user.name} wants to carry your parcel reaching ${parcel.to_location}.`,
-           type: 'parcel_requested',
-           reference_id: parcel._id
-         });
-      } else if (newStatus === 'accepted') {
-         await Notification.create({
-           recipient_id: parcel.traveller_id,
-           title: "Request Approved!",
-           message: `Sender approved your request for parcel to ${parcel.to_location}.`,
-           type: 'parcel_accepted',
-           reference_id: parcel._id
-         });
-      } else if (newStatus === 'in-transit') {
-         await Notification.create({
-           recipient_id: parcel.sender_id,
-           title: "Parcel In Transit 🚚",
-           message: `Your parcel to ${parcel.to_location} has been picked up & is on the way.`,
-           type: 'transit_started',
-           reference_id: parcel._id
-         });
-      } else if (newStatus === 'delivered') {
-         await Notification.create({
-           recipient_id: parcel.sender_id,
-           title: "Parcel Delivered! 🎉",
-           message: `Your parcel has been successfully delivered to ${parcel.receiver_name}.`,
-           type: 'delivered',
-           reference_id: parcel._id
-         });
-      } else if (newStatus === 'arrived') {
-         await Notification.create({
-           recipient_id: parcel.sender_id,
-           title: "Almost There! 📍",
-           message: `Your traveller has arrived at the destination for your parcel to ${parcel.to_location}.`,
-           type: 'parcel_arrived',
-           reference_id: parcel._id
-         });
-         
-         // Also notify receiver if we have their ID
-         if (parcel.receiver_id) {
+    // 🔔 Fire notifications in background (don't wait)
+    (async () => {
+      try {
+        if (newStatus === 'requested') {
+          await Notification.create({
+            recipient_id: parcel.sender_id,
+            title: "New Delivery Request!",
+            message: `${req.user.name} wants to carry your parcel reaching ${parcel.to_location}.`,
+            type: 'parcel_requested',
+            reference_id: parcel._id
+          });
+        } else if (newStatus === 'accepted') {
+          await Notification.create({
+            recipient_id: parcel.traveller_id,
+            title: "Request Approved!",
+            message: `Sender approved your request for parcel to ${parcel.to_location}.`,
+            type: 'parcel_accepted',
+            reference_id: parcel._id
+          });
+        } else if (newStatus === 'in-transit') {
+          await Notification.create({
+            recipient_id: parcel.sender_id,
+            title: "Parcel In Transit 🚚",
+            message: `Your parcel to ${parcel.to_location} has been picked up & is on the way.`,
+            type: 'transit_started',
+            reference_id: parcel._id
+          });
+        } else if (newStatus === 'delivered') {
+          await Notification.create({
+            recipient_id: parcel.sender_id,
+            title: "Parcel Delivered! 🎉",
+            message: `Your parcel has been successfully delivered to ${parcel.receiver_name}.`,
+            type: 'delivered',
+            reference_id: parcel._id
+          });
+        } else if (newStatus === 'arrived') {
+          await Notification.create({
+            recipient_id: parcel.sender_id,
+            title: "Almost There! 📍",
+            message: `Your traveller has arrived at the destination for your parcel to ${parcel.to_location}.`,
+            type: 'parcel_arrived',
+            reference_id: parcel._id
+          });
+          
+          if (parcel.receiver_id) {
             await Notification.create({
               recipient_id: parcel.receiver_id,
               title: "Arrived! 📦",
@@ -382,17 +385,20 @@ router.put('/:id/status', protect, async (req, res) => {
               type: 'parcel_arrived',
               reference_id: parcel._id
             });
-         }
-      } else if (newStatus === 'received') {
-         await Notification.create({
-           recipient_id: parcel.sender_id,
-           title: "Confirmed & Received! ✅",
-           message: `${parcel.receiver_name} has confirmed the delivery and rated the service ${parcel.receiver_rating}/5.`,
-           type: 'received',
-           reference_id: parcel._id
-         });
+          }
+        } else if (newStatus === 'received') {
+          await Notification.create({
+            recipient_id: parcel.sender_id,
+            title: "Confirmed & Received! ✅",
+            message: `${parcel.receiver_name} has confirmed the delivery and rated the service ${parcel.receiver_rating}/5.`,
+            type: 'received',
+            reference_id: parcel._id
+          });
+        }
+      } catch (notifErr) { 
+        console.error("Non-blocking notification trigger failed:", notifErr.message); 
       }
-    } catch (notifErr) { console.error("Notification trigger failed:", notifErr); }
+    })();
 
     res.json(updatedParcel);
   } catch (error) {

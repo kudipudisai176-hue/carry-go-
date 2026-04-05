@@ -2,6 +2,7 @@ import { useRef, useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Camera, X, RefreshCw, Check, AlertCircle } from "lucide-react";
 import { Button } from "./ui/button";
+import { compressImage } from "@/lib/imageUtils";
 
 interface LiveCameraModalProps {
     isOpen: boolean;
@@ -122,7 +123,7 @@ export default function LiveCameraModal({ isOpen, onClose, onCapture }: LiveCame
         return () => stopCamera();
     }, [isOpen, facingMode]);
 
-    const handleCapture = () => {
+    const handleCapture = async () => {
         if (videoRef.current && canvasRef.current) {
             const video = videoRef.current;
             const canvas = canvasRef.current;
@@ -131,8 +132,14 @@ export default function LiveCameraModal({ isOpen, onClose, onCapture }: LiveCame
             const ctx = canvas.getContext("2d");
             if (ctx) {
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
-                setCapturedImage(dataUrl);
+                const dataUrl = canvas.toDataURL("image/jpeg");
+                try {
+                   const optimized = await compressImage(dataUrl);
+                   setCapturedImage(optimized);
+                } catch (err) {
+                   console.error("Camera capture compression failed:", err);
+                   setCapturedImage(dataUrl); // Fallback
+                }
             }
         }
     };

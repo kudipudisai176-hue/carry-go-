@@ -26,7 +26,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import BottomNav from "@/components/BottomNav";
+import { compressImage } from "@/lib/imageUtils";
+
 
 export default function Profile() {
   const { user, logout, updateUser } = useAuth();
@@ -76,7 +77,7 @@ export default function Profile() {
     if (file) {
       setIsSaving(true);
       try {
-        const base64 = await fileToBase64(file);
+        const base64 = await compressImage(file);
         const success = await updateUser({ profilePhoto: base64 });
         if (success) {
           toast.success("Profile photo updated!");
@@ -256,42 +257,6 @@ export default function Profile() {
               </div>
             </div>
 
-            {/* NEW: Personal OTP Section */}
-            <div className="mt-8 rounded-[2.5rem] bg-slate-900 p-8 text-white shadow-2xl shadow-slate-900/20 relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl" />
-              <div className="relative z-10">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="rounded-xl bg-orange-500 p-2 text-white">
-                      <ShieldCheck className="h-5 w-5" />
-                    </div>
-                    <h3 className="font-black text-lg tracking-tight font-heading">Personal Delivery OTP</h3>
-                  </div>
-                  <div className="px-3 py-1 bg-white/10 rounded-full border border-white/10 flex items-center gap-2">
-                    <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                    <span className="text-[10px] font-black uppercase tracking-widest text-white/70">Secure Code</span>
-                  </div>
-                </div>
-                
-                <p className="text-xs font-semibold text-white/50 mb-6 leading-relaxed">
-                  Provide this 6-digit code to the traveller when they hand over your parcel. This ensures you've received the correct item.
-                </p>
-
-                <div className="flex items-center gap-4 bg-white/5 rounded-2xl p-4 border border-white/10 group/otp">
-                  <div className="flex-1">
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-orange-500 mb-1">Your Unique Code</p>
-                    <div className="flex items-center gap-3">
-                      <span className="text-3xl font-black tracking-[0.3em] font-mono text-white">
-                        {user.personalOtp || '000000'}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="h-12 w-12 rounded-xl bg-white/10 flex items-center justify-center text-white/40 group-hover/otp:scale-110 transition-transform">
-                    <Smartphone className="h-6 w-6" />
-                  </div>
-                </div>
-              </div>
-            </div>
 
             {/* Logout Section */}
             <div className="mt-10 border-t border-slate-100 pt-8 text-center pb-8 px-8">
@@ -327,7 +292,7 @@ export default function Profile() {
           </motion.div>
         )}
       </div>
-      <BottomNav activeTab={null} />
+
     </div>
   );
 }

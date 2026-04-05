@@ -2,8 +2,10 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider, useAuth } from "@/lib/authContext";
+import { AuthProvider } from "@/lib/AuthProvider";
+import { useAuth } from "@/lib/authContext";
 import Navbar from "@/components/Navbar";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
@@ -22,6 +24,13 @@ const queryClient = new QueryClient();
 
 
 function AppInner() {
+  const { user, isLoading } = useAuth();
+  
+  useEffect(() => {
+    console.log("App.tsx Auth State Update:", { user: user?.id, role: user?.role, isLoading });
+  }, [user, isLoading]);
+
+  // We render the layout immediately. ProtectedRoutes and Pages handle their own local loading spinners.
   return (
     <>
       <Navbar />

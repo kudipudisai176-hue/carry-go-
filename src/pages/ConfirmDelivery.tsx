@@ -5,9 +5,10 @@ import { Camera, CheckCircle2, RefreshCw, Smartphone, X, ArrowLeft, Shield, MapP
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import { compressImage } from "@/lib/imageUtils";
 import { getParcelById, updateParcelStatus, generateDeliveryOtp, type Parcel } from "@/lib/parcelStore";
 import { useAuth } from "@/lib/authContext";
-import BottomNav from "@/components/BottomNav";
+
 
 export default function ConfirmDelivery() {
   const { user, isLoading: authLoading } = useAuth();
@@ -60,7 +61,7 @@ export default function ConfirmDelivery() {
     setIsCameraOpen(false);
   };
 
-  const capturePhoto = () => {
+  const capturePhoto = async () => {
     if (videoRef.current) {
       const canvas = document.createElement("canvas");
       canvas.width = videoRef.current.videoWidth;
@@ -69,17 +70,18 @@ export default function ConfirmDelivery() {
       if (ctx) {
         ctx.drawImage(videoRef.current, 0, 0);
         const dataUrl = canvas.toDataURL("image/jpeg");
-        setImage(dataUrl);
         
-        canvas.toBlob((blob) => {
-           if (blob) {
-              const file = new File([blob], `proof-${Date.now()}.jpg`, { type: "image/jpeg" });
-              setImageFile(file);
-           }
-        }, "image/jpeg");
+        try {
+          // Compress immediately after capture
+          const compressed = await compressImage(dataUrl);
+          setImage(compressed);
+          toast.success("Photo captured and optimized!");
+        } catch (err) {
+          console.error("Compression failed:", err);
+          setImage(dataUrl); // Fallback to raw if compression fails
+        }
         
         stopCamera();
-        toast.success("Photo captured!");
       }
     }
   };
@@ -181,7 +183,7 @@ export default function ConfirmDelivery() {
            </Button>
         </div>
       </div>
-      <BottomNav activeTab="traveller" />
+
     </div>
   );
 }

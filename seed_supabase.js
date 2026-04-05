@@ -38,7 +38,7 @@ const seedSupabase = async () => {
     // This script assumes you have at least one user registered.
     
     const { data: userData, error: userError } = await supabase
-      .from('profiles')
+      .from('users')
       .select('id, name, phone')
       .limit(1)
       .single();

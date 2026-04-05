@@ -2,7 +2,7 @@ import { Box, Navigation, MapPin, User, ChevronRight, Star, ShieldCheck, Clock }
 import { Link, Navigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useAuth } from "@/lib/authContext";
-import BottomNav from "@/components/BottomNav";
+
 
 export default function Dashboard() {
   const { user, isLoading } = useAuth();
@@ -141,7 +141,7 @@ export default function Dashboard() {
         </div>
 
       </div>
-      <BottomNav activeTab="home" />
+
     </div>
   );
 }
