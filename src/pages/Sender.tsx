@@ -182,8 +182,9 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
   }, []);
 
   useEffect(() => {
-    if (!user?.id) return;
-    const channelId = `parcel-updates-${user.id}`;
+    // 🧂 Session-Unique Salt: Ensures multiple tabs don't compete for the same connection lock.
+    const sessionId = Math.random().toString(36).substring(7);
+    const channelId = `parcel-updates-${user.id}-${sessionId}`;
     const channel = supabase
       .channel(channelId)
       .on(
@@ -219,6 +220,8 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (loading) return; // 🚫 Prevent duplicate clicks while already processing
+    
     const fd = new FormData(e.currentTarget);
     if (!user?.id) {
       toast.error("You must be logged in to create a parcel.");
@@ -254,29 +257,36 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
 
       setLoading(true);
 
-      // Use a race to avoid permanent hang if DB is slow (extended to 90s per User checklist)
-      const createWithTimeout = Promise.race([
-        createParcel(parcelData, photoBase64),
-        new Promise((_, reject) => setTimeout(() => reject(new Error("Parcel posting timed out. Please check your internet connection or server status.")), 90000))
+      // Use a race to avoid permanent hang if DB is slow
+      const requestWithTimeout = Promise.race([
+        editingParcel 
+          ? updateParcel(editingParcel.id, parcelData, photoBase64)
+          : createParcel(parcelData, photoBase64),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Operation timed out. Please check your internet connection.")), 90000))
       ]);
 
-      const resp = await (createWithTimeout as any);
+      const resp = await (requestWithTimeout as any);
       
       if (!resp || (!resp.id && !resp._id)) {
-        throw new Error("Parcel creation failed: Invalid server response.");
+        throw new Error("Operation failed: Invalid server response.");
       }
       
-      // Update local UI immediately for a "fast" feel
-      setParcels(prev => [resp, ...prev]);
-      setLatestCreated(resp);
+      // Update local UI
+      if (editingParcel) {
+        setParcels(prev => prev.map(p => p.id === resp.id ? resp : p));
+      } else {
+        setParcels(prev => [resp, ...prev]);
+        setLatestCreated(resp);
+      }
+      
       resetForm();
-      (window as any)._precompressedPhoto = null; // Clear
+      (window as any)._precompressedPhoto = null; 
       return resp;
     })();
 
     toast.promise(creationPromise, {
-      loading: 'Saving parcel details...',
-      success: 'Parcel posted successfully!',
+      loading: editingParcel ? 'Updating parcel...' : 'Saving parcel details...',
+      success: editingParcel ? 'Parcel updated successfully!' : 'Parcel posted successfully!',
       error: (err) => `Failed: ${err.response?.data?.message || err.message || "Unknown error"}`
     });
 

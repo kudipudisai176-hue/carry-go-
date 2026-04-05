@@ -148,7 +148,7 @@ const Parcel = {
 
     const { data, error } = await supabase
       .from('parcels')
-      .insert(normalized)
+      .insert([normalized])
       .select()
       .single();
       

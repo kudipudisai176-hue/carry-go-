@@ -170,44 +170,48 @@ api.interceptors.request.use(async (config) => {
   return config;
 });
 
+// 🛡️ REBOOT RESILIENCE: Improved Retry Helper for Network and Lock Conflicts
+async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 500): Promise<T> {
+  try {
+    return await fn();
+  } catch (err: any) {
+    const isLockError = err?.message?.toLowerCase().includes('lock broken') || err?.code === 'PGRST116';
+    const isNetworkError = !err.response && err.request;
+    
+    if (retries > 0 && (isLockError || isNetworkError)) {
+      console.warn(`[Retry Hub] Retrying operation (${retries} left) due to: ${err.message}`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return withRetry(fn, retries - 1, delay * 2);
+    }
+    throw err;
+  }
+}
+
 export const createParcel = async (parcelData: Omit<Parcel, 'id' | 'status' | 'createdAt'>, photoBase64?: string) => {
-  const resp = await api.post('/parcels', {
-    ...parcelData,
-    parcel_photo: photoBase64
+  return withRetry(async () => {
+    const resp = await api.post('/parcels', {
+      ...parcelData,
+      parcel_photo: photoBase64
+    });
+    return mapParcel(resp.data);
   });
-  return mapParcel(resp.data);
 };
 
-export const simulatePayment = async (id: string) => {
-  // Logic: Set paymentStatus to paid and status to open_for_travellers
-  const { data, error } = await supabase
-    .from('parcels')
-    .update({ 
-      payment_status: 'paid', 
-      status: 'open_for_travellers',
-      delivery_otp: Math.floor(100000 + Math.random() * 900000).toString() // Generate OTP on payment
-    })
-    .eq('id', id)
-    .select()
-    .single();
-
-  if (error) throw error;
-  return mapParcel(data);
+export const simulatePayment = async (id: string): Promise<Parcel> => {
+  return withRetry(async () => {
+    const resp = await api.post(`/parcels/${id}/simulate-payment`);
+    return mapParcel(resp.data);
+  });
 };
 
-export async function updateParcel(id: string, updates: Partial<Parcel>, photoBase64?: string): Promise<Parcel> {
-  const dbData = unmapParcel(updates);
-  if (photoBase64) dbData.parcel_photo = photoBase64;
-  
-  const { data, error } = await supabase
-    .from('parcels')
-    .update(dbData)
-    .eq('id', id)
-    .select()
-    .single();
-
-  if (error) throw error;
-  return mapParcel(data);
+export async function updateParcel(id: string, updates: Partial<Parcel>, photoBase64?: string): Promise<Parcel | null> {
+  return withRetry(async () => {
+    const response = await api.put(`/parcels/${id}`, {
+      ...updates,
+      photoBase64
+    });
+    return mapParcel(response.data);
+  });
 }
 
 export async function getParcelById(id: string): Promise<Parcel | null> {
@@ -222,13 +226,10 @@ export async function getParcelById(id: string): Promise<Parcel | null> {
 }
 
 export async function getAllParcels(mode?: 'sender' | 'search' | 'receiver'): Promise<Parcel[]> {
-  try {
+  return withRetry(async () => {
     const response = await api.get('/parcels', { params: { mode } });
     return (response.data || []).map(mapParcel);
-  } catch (err) {
-    console.error("Fetch parcels failed:", err);
-    return [];
-  }
+  });
 }
 
 export async function getMyDeliveries(): Promise<Parcel[]> {
@@ -246,13 +247,15 @@ export async function getMyDeliveries(): Promise<Parcel[]> {
 }
 
 export async function updateParcelStatus(id: string, status: ParcelStatus, travellerName?: string, otp?: string, photoBase64?: string): Promise<Parcel | null> {
-  const response = await api.put(`/parcels/${id}/status`, {
-    status,
-    traveller_name: travellerName,
-    otp,
-    photoBase64
+  return withRetry(async () => {
+    const response = await api.put(`/parcels/${id}/status`, {
+      status,
+      traveller_name: travellerName,
+      otp,
+      photoBase64
+    });
+    return mapParcel(response.data);
   });
-  return mapParcel(response.data);
 }
 
 export async function markReceived(id: string, photoBase64?: string, rating?: number): Promise<Parcel | null> {

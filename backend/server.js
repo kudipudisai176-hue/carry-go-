@@ -4,8 +4,10 @@ dotenv.config(); // ✅ MUST be first before any other imports that read process
 const express = require('express');
 const cors = require('cors');
 const { connectDB } = require('./config/db');
+const { connectMongoDB } = require('./config/mongodb');
 
 connectDB();
+connectMongoDB(); // 🍃 Initializing secondary MongoDB connection
 
 const app = express();
 

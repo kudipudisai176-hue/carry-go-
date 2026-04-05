@@ -86,7 +86,22 @@ export default function Traveller() {
     useEffect(() => {
         if (!user?.id) return;
         loadMyDeliveries();
-        // 📡 Removed redundant setInterval poll. Relying on Realtime and manual updates.
+        
+        // 🧂 Session-Unique Salt for Traveller
+        const sessionId = Math.random().toString(36).substring(7);
+        const channelId = `traveller-updates-${user.id}-${sessionId}`;
+        const channel = supabase
+          .channel(channelId)
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'parcels', filter: `traveller_id=eq.${user.id}` },
+            () => loadMyDeliveries()
+          )
+          .subscribe();
+          
+        return () => { 
+          supabase.removeChannel(channel); 
+        };
     }, [user?.id, loadMyDeliveries]);
 
     const handleSearch = useCallback(async () => {

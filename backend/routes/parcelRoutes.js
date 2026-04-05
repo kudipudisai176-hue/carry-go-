@@ -480,8 +480,8 @@ router.put('/:id', protect, async (req, res) => {
       receiver_name, receiver_phone
     } = req.body;
     
-    parcel.from_location = from_location || req.body.fromLocation || parcel.from_location;
-    parcel.to_location = to_location || req.body.toLocation || parcel.to_location;
+    parcel.from_location = (from_location || req.body.fromLocation || parcel.from_location)?.toLowerCase().trim();
+    parcel.to_location = (to_location || req.body.toLocation || parcel.to_location)?.toLowerCase().trim();
     parcel.city = city || parcel.city;
     parcel.village = village || parcel.village;
     parcel.weight = weight || parcel.weight;
