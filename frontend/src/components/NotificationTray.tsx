@@ -26,7 +26,7 @@ export default function NotificationTray() {
 
       const { data } = await api.get('/notifications');
       setNotifications(data || []);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to load notifications", err);
     }
   }, []);
@@ -42,7 +42,7 @@ export default function NotificationTray() {
       const token = localStorage.getItem("token");
       await api.put(`/notifications/${id}`, {});
       loadNotifications();
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
     }
   };
@@ -52,7 +52,7 @@ export default function NotificationTray() {
       const token = localStorage.getItem("token");
       await api.put('/notifications/markallread', {});
       loadNotifications();
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
     }
   };

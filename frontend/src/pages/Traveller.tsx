@@ -8,7 +8,7 @@ import {
    ExternalLink, ChevronDown, ChevronUp, CreditCard, Plus,
    Info, ChevronRight, Map, Trash2, X, Camera, CheckCircle, Loader2
 } from "lucide-react";
-import { locations } from "@/lib/locations";
+import { locations, type Location } from "@/lib/locations";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -57,7 +57,7 @@ export default function Traveller() {
 
    const locationsDatalist = useMemo(() => (
       <datalist id="locs">
-         {locations.map((loc) => (
+         {locations.map((loc: Location) => (
             <option key={loc.name} value={loc.name}>
                {loc.type} - {loc.mandal}
             </option>
@@ -70,7 +70,7 @@ export default function Traveller() {
          const data = await getMyDeliveries();
          setMyDeliveries(data);
 
-         const activeOne = data.find(p => ['accepted', 'assigned', 'picked-up', 'in-transit', 'arrived'].includes(p.status));
+         const activeOne = data.find((p: Parcel) => ['accepted', 'assigned', 'picked-up', 'in-transit', 'arrived'].includes(p.status));
          if (activeOne && !activeParcel) {
             setActiveParcel(activeOne);
             setActiveTab("deliveries");
@@ -104,7 +104,7 @@ export default function Traveller() {
       try {
          const origin = from || user?.city || "";
          const data = await searchParcels(origin, to || "");
-         const filtered = data.filter(p => p.senderId !== user?.id);
+         const filtered = data.filter((p: Parcel) => p.senderId !== user?.id);
          setResults(filtered);
       } catch {
          toast.error("Failed to load list");

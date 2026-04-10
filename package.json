@@ -1,0 +1,12 @@
+{
+  "name": "carry-go-monorepo",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=frontend",
+    "backend": "npm start --workspace=backend"
+  }
+}

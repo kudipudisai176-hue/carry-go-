@@ -107,7 +107,7 @@ export default function RatingModal({ parcelId, revieweeId, revieweeName, onClos
                 placeholder="Write a comment (optional)..."
                 className="min-h-[100px] rounded-2xl border-border/50 bg-muted/30 p-4 text-sm focus:border-indigo-500/50"
                 value={comment}
-                onChange={(e) => setComment(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setComment(e.target.value)}
               />
             </div>
 

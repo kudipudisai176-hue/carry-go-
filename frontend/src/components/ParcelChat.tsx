@@ -168,8 +168,8 @@ export default function ParcelChat({ deliveryId, currentUserId, showHeader = tru
         <Input
           placeholder="Type your message..."
           value={newMessage}
-          onChange={(e) => setNewMessage(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), sendMessage())}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewMessage(e.target.value)}
+          onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), sendMessage())}
           className="flex-1 rounded-2xl bg-slate-50 border-none h-14 px-6 text-sm font-medium focus-visible:ring-orange-500/20 transition-all"
         />
         <Button size="icon" onClick={sendMessage} className="bg-orange-500 hover:bg-orange-600 h-14 w-14 rounded-2xl shrink-0 shadow-lg shadow-orange-500/20 transition-all">

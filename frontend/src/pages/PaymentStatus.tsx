@@ -32,11 +32,11 @@ const PaymentStatus = () => {
           setStatus('failed');
           toast.error('Payment failed. Please try again.');
         }
-      } catch (err) {
-        console.error('Status check failed:', err);
-        setStatus('error');
-        toast.error('Could not verify payment status.');
-      }
+    } catch (err: any) {
+      console.error('Status check failed:', err);
+      setStatus('error');
+      toast.error('Could not verify payment status.');
+    }
     };
 
     checkStatus();
