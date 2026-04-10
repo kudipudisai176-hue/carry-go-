@@ -12,9 +12,15 @@ export default defineConfig(({ mode }) => ({
     host: true,
     port: 8080,
     proxy: {
-      '/api': {
+      '/_/backend/api': {
         target: 'http://127.0.0.1:5000',
         changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/_\/backend/, ''),
+      },
+      '/_/backend/socket.io': {
+        target: 'http://127.0.0.1:5000',
+        ws: true,
+        rewrite: (path) => path.replace(/^\/_\/backend/, ''),
       },
     },
     hmr: {

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MessageSquare, Send, Loader2, X } from "lucide-react";
-import axios from "axios";
+import { api } from "@/lib/parcelStore";
 import { toast } from "sonner";
 
 interface Message {
@@ -25,9 +25,7 @@ export default function ParcelChat({ deliveryId, currentUserId, showHeader = tru
     try {
       const token = localStorage.getItem("token");
       if (!token) return;
-      const { data } = await axios.get(`/api/messages/${deliveryId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const { data } = await api.get(`/messages/${deliveryId}`);
       setMessages(data || []);
       setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
     } catch (error) {
@@ -77,11 +75,9 @@ export default function ParcelChat({ deliveryId, currentUserId, showHeader = tru
         return;
       }
 
-      const { data } = await axios.post('/api/messages', {
+      const { data } = await api.post('/messages', {
         deliveryId: deliveryId.toString(),
         message: msgContent
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
       });
       
       setMessages(prev => {

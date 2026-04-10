@@ -3,7 +3,7 @@ import { Star, X, MessageSquare, CheckCircle2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
-import axios from "axios";
+import { api } from "@/lib/parcelStore";
 import { toast } from "sonner";
 
 interface RatingModalProps {
@@ -31,13 +31,11 @@ export default function RatingModal({ parcelId, revieweeId, revieweeName, onClos
       const token = localStorage.getItem("token");
       if (!token) throw new Error("Authentication required");
 
-      await axios.post("/api/reviews", {
+      await api.post("/reviews", {
         parcel: parcelId,
         reviewee: revieweeId,
         rating,
         comment,
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
       });
 
       toast.success("Review submitted! Thank you.");

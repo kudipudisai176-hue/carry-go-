@@ -92,10 +92,10 @@ export const mapParcel = (p: any): Parcel => {
   };
 };
 
-const BACKEND_URL = '/api';
+export const BACKEND_URL = '/_/backend/api';
 
 // Create an axios instance with a base URL
-const api = axios.create({
+export const api = axios.create({
   baseURL: BACKEND_URL,
 });
 

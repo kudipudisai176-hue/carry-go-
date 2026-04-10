@@ -1,9 +1,9 @@
 import { useState, useEffect, type ReactNode } from "react";
-import axios from "axios";
+import { api } from "./parcelStore";
 import { type User, type UserRole, type UserSubRole } from "./authTypes";
 import { AuthContext } from "./authContext";
 
-const API_URL = "/api/users";
+const API_URL = "/users";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -11,7 +11,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchProfile = async (token: string) => {
     try {
-      const { data } = await axios.get(`${API_URL}/profile`, {
+      const { data } = await api.get(`${API_URL}/profile`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setUser(data);
@@ -36,7 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signup = async (params: any) => {
     try {
-      const { data } = await axios.post(`${API_URL}/register`, params);
+      const { data } = await api.post(`${API_URL}/register`, params);
       if (data.token) {
         localStorage.setItem("token", data.token);
         setUser(data);
@@ -51,7 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string) => {
     try {
-      const { data } = await axios.post(`${API_URL}/login`, { email, password });
+      const { data } = await api.post(`${API_URL}/login`, { email, password });
       if (data.token) {
         localStorage.setItem("token", data.token);
         setUser(data);
@@ -66,7 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loginWithPhone = async (phone: string) => {
     try {
-      const { data } = await axios.post(`${API_URL}/login-otp`, { phone });
+      const { data } = await api.post(`${API_URL}/login-otp`, { phone });
       if (data.token) {
         localStorage.setItem("token", data.token);
         setUser(data);
@@ -88,7 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const token = localStorage.getItem("token");
     if (!token) return false;
     try {
-      const resp = await axios.put(`${API_URL}/profile`, data, {
+      const resp = await api.put(`${API_URL}/profile`, data, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setUser(resp.data);
@@ -104,7 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const token = localStorage.getItem("token");
     if (!token) return false;
     try {
-      await axios.delete(`${API_URL}/profile`, {
+      await api.delete(`${API_URL}/profile`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       await logout();

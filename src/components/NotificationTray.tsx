@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Bell, Check, Clock, MessageSquare, Truck, CheckCircle2 } from "lucide-react";
-import axios from "axios";
+import { api } from "@/lib/parcelStore";
 import { motion, AnimatePresence } from "framer-motion";
 
 export interface Notification {
@@ -24,9 +24,7 @@ export default function NotificationTray() {
       const token = localStorage.getItem("token");
       if (!token) return;
 
-      const { data } = await axios.get('/api/notifications', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const { data } = await api.get('/notifications');
       setNotifications(data || []);
     } catch (err) {
       console.error("Failed to load notifications", err);
@@ -42,9 +40,7 @@ export default function NotificationTray() {
   const markRead = async (id: string) => {
     try {
       const token = localStorage.getItem("token");
-      await axios.put(`/api/notifications/${id}`, {}, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await api.put(`/notifications/${id}`, {});
       loadNotifications();
     } catch (err) {
       console.error(err);
@@ -54,9 +50,7 @@ export default function NotificationTray() {
   const markAllRead = async () => {
     try {
       const token = localStorage.getItem("token");
-      await axios.put('/api/notifications/markallread', {}, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await api.put('/notifications/markallread', {});
       loadNotifications();
     } catch (err) {
       console.error(err);

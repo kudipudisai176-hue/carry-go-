@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { api } from '@/lib/parcelStore';
 
 const PaymentStatus = () => {
   const [searchParams] = useSearchParams();
@@ -20,10 +21,8 @@ const PaymentStatus = () => {
 
     const checkStatus = async () => {
       try {
-        const res = await fetch(
-          `http://localhost:5000/api/payment/status/${txnId}?parcelId=${parcelId}`
-        );
-        const data = await res.json();
+        const res = await api.get(`/payment/status/${txnId}?parcelId=${parcelId}`);
+        const data = res.data;
 
         if (data.code === 'PAYMENT_SUCCESS') {
           setStatus('success');
