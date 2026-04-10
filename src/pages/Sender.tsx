@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import {
-  Box, Plus, Check, Trash2, MapPin, Weight, ArrowRight, ArrowLeft, Sparkles, Bike, Bus, Car, Navigation, Info, Layers, CreditCard, QrCode, ExternalLink, X, KeyRound, Bell, CheckCircle2, Camera, RefreshCw, Edit2, Search, PackageCheck, Handshake, User, Phone, MessageCircle, Navigation2, Lock as LockIcon, ShieldCheck, Loader2, Zap, Clock
+  Box, Plus, Check, Trash2, MapPin, Weight, ArrowRight, ArrowLeft, Sparkles, Bike, Bus, Car, Navigation, Info, Layers, CreditCard, QrCode, ExternalLink, X, KeyRound, Bell, CheckCircle2, Camera, RefreshCw, Edit2, Search, PackageCheck, Handshake, User, Phone, MessageCircle, MessageSquare, Navigation2, Lock as LockIcon, ShieldCheck, Loader2, Zap, Clock
 } from "lucide-react";
 import { compressImage } from "@/lib/imageUtils";
 import { locations } from '@/lib/locations';
@@ -23,7 +23,10 @@ import { useAuth } from "@/lib/authContext";
 import UserProfileModal from "@/components/UserProfileModal";
 import { UserData } from "@/lib/parcelStore";
 import { format } from "date-fns";
-import { supabase } from "@/lib/supabaseClient";
+import { socket } from "@/lib/socket";
+import ParcelChat from "@/components/ParcelChat";
+import LiveCameraModal from "@/components/LiveCameraModal";
+import RatingModal from "@/components/RatingModal";
 
 export default function Sender({ startWithForm = false }: { startWithForm?: boolean }) {
   const { user, isLoading } = useAuth();
@@ -55,6 +58,7 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
   const [searchedIncoming, setSearchedIncoming] = useState(false);
   const [expandedIncoming, setExpandedIncoming] = useState<string | null>(null);
   const [activeChat, setActiveChat] = useState<string | null>(null);
+  const [ratingParcel, setRatingParcel] = useState<Parcel | null>(null);
 
   // -- Form State --
   const [weight, setWeight] = useState("");
@@ -69,10 +73,32 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const submittingRef = useRef(false); // hard-lock to prevent duplicate submissions
 
   useEffect(() => {
     if (!isLoading && !user) navigate("/login", { replace: true });
   }, [user, isLoading, navigate]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    socket.on("start_navigation", (parcelId) => {
+      // Find the parcel in our list to make sure it's ours
+      const parcel = parcels.find(p => p.id === parcelId);
+      if (parcel) {
+        toast.success(`Traveller started navigation for parcel #${parcelId.slice(-6).toUpperCase()}!`, {
+          description: "You can now track the live location.",
+          duration: 10000,
+        });
+        // We could also auto-open the tracking modal here
+        setTrackingModal(parcel);
+      }
+    });
+
+    return () => {
+      socket.off("start_navigation");
+    };
+  }, [user, parcels]);
 
   const locationsDatalist = useMemo(() => (
     <datalist id="locations-list">
@@ -84,76 +110,16 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
     </datalist>
   ), []);
 
-  const startCamera = async () => {
-    try {
-      setIsCameraOpen(true);
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error("Browser doesn't support camera access");
-      }
-      if (videoRef.current && videoRef.current.srcObject) {
-        const stream = videoRef.current.srcObject as MediaStream;
-        stream.getTracks().forEach(track => track.stop());
-      }
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }
-        });
-        if (videoRef.current) videoRef.current.srcObject = stream;
-      } catch (innerErr) {
-        const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true });
-        if (videoRef.current) videoRef.current.srcObject = fallbackStream;
-      }
-    } catch (err: any) {
-      console.error("Camera error:", err);
-      toast.error(err.name === 'NotAllowedError' ? "Camera permission denied" : "Could not access camera");
-      setIsCameraOpen(false);
-    }
+  const handleLiveCapture = (image: string) => {
+    setPhotoPreview(image);
+    setParcelPhoto(null);
+    (window as any)._precompressedPhoto = image;
   };
 
-  const stopCamera = () => {
-    if (videoRef.current && videoRef.current.srcObject) {
-      const stream = videoRef.current.srcObject as MediaStream;
-      stream.getTracks().forEach(track => track.stop());
-      videoRef.current.srcObject = null;
-    }
-    setIsCameraOpen(false);
-  };
-
-  const capturePhoto = () => {
-    if (videoRef.current) {
-      const canvas = document.createElement("canvas");
-      canvas.width = videoRef.current.videoWidth;
-      canvas.height = videoRef.current.videoHeight;
-      const ctx = canvas.getContext("2d");
-      if (ctx) {
-        ctx.drawImage(videoRef.current, 0, 0);
-        canvas.toBlob(async (blob) => {
-          if (blob) {
-            const file = new File([blob], `parcel-${Date.now()}.jpg`, { type: "image/jpeg" });
-            setPhotoPreview(URL.createObjectURL(file));
-            stopCamera();
-            
-            // Pre-compress immediately to save time on submit
-            try {
-               const base64 = await compressImage(file);
-               setParcelPhoto(file); // Keep file for reference
-               (window as any)._precompressedPhoto = base64; 
-            } catch (e) {
-               console.warn("Pre-compression failed", e);
-            }
-          }
-        }, "image/jpeg", 0.8);
-      }
-    }
-  };
 
   useEffect(() => {
-    const vRef = videoRef.current;
     return () => {
-      if (vRef && vRef.srcObject) {
-        const stream = vRef.srcObject as MediaStream;
-        stream.getTracks().forEach(track => track.stop());
-      }
+      // No-op cleanup
     };
   }, []);
 
@@ -163,11 +129,25 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
   const refresh = useCallback(async () => {
     try {
       const data = await getAllParcels('sender');
-      setParcels(data);
+      
+      setParcels(prev => {
+        // Check for newly delivered parcels to trigger rating
+        const newlyDelivered = data.find(p => 
+          p.status === 'delivered' && 
+          !prev.find(oldP => oldP.id === p.id && oldP.status === 'delivered')
+        );
+        
+        if (newlyDelivered) {
+           // We use a small timeout to avoid state updates during render/callback phase if needed, 
+           // though since this is an async callback it should be fine.
+           setRatingParcel(newlyDelivered);
+        }
+        return data;
+      });
     } catch (err) {
       console.error("Failed to load parcels:", err);
     }
-  }, []);
+  }, []); // Remove dependency on parcels and ratingParcel
 
   useEffect(() => {
     if ('Notification' in window && Notification.permission === 'default') {
@@ -181,32 +161,14 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
     }
   }, []);
 
-  useEffect(() => {
-    // 🧂 Session-Unique Salt: Ensures multiple tabs don't compete for the same connection lock.
-    const sessionId = Math.random().toString(36).substring(7);
-    const channelId = `parcel-updates-${user.id}-${sessionId}`;
-    const channel = supabase
-      .channel(channelId)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'parcels', filter: `sender_id=eq.${user.id}` },
-        (payload) => {
-          refresh();
-          if (payload.new && (payload.new as any).status === 'requested') {
-            toast.info("A traveller has requested to carry your parcel! 📦");
-            sendBrowserNotification("New Delivery Request!", "Check your dashboard to approve the traveller.");
-          }
-        }
-      )
-      .subscribe();
-    return () => { 
-      supabase.removeChannel(channel); 
-    };
-  }, [user?.id, refresh, sendBrowserNotification]);
-
+  // Load parcels on mount and when user changes
   useEffect(() => {
     refresh();
-    // 📡 Removed redundant setInterval poll. Relying on Supabase Realtime for instant updates.
+  }, [user?.id, refresh]);
+
+  useEffect(() => {
+    const interval = setInterval(refresh, 10000); // Polling every 10s safely
+    return () => clearInterval(interval);
   }, [refresh]);
 
   const fileToBase64 = (file: File): Promise<string> => {
@@ -220,13 +182,20 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (loading) return; // 🚫 Prevent duplicate clicks while already processing
-    
+    // 🚫 Hard-lock: block if already submitting (ref is synchronous, unlike state)
+    if (submittingRef.current || loading) return;
+    submittingRef.current = true;
+    setLoading(true);
+
     const fd = new FormData(e.currentTarget);
     if (!user?.id) {
       toast.error("You must be logged in to create a parcel.");
+      submittingRef.current = false;
+      setLoading(false);
       return;
     }
+
+    const editId = editingParcel?.id; // capture ID synchronously before any await
 
     const parcelData: any = {
       senderName: user.name || "Me",
@@ -245,7 +214,7 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
 
     const creationPromise = (async () => {
       let photoBase64 = (window as any)._precompressedPhoto;
-      
+
       // If not pre-compressed or selected via file input
       if (!photoBase64 && parcelPhoto) {
         try {
@@ -255,38 +224,36 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
         }
       }
 
-      setLoading(true);
-
       // Use a race to avoid permanent hang if DB is slow
       const requestWithTimeout = Promise.race([
-        editingParcel 
-          ? updateParcel(editingParcel.id, parcelData, photoBase64)
+        editId
+          ? updateParcel(editId, parcelData, photoBase64)
           : createParcel(parcelData, photoBase64),
         new Promise((_, reject) => setTimeout(() => reject(new Error("Operation timed out. Please check your internet connection.")), 90000))
       ]);
 
       const resp = await (requestWithTimeout as any);
-      
+
       if (!resp || (!resp.id && !resp._id)) {
         throw new Error("Operation failed: Invalid server response.");
       }
-      
+
       // Update local UI
-      if (editingParcel) {
+      if (editId) {
         setParcels(prev => prev.map(p => p.id === resp.id ? resp : p));
       } else {
         setParcels(prev => [resp, ...prev]);
         setLatestCreated(resp);
       }
-      
+
       resetForm();
-      (window as any)._precompressedPhoto = null; 
+      (window as any)._precompressedPhoto = null;
       return resp;
     })();
 
     toast.promise(creationPromise, {
-      loading: editingParcel ? 'Updating parcel...' : 'Saving parcel details...',
-      success: editingParcel ? 'Parcel updated successfully!' : 'Parcel posted successfully!',
+      loading: editId ? 'Updating parcel...' : 'Saving parcel details...',
+      success: editId ? 'Parcel updated successfully!' : 'Parcel posted successfully!',
       error: (err) => `Failed: ${err.response?.data?.message || err.message || "Unknown error"}`
     });
 
@@ -296,6 +263,7 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
       console.error("Parcel creation flow failed:", err);
     } finally {
       setLoading(false);
+      submittingRef.current = false;
     }
   };
 
@@ -339,7 +307,7 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
     setPaymentMethod('pay-now');
     setParcelPhoto(null);
     setPhotoPreview(null);
-    stopCamera();
+    setIsCameraOpen(false);
     setEditingParcel(null);
     refresh();
   };
@@ -353,9 +321,9 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
       toast.success("Traveller request accepted!");
       await refresh();
     } catch (err) {
-       toast.error("Failed to accept request");
+      toast.error("Failed to accept request");
     } finally {
-       setIsAccepting(null);
+      setIsAccepting(null);
     }
   };
 
@@ -412,9 +380,19 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
   };
 
   const handleMarkReceived = async (id: string) => {
-    await markReceived(id);
-    toast.success("Parcel marked as received!");
-    handleSearchIncoming();
+    try {
+      await markReceived(id);
+      toast.success("Parcel marked as received!");
+      const p = incomingParcels.find(item => item.id === id);
+      if (p) setRatingParcel(p);
+      handleSearchIncoming();
+    } catch (err) {
+      toast.error("Failed to mark parcel as received");
+    }
+  };
+
+  const handlePostButtonClick = () => {
+    setShowForm(!showForm);
   };
 
   if (isLoading) return <div className="flex h-screen items-center justify-center bg-slate-50 text-orange-500 font-bold uppercase tracking-[0.3em] animate-pulse">Initializing Dashboard...</div>;
@@ -422,6 +400,7 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
 
   return (
     <div className="min-h-screen bg-slate-50 mx-auto max-w-4xl px-4 pb-20 pt-20">
+
       {/* Breadcrumbs */}
       <div className="mb-6 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400/60">
         <span className="hover:text-orange-500 cursor-pointer transition-colors" onClick={() => navigate('/dashboard')}>Dashboard</span>
@@ -440,11 +419,13 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
             </div>
             <div>
               <h1 className="text-3xl font-black text-slate-900 tracking-tight leading-tight">Post a New Parcel</h1>
-              <p className="text-sm font-medium text-slate-400 mt-1">Track, send and manage deliveries seamlessly across the region</p>
+              <div className="flex items-center gap-3 mt-1">
+                <p className="text-sm font-medium text-slate-400">Track, send and manage deliveries seamlessly</p>
+              </div>
             </div>
           </div>
           <Button
-            onClick={() => setShowForm(!showForm)}
+            onClick={handlePostButtonClick}
             className={`group h-14 rounded-2xl px-10 font-black uppercase tracking-widest shadow-xl transition-all active:scale-95 ${showForm ? 'bg-slate-900 text-white hover:bg-slate-800' : 'bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:shadow-orange-500/40 hover:-translate-y-1'}`}
           >
             {showForm ? (
@@ -476,23 +457,31 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
           <motion.div key="outgoing" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }}>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {[
-                { id: "all", label: "0 TOTAL", value: statusCounts.all, color: "slate", icon: Box },
-                { id: "pending", label: "PENDING", value: statusCounts.pending, color: "orange", icon: Clock },
-                { id: "inTransit", label: "TRANSIT", value: statusCounts.inTransit, color: "blue", icon: Navigation2 },
-                { id: "delivered", label: "DELIVERED", value: statusCounts.delivered, color: "emerald", icon: CheckCircle2 }
+                { id: "all", label: "TOTAL", value: statusCounts.all, color: "amber", icon: Box, glow: "shadow-amber-500/20" },
+                { id: "pending", label: "PENDING", value: statusCounts.pending, color: "orange", icon: Clock, glow: "shadow-orange-500/20" },
+                { id: "inTransit", label: "TRANSIT", value: statusCounts.inTransit, color: "blue", icon: Navigation2, glow: "shadow-blue-500/20" },
+                { id: "delivered", label: "DELIVERED", value: statusCounts.delivered, color: "emerald", icon: CheckCircle2, glow: "shadow-emerald-500/20" }
               ].map(s => (
-                <div 
-                  key={s.id} 
-                  onClick={() => setFilter(s.id as any)} 
-                  className={`group flex cursor-pointer flex-col items-center justify-center rounded-[2.5rem] border p-6 transition-all duration-300 ${filter === s.id 
-                    ? `bg-${s.color}-500 text-white border-transparent shadow-xl shadow-${s.color}-200` 
-                    : 'bg-white border-slate-100 hover:border-orange-200 hover:shadow-lg'}`}
+                <div
+                  key={s.id}
+                  onClick={() => setFilter(s.id as any)}
+                  className={`group relative flex cursor-pointer flex-col items-center justify-center rounded-[2.5rem] border p-6 transition-all duration-500 overflow-hidden ${filter === s.id
+                    ? `bg-${s.color}-500 text-white border-transparent shadow-2xl shadow-${s.color}-500/40 scale-105 z-10`
+                    : `bg-white border-slate-100 hover:border-${s.color}-200 hover:shadow-2xl ${s.glow} hover:-translate-y-1`}`}
                 >
-                  <div className={`mb-3 flex h-12 w-12 items-center justify-center rounded-2xl transition-colors ${filter === s.id ? 'bg-white/20' : 'bg-slate-50 text-slate-400 group-hover:text-orange-500'}`}>
+                  {/* Yellow Light Reflection Effect instead of White */}
+                  <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-amber-400/10 to-amber-400/20 translate-y-full group-hover:translate-y-0 transition-transform duration-700 pointer-events-none" />
+
+                  <div className={`relative z-10 mb-3 flex h-12 w-12 items-center justify-center rounded-2xl transition-all duration-500 ${filter === s.id ? 'bg-white/20' : `bg-slate-50 text-slate-400 group-hover:bg-${s.color}-50 group-hover:text-${s.color}-500 group-hover:rotate-12`}`}>
                     <s.icon className={`h-6 w-6 ${filter === s.id ? 'text-white' : ''}`} />
                   </div>
-                  <span className={`text-2xl font-black ${filter === s.id ? 'text-white' : 'text-slate-900'}`}>{s.value}</span>
-                  <span className={`text-[10px] font-black uppercase tracking-widest mt-1 ${filter === s.id ? 'text-white/70' : 'text-slate-400'}`}>{s.label.split(' ')[1] || s.label}</span>
+                  <span className={`relative z-10 text-2xl font-black transition-colors ${filter === s.id ? 'text-white' : 'text-slate-900'}`}>{s.value}</span>
+                  <span className={`relative z-10 text-[10px] font-black uppercase tracking-widest mt-1 transition-colors ${filter === s.id ? 'text-white/70' : 'text-slate-400'}`}>{s.label}</span>
+
+                  {/* Bottom Glow Indicator */}
+                  {filter !== s.id && (
+                    <div className={`absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-1 rounded-full bg-${s.color}-500 opacity-0 group-hover:opacity-100 blur-[2px] transition-all duration-500`} />
+                  )}
                 </div>
               ))}
             </div>
@@ -535,81 +524,75 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                       <div className="space-y-6">
-                          <div className="space-y-2">
-                            <Label className="text-[11px] font-black uppercase text-slate-500 tracking-wider">Parcel Category</Label>
-                            <Select name="parcelType" defaultValue={size} onValueChange={(val) => setSize(val as any)}>
-                              <SelectTrigger className="h-12 rounded-2xl bg-slate-50 border-transparent focus:ring-2 focus:ring-orange-500/20">
-                                <SelectValue placeholder="Select type" />
-                              </SelectTrigger>
-                              <SelectContent className="rounded-2xl border-slate-100 shadow-2xl">
-                                <SelectItem value="small">Documents / Letters</SelectItem>
-                                <SelectItem value="medium">Food / Groceries</SelectItem>
-                                <SelectItem value="large">Electronics / Gadgets</SelectItem>
-                                <SelectItem value="very-large">Large Boxes / Clothing</SelectItem>
-                              </SelectContent>
-                            </Select>
+                      <div className="space-y-6">
+                        <div className="space-y-2">
+                          <Label className="text-[11px] font-black uppercase text-slate-500 tracking-wider">Parcel Category</Label>
+                          <Select name="parcelType" defaultValue={size} onValueChange={(val) => setSize(val as any)}>
+                            <SelectTrigger className="h-12 rounded-2xl bg-slate-50 border-transparent focus:ring-2 focus:ring-orange-500/20">
+                              <SelectValue placeholder="Select type" />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-2xl border-slate-100 shadow-2xl">
+                              <SelectItem value="small">Documents / Letters</SelectItem>
+                              <SelectItem value="medium">Food / Groceries</SelectItem>
+                              <SelectItem value="large">Electronics / Gadgets</SelectItem>
+                              <SelectItem value="very-large">Large Boxes / Clothing</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-[11px] font-black uppercase text-slate-500 tracking-wider">Description (Optional)</Label>
+                          <Input name="description" placeholder="e.g. Fragile items, urgent delivery" defaultValue={editingParcel?.description} className="h-12 rounded-2xl bg-slate-50 border-transparent focus:bg-white focus:ring-2 focus:ring-orange-500/20 transition-all" />
+                        </div>
+                        <div className="flex gap-4">
+                          <div className="flex-1 space-y-2">
+                            <Label className="text-[11px] font-black uppercase text-slate-500 tracking-wider">Weight (kg)</Label>
+                            <Input type="number" step="0.1" name="weight" placeholder="1.5" defaultValue={editingParcel?.weight} onChange={e => setWeight(e.target.value)} className="h-12 rounded-2xl bg-slate-50 border-transparent focus:bg-white focus:ring-2 focus:ring-orange-500/20 transition-all font-bold" required />
                           </div>
-                          <div className="space-y-2">
-                            <Label className="text-[11px] font-black uppercase text-slate-500 tracking-wider">Description (Optional)</Label>
-                            <Input name="description" placeholder="e.g. Fragile items, urgent delivery" defaultValue={editingParcel?.description} className="h-12 rounded-2xl bg-slate-50 border-transparent focus:bg-white focus:ring-2 focus:ring-orange-500/20 transition-all" />
+                          <div className="flex-1 space-y-2">
+                            <Label className="text-[11px] font-black uppercase text-slate-500 tracking-wider">Item Count</Label>
+                            <Input type="number" name="itemCount" placeholder="1" defaultValue={editingParcel?.itemCount} onChange={e => setItemCount(parseInt(e.target.value))} className="h-12 rounded-2xl bg-slate-50 border-transparent focus:bg-white focus:ring-2 focus:ring-orange-500/20 transition-all font-bold" required />
                           </div>
-                          <div className="flex gap-4">
-                            <div className="flex-1 space-y-2">
-                              <Label className="text-[11px] font-black uppercase text-slate-500 tracking-wider">Weight (kg)</Label>
-                              <Input type="number" step="0.1" name="weight" placeholder="1.5" defaultValue={editingParcel?.weight} onChange={e => setWeight(e.target.value)} className="h-12 rounded-2xl bg-slate-50 border-transparent focus:bg-white focus:ring-2 focus:ring-orange-500/20 transition-all font-bold" required />
-                            </div>
-                            <div className="flex-1 space-y-2">
-                              <Label className="text-[11px] font-black uppercase text-slate-500 tracking-wider">Item Count</Label>
-                              <Input type="number" name="itemCount" placeholder="1" defaultValue={editingParcel?.itemCount} onChange={e => setItemCount(parseInt(e.target.value))} className="h-12 rounded-2xl bg-slate-50 border-transparent focus:bg-white focus:ring-2 focus:ring-orange-500/20 transition-all font-bold" required />
-                            </div>
-                          </div>
-                       </div>
-                       <div className="space-y-4">
-                          <Label className="text-[11px] font-black uppercase text-slate-500 tracking-wider">Security Photo</Label>
-                          <div className="mt-1 border-2 border-dashed border-slate-200 rounded-[2.5rem] flex flex-col items-center justify-center bg-slate-50 relative overflow-hidden h-[220px] group transition-all hover:border-orange-200 hover:bg-orange-50/10">
-                            {photoPreview ? (
-                              <>
-                                <img src={photoPreview} alt="Parcel" className="absolute inset-0 w-full h-full object-cover" />
-                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm">
-                                   <Button type="button" size="sm" variant="destructive" className="rounded-full h-12 px-6 shadow-xl font-bold uppercase tracking-widest text-[10px]" onClick={() => { setPhotoPreview(null); setParcelPhoto(null); }}><Trash2 className="h-4 w-4 mr-2" /> Remove</Button>
-                                </div>
-                              </>
-                            ) : isCameraOpen ? (
-                              <>
-                                <video ref={videoRef} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover bg-black" />
-                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                   <div className="w-24 h-24 border-2 border-white/40 rounded-full animate-ping opacity-20" />
-                                </div>
-                                <div className="absolute bottom-6 left-0 right-0 flex justify-center gap-4">
-                                  <Button type="button" size="sm" onClick={capturePhoto} className="bg-orange-500 hover:bg-orange-600 h-12 px-8 rounded-full text-[10px] font-black tracking-widest text-white shadow-2xl shadow-orange-500/40 active:scale-95 transition-all">CAPTURE MOMENT</Button>
-                                  <Button type="button" size="sm" variant="destructive" onClick={stopCamera} className="h-12 w-12 rounded-full p-0 shadow-2xl shadow-red-500/30 active:scale-95 transition-all"><X className="h-5 w-5" /></Button>
-                                </div>
-                              </>
-                            ) : (
-                              <div className="flex flex-col items-center gap-4 text-center p-6">
-                                 <div className="h-16 w-16 bg-white rounded-[2rem] flex items-center justify-center shadow-xl shadow-slate-200/50 text-slate-300 group-hover:text-orange-500 group-hover:scale-110 transition-all duration-500">
-                                    <Camera className="h-8 w-8" />
-                                 </div>
-                                 <div>
-                                  <p className="text-[11px] font-black uppercase text-slate-900 tracking-wider">Upload Verification Photo</p>
-                                  <p className="text-[10px] font-medium text-slate-400 mt-1 max-w-[150px]">Required for insurance and safety tracking</p>
-                                 </div>
-                                 <div className="flex gap-2">
-                                  <Button type="button" variant="ghost" onClick={startCamera} className="h-10 px-6 rounded-full text-[10px] font-black uppercase text-orange-500 bg-orange-50 hover:bg-orange-100 transition-colors">Camera</Button>
-                                  <Button type="button" variant="ghost" onClick={() => document.getElementById('parcel-file-input')?.click()} className="h-10 px-6 rounded-full text-[10px] font-black uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Upload</Button>
-                                  <input id="parcel-file-input" type="file" className="hidden" accept="image/*" onChange={(e) => {
-                                    const file = e.target.files?.[0];
-                                    if (file) {
-                                      setParcelPhoto(file);
-                                      setPhotoPreview(URL.createObjectURL(file));
-                                    }
-                                  }} />
-                                 </div>
+                        </div>
+                      </div>
+                      <div className="space-y-4">
+                        <Label className="text-[11px] font-black uppercase text-slate-500 tracking-wider">Security Photo</Label>
+                        <div className="mt-1 border-2 border-dashed border-slate-200 rounded-[2.5rem] flex flex-col items-center justify-center bg-slate-50 relative overflow-hidden h-[220px] group transition-all hover:border-orange-200 hover:bg-orange-50/10">
+                          {photoPreview ? (
+                            <>
+                              <img src={photoPreview} alt="Parcel" className="absolute inset-0 w-full h-full object-cover" />
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm">
+                                <Button type="button" size="sm" variant="destructive" className="rounded-full h-12 px-6 shadow-xl font-bold uppercase tracking-widest text-[10px]" onClick={() => { setPhotoPreview(null); setParcelPhoto(null); }}><Trash2 className="h-4 w-4 mr-2" /> Remove</Button>
                               </div>
-                            )}
-                          </div>
-                       </div>
+                            </>
+                          ) : (
+                            <div className="flex flex-col items-center gap-4 text-center p-6">
+                              <div className="h-16 w-16 bg-white rounded-[2rem] flex items-center justify-center shadow-xl shadow-slate-200/50 text-slate-300 group-hover:text-orange-500 group-hover:scale-110 transition-all duration-500">
+                                <Camera className="h-8 w-8" />
+                              </div>
+                              <div>
+                                <p className="text-[11px] font-black uppercase text-slate-900 tracking-wider">Upload Verification Photo</p>
+                                <p className="text-[10px] font-medium text-slate-400 mt-1 max-w-[150px]">Required for insurance and safety tracking</p>
+                              </div>
+                              <div className="flex gap-2">
+                                <Button type="button" variant="ghost" onClick={() => setIsCameraOpen(true)} className="h-10 px-6 rounded-full text-[10px] font-black uppercase text-orange-500 bg-orange-50 hover:bg-orange-100 transition-colors">Camera</Button>
+                                <Button type="button" variant="ghost" onClick={() => document.getElementById('parcel-file-input')?.click()} className="h-10 px-6 rounded-full text-[10px] font-black uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">Upload</Button>
+                                <input id="parcel-file-input" type="file" className="hidden" accept="image/*" onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    setParcelPhoto(file);
+                                    setPhotoPreview(URL.createObjectURL(file));
+                                  }
+                                }} />
+                              </div>
+                              <LiveCameraModal
+                                isOpen={isCameraOpen}
+                                onClose={() => setIsCameraOpen(false)}
+                                onCapture={handleLiveCapture}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
 
                     <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-6 pt-8 border-t border-slate-100">
@@ -660,41 +643,116 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
                             </div>
                           </div>
                           <div className="text-right">
-                             <p className="text-xl font-bold">₹{p.price}</p>
-                             <p className="text-[10px] font-bold text-slate-400 uppercase">{p.weight}kg · {p.itemCount} items</p>
+                            <p className="text-xl font-bold">₹{p.price}</p>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase">{p.weight}kg · {p.itemCount} items</p>
                           </div>
                         </div>
 
                         <AnimatePresence>
                           {isSelected && (
                             <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="pt-6 mt-6 border-t overflow-hidden">
-                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                  <div className="p-4 bg-slate-50 rounded-3xl flex justify-between items-center">
-                                     <div>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase">Receiver</p>
-                                        <p className="font-bold text-slate-800">{p.receiverName}</p>
-                                     </div>
-                                     <a href={`tel:${p.receiverPhone}`} className="h-9 w-9 bg-blue-500 text-white rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20"><Phone className="h-4 w-4" /></a>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="p-4 bg-slate-50 rounded-3xl flex justify-between items-center">
+                                  <div>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase">Receiver</p>
+                                    <p className="font-bold text-slate-800">{p.receiverName}</p>
                                   </div>
-                                  {p.travellerName ? (
-                                    <div className="p-4 bg-emerald-50 rounded-3xl flex justify-between items-center">
-                                      <div>
-                                         <p className="text-[10px] font-bold text-emerald-600/60 uppercase">Traveller</p>
-                                         <p className="font-bold text-slate-800">{p.travellerName}</p>
-                                      </div>
-                                      <a href={`tel:${p.travellerPhone}`} className="h-9 w-9 bg-emerald-500 text-white rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20"><Phone className="h-4 w-4" /></a>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      window.dispatchEvent(new CustomEvent('start-call', {
+                                        detail: {
+                                          userId: p.receiverId || p.senderId, // If receiver has no ID, we use sender (fallback) or add it
+                                          userName: p.receiverName,
+                                          deliveryId: p.id
+                                        }
+                                      }));
+                                    }}
+                                    className="h-9 w-9 bg-blue-500 text-white rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20"
+                                  >
+                                    <Phone className="h-4 w-4" />
+                                  </button>
+                                </div>
+                                {p.travellerName && (p.status !== 'requested') ? (
+                                  <div className="p-4 bg-emerald-50 rounded-3xl flex justify-between items-center transition-all animate-in fade-in slide-in-from-left-4">
+                                    <div>
+                                      <p className="text-[10px] font-bold text-emerald-600/60 uppercase">Traveller</p>
+                                      <p className="font-bold text-slate-800">{p.travellerName}</p>
                                     </div>
-                                  ) : p.status === 'requested' ? (
-                                    <Button onClick={(e) => { e.stopPropagation(); handleAccept(p.id); }} className="h-full bg-emerald-500 text-white rounded-3xl">APPROVE TRAVELLER</Button>
-                                  ) : (
-                                    <div className="p-4 bg-slate-50 border border-dashed rounded-3xl text-xs text-slate-400 italic">Searching for traveller...</div>
-                                  )}
-                               </div>
+                                    <div className="flex gap-2">
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          window.dispatchEvent(new CustomEvent('start-call', {
+                                            detail: {
+                                              userId: p.travellerId,
+                                              userName: p.travellerName,
+                                              deliveryId: p.id
+                                            }
+                                          }));
+                                        }}
+                                        className="h-9 w-9 bg-emerald-500 text-white rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20"
+                                      >
+                                        <Phone className="h-4 w-4" />
+                                      </button>
 
-                               <div className="mt-4 flex gap-2">
-                                  <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); handleEdit(p); }} className="flex-1 rounded-full text-[10px] font-bold uppercase">Edit</Button>
-                                  <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); handleDelete(p.id); }} className="flex-1 rounded-full text-[10px] font-bold uppercase text-red-500 border-red-100 hover:bg-red-50">Cancel</Button>
-                               </div>
+                                      <button onClick={(e) => { e.stopPropagation(); setActiveChat(p.id); }} className="h-9 w-9 bg-slate-900 text-white rounded-xl flex items-center justify-center"><MessageCircle className="h-4 w-4" /></button>
+                                    </div>
+                                  </div>
+                                ) : p.status === 'requested' ? (
+                                  <div className="flex flex-col gap-3 w-full animate-in zoom-in-95">
+                                    <div className="p-4 bg-orange-50 border border-orange-100 rounded-2xl flex justify-between items-center">
+                                      <div className="flex items-center gap-3">
+                                        <div className="h-9 w-9 bg-orange-500 rounded-xl flex items-center justify-center text-white font-bold text-xs">{(p.travellerName || "T").charAt(0)}</div>
+                                        <div>
+                                          <p className="text-[9px] font-bold text-orange-600 uppercase leading-none">New Request from</p>
+                                          <p className="font-extrabold text-slate-900 text-sm mt-1">{p.travellerName || "A Traveller"}</p>
+                                        </div>
+                                      </div>
+                                      <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); setProfileUser(p.travellerData || null); }} className="h-8 rounded-full text-[9px] font-black uppercase px-4 border-orange-200 text-orange-600">Profile</Button>
+                                    </div>
+                                    <div className="flex gap-2 w-full">
+                                      <Button onClick={(e) => { e.stopPropagation(); handleAccept(p.id); }} disabled={isAccepting === p.id} className="flex-1 h-12 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-emerald-600/20">
+                                        {isAccepting === p.id ? <Loader2 className="h-4 w-4 animate-spin" /> : 'APPROVE'}
+                                      </Button>
+                                      <Button onClick={(e) => { e.stopPropagation(); updateParcelStatus(p.id, "open_for_travellers"); refresh(); }} variant="ghost" className="h-12 px-6 rounded-2xl font-bold text-slate-400 hover:text-red-500 hover:bg-red-50">DECLINE</Button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="p-4 bg-slate-50 border border-dashed border-slate-200 rounded-3xl text-[10px] font-black text-slate-300 uppercase tracking-widest flex items-center justify-center gap-2 italic">
+                                    <div className="h-1.5 w-1.5 bg-slate-200 rounded-full animate-pulse" />
+                                    WAITING FOR TRAVELLER...
+                                  </div>
+                                )}
+                              </div>
+
+                              {p.pickupOtp && (p.status === 'accepted' || p.status === 'picked-up') && (
+                                <div className="mt-4 bg-orange-500 text-white p-4 rounded-2xl text-center shadow-lg shadow-orange-500/20">
+                                  <p className="text-[10px] font-bold uppercase opacity-70 mb-1">Pickup Verification OTP</p>
+                                  <p className="text-3xl font-bold tracking-[0.3em] font-mono">{p.pickupOtp}</p>
+                                  <p className="text-[9px] mt-2 opacity-80">Share this with traveller ONLY when you hand over the parcel</p>
+                                </div>
+                              )}
+
+                              {(p.status === 'picked-up' || p.status === 'in-transit') && (
+                                <div className="mt-4 h-48 bg-slate-900 rounded-[2rem] relative overflow-hidden group shadow-inner">
+                                  <div className="absolute inset-0 bg-gradient-to-br from-orange-500/10 to-transparent" />
+                                  <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6">
+                                    <div className="h-12 w-12 bg-orange-500 rounded-2xl flex items-center justify-center text-white mb-3 shadow-xl shadow-orange-500/20 animate-bounce">
+                                      <Navigation2 className="h-6 w-6" />
+                                    </div>
+                                    <p className="text-[10px] font-black text-white uppercase tracking-[0.25em] mb-1">Live Tracking Active</p>
+                                    <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest leading-none">Traveller is moving towards destination</p>
+                                    <Button size="sm" variant="ghost" className="mt-4 text-orange-500 hover:bg-orange-500/10 text-[9px] font-black uppercase tracking-widest h-8" onClick={(e) => { e.stopPropagation(); setTrackingModal(p); }}>View Live Map</Button>
+                                  </div>
+                                  <div className="absolute top-4 right-4 h-2 w-2 bg-emerald-500 rounded-full animate-pulse" />
+                                </div>
+                              )}
+
+                              <div className="mt-4 flex gap-2">
+                                <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); handleEdit(p); }} className="flex-1 rounded-full text-[10px] font-bold uppercase">Edit</Button>
+                                <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); handleDelete(p.id); }} className="flex-1 rounded-full text-[10px] font-bold uppercase text-red-500 border-red-100 hover:bg-red-50">Cancel</Button>
+                              </div>
                             </motion.div>
                           )}
                         </AnimatePresence>
@@ -708,11 +766,11 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
         ) : (
           <motion.div key="incoming" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
             <div className="bg-white rounded-3xl p-6 border border-slate-100 mb-6 flex justify-between items-center">
-               <div>
-                  <h2 className="font-bold">Welcome, {user.name}</h2>
-                  <p className="text-xs font-bold text-slate-400">Browsing incoming parcels for {user.phone}</p>
-               </div>
-               <div className="h-10 w-10 bg-orange-50 text-orange-500 rounded-xl flex items-center justify-center"><Handshake /></div>
+              <div>
+                <h2 className="font-bold">Welcome, {user.name}</h2>
+                <p className="text-xs font-bold text-slate-400">Browsing incoming parcels for {user.phone}</p>
+              </div>
+              <div className="h-10 w-10 bg-orange-50 text-orange-500 rounded-xl flex items-center justify-center"><Handshake /></div>
             </div>
 
             <div className="space-y-4">
@@ -723,51 +781,100 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
                 </div>
               ) : (
                 incomingParcels.map(p => (
-                  <div key={p.id} className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm relative overflow-hidden">
+                  <div key={p.id} className="group bg-white rounded-[2.5rem] p-6 border border-slate-100 shadow-sm hover:shadow-2xl hover:shadow-orange-500/10 hover:-translate-y-1 transition-all duration-500 relative overflow-hidden">
+                     {/* Card Glow Effect */}
+                     <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/5 blur-[60px] rounded-full group-hover:bg-orange-500/10 transition-colors" />
+                     
                     <div className="flex justify-between items-start mb-4">
-                       <div>
-                          <div className="flex items-center gap-2 mb-1">
-                             <StatusBadge status={p.status} />
-                             <span className="text-[10px] font-bold text-slate-300">#{p.id.slice(-6).toUpperCase()}</span>
-                          </div>
-                          <h3 className="font-bold">{p.fromLocation} → {p.toLocation}</h3>
-                       </div>
-                       <div className="text-right">
-                          <p className="text-sm font-bold text-slate-600">Sender: {p.senderName}</p>
-                          <a href={`tel:${p.senderPhone}`} className="text-xs text-blue-500 font-bold">{p.senderPhone}</a>
-                       </div>
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <StatusBadge status={p.status} />
+                          <span className="text-[10px] font-bold text-slate-300">#{p.id.slice(-6).toUpperCase()}</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                           <h3 className="font-black text-slate-800 uppercase tracking-tight">{p.fromLocation}</h3>
+                           <div className="flex-1 flex items-center min-w-[40px] px-2 relative group-hover:scale-110 transition-transform">
+                              <div className="h-0.5 w-full bg-slate-100 rounded-full relative overflow-hidden">
+                                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-orange-500 to-transparent w-full h-full -translate-x-full animate-[shimmer_2s_infinite]" />
+                              </div>
+                              <Navigation2 className="h-3 w-3 text-orange-500 rotate-90 absolute right-0" />
+                           </div>
+                           <h3 className="font-black text-slate-800 uppercase tracking-tight">{p.toLocation}</h3>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-bold text-slate-600">Sender: {p.senderName}</p>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            window.dispatchEvent(new CustomEvent('start-call', {
+                              detail: {
+                                userId: p.senderId,
+                                userName: p.senderName,
+                                deliveryId: p.id
+                              }
+                            }));
+                          }}
+                          className="text-xs text-blue-500 font-bold hover:underline"
+                        >
+                          {p.senderPhone}
+                        </button>
+
+                      </div>
                     </div>
 
                     <div className="bg-slate-50 p-4 rounded-2xl mb-4">
-                       <div className="grid grid-cols-4 gap-2">
-                          {['pending', 'picked-up', 'in-transit', 'delivered'].map((step, idx) => {
-                             const statusStr = p.status?.toLowerCase() || 'pending';
-                             const stepsArr = ['pending', 'picked-up', 'in-transit', 'delivered', 'received', 'completed'];
-                             const currentIdx = stepsArr.indexOf(statusStr);
-                             const normalizedIdx = currentIdx > 3 ? 3 : currentIdx;
-                             const color = idx <= normalizedIdx ? 'bg-orange-500' : 'bg-slate-200';
-                             return <div key={step} className={`h-1.5 rounded-full ${color}`} />;
-                          })}
-                       </div>
-                       <div className="flex justify-between mt-2">
-                          <span className="text-[9px] font-bold text-slate-400 uppercase">Pending</span>
-                          <span className="text-[9px] font-bold text-slate-400 uppercase">Delivered</span>
-                       </div>
+                      <div className="grid grid-cols-4 gap-2">
+                        {['pending', 'picked-up', 'in-transit', 'delivered'].map((step, idx) => {
+                          const statusStr = p.status?.toLowerCase() || 'pending';
+                          const stepsArr = ['pending', 'picked-up', 'in-transit', 'delivered', 'received', 'completed'];
+                          const currentIdx = stepsArr.indexOf(statusStr);
+                          const normalizedIdx = currentIdx > 3 ? 3 : currentIdx;
+                          const isActive = idx <= normalizedIdx;
+                          return (
+                            <div key={step} className={`h-2 rounded-full relative overflow-hidden ${isActive ? 'bg-orange-500 shadow-[0_0_10px_rgba(249,115,22,0.3)]' : 'bg-slate-200 opacity-50'}`}>
+                               {isActive && (
+                                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent w-full h-full -translate-x-full animate-[shimmer_3s_infinite]" style={{ animationDelay: `${idx * 0.5}s` }} />
+                               )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div className="flex justify-between mt-2">
+                        <span className="text-[9px] font-bold text-slate-400 uppercase">Pending</span>
+                        <span className="text-[9px] font-bold text-slate-400 uppercase">Delivered</span>
+                      </div>
                     </div>
 
                     {p.deliveryOtp && (p.status === 'in-transit' || p.status === 'accepted' || p.status === 'picked-up') && (
-                       <div className="bg-orange-500 text-white p-4 rounded-2xl text-center mb-4">
-                          <p className="text-[10px] font-bold uppercase opacity-70 mb-1">Receiver Delivery OTP</p>
-                          <p className="text-3xl font-bold tracking-[0.3em] font-mono">{p.deliveryOtp}</p>
-                          <p className="text-[9px] mt-2 opacity-80">Share this with traveller ONLY when you get the item</p>
-                       </div>
+                      <div className="bg-orange-500 text-white p-4 rounded-2xl text-center mb-4">
+                        <p className="text-[10px] font-bold uppercase opacity-70 mb-1">Receiver Delivery OTP</p>
+                        <p className="text-3xl font-bold tracking-[0.3em] font-mono">{p.deliveryOtp}</p>
+                        <p className="text-[9px] mt-2 opacity-80">Share this with traveller ONLY when you get the item</p>
+                      </div>
                     )}
 
                     <div className="flex gap-2">
-                       <a href={`tel:${p.senderPhone}`} className="flex-1"><Button variant="outline" size="sm" className="w-full rounded-xl text-[10px] font-bold">CALL SENDER</Button></a>
-                       {p.status === 'delivered' && (
-                         <Button onClick={() => handleMarkReceived(p.id)} className="flex-1 bg-green-600 text-white rounded-xl text-[10px] font-bold">I GOT IT</Button>
-                       )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          window.dispatchEvent(new CustomEvent('start-call', {
+                            detail: {
+                              userId: p.senderId,
+                              userName: p.senderName,
+                              deliveryId: p.id
+                            }
+                          }));
+                        }}
+                        className="flex-1 rounded-xl text-[10px] font-bold h-9"
+                      >
+                        CALL SENDER
+                      </Button>
+                      {p.status === 'delivered' && (
+                        <Button onClick={() => handleMarkReceived(p.id)} className="flex-1 bg-green-600 text-white rounded-xl text-[10px] font-bold h-9">I GOT IT</Button>
+                      )}
                     </div>
                   </div>
                 ))
@@ -777,6 +884,147 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
         )}
       </AnimatePresence>
 
+      {/* Live Tracking Modal */}
+      <AnimatePresence>
+        {trackingModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-6"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="w-full max-w-2xl bg-white rounded-[3rem] shadow-2xl overflow-hidden relative"
+            >
+              <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-orange-500 to-orange-400" />
+              <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <StatusBadge status={trackingModal.status} />
+                    <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest leading-none">Live Tracking Active</span>
+                  </div>
+                  <h3 className="text-2xl font-black text-slate-900 tracking-tight leading-none italic">
+                    {trackingModal.fromLocation} → {trackingModal.toLocation}
+                  </h3>
+                </div>
+                <Button size="icon" variant="ghost" onClick={() => setTrackingModal(null)} className="rounded-full h-12 w-12 hover:bg-white shadow-sm border border-slate-100">
+                  <X className="h-5 w-5 text-slate-400" />
+                </Button>
+              </div>
+
+              <div className="p-0 h-[500px] bg-slate-100 relative group overflow-hidden">
+                <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1524661135-423995f22d0b?auto=format&fit=crop&q=80&w=1000')] bg-cover bg-center opacity-50 grayscale" />
+
+                {/* Visual Route Lines */}
+                <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-20" preserveAspectRatio="none">
+                  <path d="M 100 400 Q 300 100 500 400" stroke="orange" strokeWidth="4" fill="transparent" strokeDasharray="10 10" className="animate-[dash_20s_linear_infinite]" />
+                </svg>
+
+                {/* Tracking UI Overlays */}
+                <div className="absolute top-8 left-8 space-y-3">
+                  <div className="bg-white/90 backdrop-blur-md p-4 rounded-3xl shadow-xl border border-white/20 flex items-center gap-4 animate-in fade-in slide-in-from-left duration-700">
+                    <div className="h-12 w-12 bg-orange-500 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-orange-500/20">
+                      <Bike className="h-6 w-6 animate-pulse" />
+                    </div>
+                    <div>
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Traveller</p>
+                      <p className="text-sm font-black text-slate-900 leading-none mt-0.5">{trackingModal.travellerName || "On the move"}</p>
+                    </div>
+                  </div>
+                  <div className="bg-slate-900/90 backdrop-blur-md p-4 rounded-3xl shadow-xl border border-white/5 flex items-center gap-4 animate-in fade-in slide-in-from-left duration-700 delay-100">
+                    <div className="h-12 w-12 bg-white/10 rounded-2xl flex items-center justify-center text-white">
+                      <Clock className="h-5 w-5 text-orange-400" />
+                    </div>
+                    <div>
+                      <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest leading-none mb-0.5">Estimated Arrival</p>
+                      <p className="text-sm font-black text-white leading-none">~ 45 Minutes</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Glowing Marker */}
+                <div className="absolute top-[20%] left-[45%] group -translate-x-1/2 -translate-y-1/2">
+                  <div className="absolute inset-0 h-12 w-12 bg-orange-500 rounded-full blur-xl animate-pulse opacity-50" />
+                  <div className="relative h-10 w-10 bg-white rounded-2xl shadow-2xl flex items-center justify-center text-orange-500 border-2 border-orange-500 animate-bounce">
+                    <Navigation className="h-5 w-5 fill-orange-500" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-8 bg-slate-50 flex items-center justify-between border-t border-slate-100">
+                <div className="flex gap-4 items-center">
+                  <div className="h-14 w-14 bg-white rounded-2xl shadow-sm border border-slate-200 flex items-center justify-center font-black text-2xl text-slate-900">
+                    {(trackingModal.travellerName || "T").charAt(0)}
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] leading-none mb-1">In Transit</p>
+                    <h4 className="text-xl font-black text-slate-900 tracking-tight leading-none">{trackingModal.travellerName || "Local Traveller"}</h4>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={() => {
+                      window.dispatchEvent(new CustomEvent('start-call', {
+                        detail: {
+                          userId: trackingModal.travellerId,
+                          userName: trackingModal.travellerName,
+                          deliveryId: trackingModal.id
+                        }
+                      }));
+                    }}
+                    className="h-14 w-14 bg-white border border-slate-200 text-slate-600 rounded-2xl hover:text-orange-500 hover:border-orange-200 transition-all shadow-sm"
+                  >
+                    <Phone className="h-6 w-6" />
+                  </Button>
+                  <Button
+                    onClick={() => { setTrackingModal(null); setActiveChat(trackingModal.id); }}
+                    className="h-14 px-8 bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] shadow-xl hover:bg-slate-800 transition-all flex items-center gap-3"
+                  >
+                    <MessageSquare className="h-4 w-4" /> Message Hub
+                  </Button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Chat Modal Layer */}
+      <AnimatePresence>
+        {activeChat && (
+          <motion.div
+            initial={{ opacity: 0, y: 100 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 100 }}
+            className="fixed bottom-0 left-0 right-0 z-[200] max-w-md mx-auto px-4 pointer-events-none"
+          >
+            <div className="pointer-events-auto">
+              <ParcelChat
+                deliveryId={activeChat}
+                currentUserId={user?.id || ""}
+                onClose={() => setActiveChat(null)}
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      
+      {/* Rating Feedback Modal */}
+      {ratingParcel && (
+        <RatingModal 
+          parcelId={ratingParcel.id}
+          revieweeId={ratingParcel.travellerId || ""}
+          revieweeName={ratingParcel.travellerName || "Traveller"}
+          onClose={() => setRatingParcel(null)}
+          onSuccess={() => {
+            setRatingParcel(null);
+            refresh();
+          }}
+        />
+      )}
 
     </div>
   );

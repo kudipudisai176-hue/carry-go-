@@ -9,9 +9,9 @@ const { protect } = require('../middleware/authMiddleware');
 // @route   GET /api/messages/:deliveryId
 router.get('/:deliveryId', protect, async (req, res) => {
   try {
-    const messages = await Message.find({ delivery: req.params.deliveryId })
-      .populate('sender', 'name profilePhoto')
-      .sort({ createdAt: 1 });
+    const messages = await Message.find({ delivery_id: req.params.deliveryId })
+      .populate('sender_id', 'name profile_photo')
+      .sort({ created_at: 1 });
     res.json(messages);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -28,10 +28,9 @@ router.post('/', protect, async (req, res) => {
       return res.status(400).json({ message: 'Delivery ID and message are required' });
     }
 
-    // Since Message is an adapter object now, not a Mongoose class constructor
     const savedMessage = await Message.create({
-      delivery: deliveryId,
-      sender: req.user._id,
+      delivery_id: deliveryId,
+      sender_id: req.user._id,
       message,
     });
     
@@ -39,21 +38,26 @@ router.post('/', protect, async (req, res) => {
     try {
       const p = await Parcel.findById(deliveryId);
       if (p) {
-        const recipient = (p.sender && p.sender.toString() === req.user._id.toString()) ? p.traveller : p.sender;
+        const recipient = (p.sender_id && p.sender_id.toString() === req.user._id.toString()) ? p.traveller_id : p.sender_id;
         if (recipient) {
           await Notification.create({
-            recipient,
+            recipient_id: recipient,
             title: `New Message from ${req.user.name}`,
             message: message.slice(0, 50),
             type: 'chat_message',
-            referenceId: deliveryId
+            reference_id: deliveryId
           });
         }
       }
     } catch (notifErr) { console.error("Chat notification failed:", notifErr); }
 
-    // Use our new findById helper to get a populated result for the frontend
-    const populatedMessage = await Message.findById(savedMessage._id).populate('sender', 'name profilePhoto');
+    const populatedMessage = await Message.findById(savedMessage._id).populate('sender_id', 'name profile_photo');
+    
+    // 🚀 EMIT REAL-TIME SOCKET EVENT
+    if (req.io) {
+      req.io.to(deliveryId).emit('new_message', populatedMessage);
+    }
+
     res.status(201).json(populatedMessage);
   } catch (error) {
     console.error("DEBUG: Message POST error ->", error.message || error);

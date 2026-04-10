@@ -11,15 +11,15 @@ router.post('/', protect, async (req, res) => {
     const { reviewee, parcel, rating, comment } = req.body;
     
     const review = await Review.create({
-      reviewer: req.user._id,
-      reviewee,
-      parcel,
+      reviewer_id: req.user._id,
+      reviewee_id: reviewee,
+      parcel_id: parcel,
       rating,
       comment
     });
 
-    // Update reviewee's average rating using Supabase-compatible shim
-    const reviews = await Review.find({ reviewee });
+    // Recalculate reviewee's average rating in MongoDB
+    const reviews = await Review.find({ reviewee_id: reviewee });
     const avgRating = reviews.reduce((sum, item) => sum + item.rating, 0) / reviews.length;
     
     const revieweeUser = await User.findById(reviewee);
@@ -38,7 +38,7 @@ router.post('/', protect, async (req, res) => {
 // @route   GET /api/reviews/user/:id
 router.get('/user/:id', async (req, res) => {
   try {
-    const reviews = await Review.find({ reviewee: req.params.id })
+    const reviews = await Review.find({ reviewee_id: req.params.id })
       .populate('reviewer', 'name profilePhoto')
       .sort({ createdAt: -1 });
     res.json(reviews);

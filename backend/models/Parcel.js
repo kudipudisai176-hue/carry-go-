@@ -1,187 +1,90 @@
-const { supabase } = require('../config/db');
+const mongoose = require('mongoose');
 
-const Parcel = {
-  // Find parcels by custom query
-  find: async (query = {}) => {
-    // 🔍 IMPORTANT: Use explicit LEFT JOINs to avoid filtering out parcels with no traveller assigned
-    const userFields = 'id, name, profilePhoto:profile_photo, phone, email, bio, rating, totalTrips:total_trips, vehicleType:vehicle_type, aadharNumber:aadhar_number, idPhoto:id_photo';
-    
-    let q = supabase.from('parcels').select(`
-      *,
-      sender:users!fk_parcel_sender(${userFields}),
-      traveller:users!fk_parcel_traveller(${userFields})
-    `);
+const parcelSchema = new mongoose.Schema({
+  title: { type: String },
+  description: { type: String },
+  from_location: { type: String },
+  to_location: { type: String },
+  village: { type: String },
+  city: { type: String },
+  weight: { type: Number },
+  size: { type: String },
+  item_count: { type: Number, default: 1 },
+  vehicle_type: { type: String },
+  parcel_photo: { type: String },
+  receiver_name: { type: String },
+  receiver_phone: { type: String },
+  sender_id: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  sender_name: { type: String },
+  sender_phone: { type: String },
+  receiver_id: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  traveller_id: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  traveller_name: { type: String },
+  traveller_phone: { type: String },
+  parcel_charge: { type: Number },
+  platform_fee: { type: Number },
+  price: { type: Number },
+  status: { type: String, default: 'open_for_travellers', enum: ['pending', 'pending_payment', 'open_for_travellers', 'requested', 'accepted', 'assigned', 'picked-up', 'in-transit', 'arrived', 'delivered', 'received', 'completed', 'cancelled'] },
+  payment_method: { type: String },
+  payment_status: { type: String, default: 'pending' },
+  escrow_status: { type: String },
+  pickup_otp: { type: String },
+  delivery_otp: { type: String },
+  delivery_otp_expiry: { type: Date },
+  is_active: { type: Boolean, default: true },
+  payment_released: { type: Boolean, default: false },
+  pickup_photo: { type: String },
+  delivery_photo: { type: String },
+  received_photo: { type: String },
+  receiver_rating: { type: Number },
+}, { 
+  timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
 
-    // Handle queries
-    for (const key in query) {
-      const val = query[key];
-      const dbKey = key === '_id' ? 'id' : key;
+// Virtuals for frontend camelCase compatibility
+parcelSchema.virtual('fromLocation').get(function() { return this.from_location; }).set(function(v) { this.from_location = v; });
+parcelSchema.virtual('toLocation').get(function() { return this.to_location; }).set(function(v) { this.to_location = v; });
+parcelSchema.virtual('itemCount').get(function() { return this.item_count; }).set(function(v) { this.item_count = v; });
+parcelSchema.virtual('vehicleType').get(function() { return this.vehicle_type; }).set(function(v) { this.vehicle_type = v; });
+parcelSchema.virtual('parcelPhoto').get(function() { return this.parcel_photo; }).set(function(v) { this.parcel_photo = v; });
+parcelSchema.virtual('receiverName').get(function() { return this.receiver_name; }).set(function(v) { this.receiver_name = v; });
+parcelSchema.virtual('receiverPhone').get(function() { return this.receiver_phone; }).set(function(v) { this.receiver_phone = v; });
+parcelSchema.virtual('senderId').get(function() { return this.sender_id; }).set(function(v) { this.sender_id = v; });
+parcelSchema.virtual('senderName').get(function() { return this.sender_name; }).set(function(v) { this.sender_name = v; });
+parcelSchema.virtual('senderPhone').get(function() { return this.sender_phone; }).set(function(v) { this.sender_phone = v; });
+parcelSchema.virtual('receiverId').get(function() { return this.receiver_id; }).set(function(v) { this.receiver_id = v; });
+parcelSchema.virtual('travellerId').get(function() { return this.traveller_id; }).set(function(v) { this.traveller_id = v; });
+parcelSchema.virtual('travellerName').get(function() { return this.traveller_name; }).set(function(v) { this.traveller_name = v; });
+parcelSchema.virtual('travellerPhone').get(function() { return this.traveller_phone; }).set(function(v) { this.traveller_phone = v; });
+parcelSchema.virtual('parcelCharge').get(function() { return this.parcel_charge; }).set(function(v) { this.parcel_charge = v; });
+parcelSchema.virtual('platformFee').get(function() { return this.platform_fee; }).set(function(v) { this.platform_fee = v; });
+parcelSchema.virtual('paymentMethod').get(function() { return this.payment_method; }).set(function(v) { this.payment_method = v; });
+parcelSchema.virtual('paymentStatus').get(function() { return this.payment_status; }).set(function(v) { this.payment_status = v; });
+parcelSchema.virtual('escrowStatus').get(function() { return this.escrow_status; }).set(function(v) { this.escrow_status = v; });
+parcelSchema.virtual('pickupOtp').get(function() { return this.pickup_otp; }).set(function(v) { this.pickup_otp = v; });
+parcelSchema.virtual('deliveryOtp').get(function() { return this.delivery_otp; }).set(function(v) { this.delivery_otp = v; });
+parcelSchema.virtual('paymentReleased').get(function() { return this.payment_released; }).set(function(v) { this.payment_released = v; });
+parcelSchema.virtual('pickupPhoto').get(function() { return this.pickup_photo; }).set(function(v) { this.pickup_photo = v; });
+parcelSchema.virtual('deliveryPhoto').get(function() { return this.delivery_photo; }).set(function(v) { this.delivery_photo = v; });
+parcelSchema.virtual('receivedPhoto').get(function() { return this.received_photo; }).set(function(v) { this.received_photo = v; });
+parcelSchema.virtual('receiverRating').get(function() { return this.receiver_rating; }).set(function(v) { this.receiver_rating = v; });
 
-      if (key === '$or' && Array.isArray(val)) {
-        const orQuery = val.map(condition => {
-          const k = Object.keys(condition)[0];
-          const v = condition[k];
-          const realK = k === '_id' ? 'id' : k;
-          if (v?.$regex) return `${realK}.ilike.*${v.$regex}*`;
-          return `${realK}.eq.${v}`;
-        }).join(',');
-        q = q.or(orQuery);
+// Virtuals for populating sender and traveller
+parcelSchema.virtual('sender', {
+  ref: 'User',
+  localField: 'sender_id',
+  foreignField: '_id',
+  justOne: true
+});
 
-      } else if (val?.$regex) {
-        q = q.ilike(dbKey, `*${val.$regex}*`);
+parcelSchema.virtual('traveller', {
+  ref: 'User',
+  localField: 'traveller_id',
+  foreignField: '_id',
+  justOne: true
+});
 
-      } else if (val?.$ne !== undefined) {
-        q = q.neq(dbKey, val.$ne);
-
-      } else if (val?.$in !== undefined && Array.isArray(val.$in)) {
-        q = q.in(dbKey, val.$in);
-
-      } else if (val === null) {
-        q = q.is(dbKey, null);
-
-      } else {
-        q = q.eq(dbKey, val);
-      }
-    }
-
-    // Default sorting if not specified elsewhere (can be overwritten by calling code if we return q)
-    // But since the user wants a clean async find, we'll execute it here or return the query.
-    // To support .sort() in routes, we'll return a "thenable" that still allows .order()
-    
-    // Actually, for "CLEAN WAY", we'll implement sort as a separate method if needed, 
-    // or just pass it in find(query, options).
-    // Let's stick to the user's provided "FINAL" function structure as it's what they asked for.
-    
-    const { data, error } = await q.order('created_at', { ascending: false });
-    
-    if (error) {
-       console.error("[Parcel Model] Search Error:", error);
-       throw error;
-    }
-
-    return (data || []).map(d => ({ ...d, _id: d.id }));
-  },
-
-  findById: async (id) => {
-    try {
-      console.log(`[Parcel Model] Attempting to find parcel: ${id}`);
-      const { data, error } = await supabase
-        .from('parcels')
-        .select(`
-          *,
-          sender:users!fk_parcel_sender(*),
-          traveller:users!fk_parcel_traveller(*)
-        `)
-        .eq('id', id)
-        .single(); // Using single as requested
-
-      if (error) {
-        console.error(`[Parcel Model] Supabase error in findById:`, error.message);
-        return null;
-      }
-
-      return {
-        ...data,
-        _id: data.id,
-        save: async function() {
-          const { id, _id, created_at, updated_at, sender, traveller, ...updateData } = this;
-          
-          // Field cleanup to ensure ONLY snake_case goes to DB
-          const cleanUpdate = {};
-          for (const key in updateData) {
-            // Keep only snake_case or standard fields
-            if (key.includes('_') || ['title', 'description', 'id', 'weight', 'size', 'price', 'status', 'city', 'village'].includes(key)) {
-              cleanUpdate[key] = updateData[key];
-            }
-          }
-
-          const { data: updated, error: uError } = await supabase
-            .from('parcels')
-            .update({ ...cleanUpdate, updated_at: new Date() })
-            .eq('id', id)
-            .select()
-            .single();
-
-          if (uError) throw uError;
-          Object.assign(this, updated);
-          return this;
-        }
-      };
-    } catch (err) {
-      console.error(`[Parcel Model] Error in findById:`, err.message);
-      return null;
-    }
-  },
-
-  create: async (parcelData) => {
-    // 🧊 Data Normalization: Keep only snake_case for DB columns
-    const normalized = {
-      from_location: parcelData.from_location || parcelData.fromLocation,
-      to_location: parcelData.to_location || parcelData.toLocation,
-      village: parcelData.village,
-      city: parcelData.city,
-      description: parcelData.description,
-      weight: parcelData.weight,
-      size: parcelData.size,
-      item_count: parcelData.item_count || parcelData.itemCount || 1,
-      vehicle_type: parcelData.vehicle_type || parcelData.vehicleType,
-      parcel_photo: parcelData.parcel_photo || parcelData.parcelPhoto,
-      receiver_name: parcelData.receiver_name || parcelData.receiverName,
-      receiver_phone: parcelData.receiver_phone || parcelData.receiverPhone,
-      sender_id: parcelData.sender_id || parcelData.senderId,
-      sender_name: parcelData.sender_name || parcelData.senderName,
-      sender_phone: parcelData.sender_phone || parcelData.senderPhone,
-      receiver_id: parcelData.receiver_id || parcelData.receiverId,
-      parcel_charge: parcelData.parcel_charge,
-      platform_fee: parcelData.platform_fee,
-      price: parcelData.price,
-      status: parcelData.status || 'open_for_travellers',
-      payment_method: parcelData.payment_method || parcelData.paymentMethod,
-      payment_status: parcelData.payment_status || parcelData.paymentStatus,
-      escrow_status: parcelData.escrow_status,
-      pickup_otp: parcelData.pickup_otp,
-      delivery_otp: parcelData.delivery_otp,
-    };
-    
-    // Remove undefined values to avoid DB issues
-    Object.keys(normalized).forEach(key => normalized[key] === undefined && delete normalized[key]);
-
-    const { data, error } = await supabase
-      .from('parcels')
-      .insert([normalized])
-      .select()
-      .single();
-      
-    if (error) {
-      console.error("[Parcel Model] Supabase Insert Error:", error);
-      throw error;
-    }
-    return { ...data, _id: data.id };
-  },
-
-  updateMany: async (filter, update) => {
-    const updateData = update.$set || update;
-    let q = supabase.from('parcels').update(updateData);
-    
-    for (const key in filter) {
-      const dbKey = key === '_id' ? 'id' : key;
-      const val = filter[key];
-      if (val === null) q = q.is(dbKey, null);
-      else q = q.eq(dbKey, val);
-    }
-    return await q;
-  },
-
-  deleteOne: async (filter) => {
-     let q = supabase.from('parcels').delete();
-     for (const key in filter) {
-       const dbKey = key === '_id' ? 'id' : key;
-       const val = filter[key];
-       if (val === null) q = q.is(dbKey, null);
-       else q = q.eq(dbKey, val);
-     }
-     return await q;
-  }
-};
-
+const Parcel = mongoose.model('Parcel', parcelSchema);
 module.exports = Parcel;

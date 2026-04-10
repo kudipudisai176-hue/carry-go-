@@ -1,36 +1,32 @@
 import { useState, useEffect, useCallback } from "react";
 import { Bell, Check, Clock, MessageSquare, Truck, CheckCircle2 } from "lucide-react";
-import { supabase } from "@/lib/supabaseClient";
+import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
 
 export interface Notification {
   id: string;
+  _id: string;
   title: string;
   message: string;
   type: string;
-  read: boolean;
+  is_read: boolean;
   created_at: string;
-  referenceId?: string;
+  reference_id?: string;
 }
 
 export default function NotificationTray() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isOpen, setIsOpen] = useState(false);
-  const unreadCount = notifications.filter(n => !n.read).length;
+  const unreadCount = notifications.filter(n => !n.is_read).length;
 
   const loadNotifications = useCallback(async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      const token = localStorage.getItem("token");
+      if (!token) return;
 
-      const { data, error } = await supabase
-        .from('notifications')
-        .select('*')
-        .eq('userId', user.id)
-        .order('created_at', { ascending: false })
-        .limit(20);
-      
-      if (error) throw error;
+      const { data } = await axios.get('/api/notifications', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       setNotifications(data || []);
     } catch (err) {
       console.error("Failed to load notifications", err);
@@ -45,12 +41,10 @@ export default function NotificationTray() {
 
   const markRead = async (id: string) => {
     try {
-      const { error } = await supabase
-        .from('notifications')
-        .update({ read: true })
-        .eq('id', id);
-      
-      if (error) throw error;
+      const token = localStorage.getItem("token");
+      await axios.put(`/api/notifications/${id}`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       loadNotifications();
     } catch (err) {
       console.error(err);
@@ -59,15 +53,10 @@ export default function NotificationTray() {
 
   const markAllRead = async () => {
     try {
-       const { data: { user } } = await supabase.auth.getUser();
-       if (!user) return;
-
-      const { error } = await supabase
-        .from('notifications')
-        .update({ read: true })
-        .eq('userId', user.id);
-      
-      if (error) throw error;
+      const token = localStorage.getItem("token");
+      await axios.put('/api/notifications/markallread', {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       loadNotifications();
     } catch (err) {
       console.error(err);
@@ -126,27 +115,30 @@ export default function NotificationTray() {
                   </div>
                 ) : (
                   <div className="divide-y divide-border/50">
-                    {notifications.map((n) => (
-                      <div 
-                        key={n.id} 
-                        className={`p-4 flex gap-3 transition-colors hover:bg-muted/30 cursor-pointer ${!n.read ? "bg-indigo-50/30" : ""}`}
-                        onClick={() => markRead(n.id)}
-                      >
-                        <div className={`mt-0.5 h-8 w-8 rounded-full flex items-center justify-center shrink-0 ${!n.read ? "bg-indigo-100" : "bg-muted"}`}>
-                          {getIcon(n.type)}
+                    {notifications.map((n) => {
+                      const id = n._id || n.id;
+                      return (
+                        <div 
+                          key={id} 
+                          className={`p-4 flex gap-3 transition-colors hover:bg-muted/30 cursor-pointer ${!n.is_read ? "bg-indigo-50/30" : ""}`}
+                          onClick={() => markRead(id)}
+                        >
+                          <div className={`mt-0.5 h-8 w-8 rounded-full flex items-center justify-center shrink-0 ${!n.is_read ? "bg-indigo-100" : "bg-muted"}`}>
+                            {getIcon(n.type)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-xs ${!n.is_read ? "font-bold text-foreground" : "text-muted-foreground"}`}>{n.title}</p>
+                            <p className="text-[11px] text-muted-foreground/80 line-clamp-2 mt-0.5">{n.message}</p>
+                            <p className="text-[9px] text-muted-foreground/50 mt-1 uppercase tracking-tighter">
+                              {new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                          </div>
+                          {!n.is_read && (
+                            <div className="h-1.5 w-1.5 rounded-full bg-indigo-500 mt-2 shadow-sm shadow-indigo-200" />
+                          )}
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className={`text-xs ${!n.read ? "font-bold text-foreground" : "text-muted-foreground"}`}>{n.title}</p>
-                          <p className="text-[11px] text-muted-foreground/80 line-clamp-2 mt-0.5">{n.message}</p>
-                          <p className="text-[9px] text-muted-foreground/50 mt-1 uppercase tracking-tighter">
-                            {new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </p>
-                        </div>
-                        {!n.read && (
-                          <div className="h-1.5 w-1.5 rounded-full bg-indigo-500 mt-2 shadow-sm shadow-indigo-200" />
-                        )}
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>

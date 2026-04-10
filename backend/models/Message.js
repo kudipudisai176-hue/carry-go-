@@ -1,62 +1,23 @@
-const { supabase } = require('../config/db');
+const mongoose = require('mongoose');
 
-const Message = {
-  create: async (msgData) => {
-    const normalized = {
-      delivery_id: msgData.delivery,
-      sender_id: msgData.sender,
-      message: msgData.message
-    };
-    const { data, error } = await supabase
-      .from('messages')
-      .insert(normalized)
-      .select()
-      .single();
-    if (error) throw error;
-    return { ...data, _id: data.id };
-  },
+const messageSchema = new mongoose.Schema({
+  delivery_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Parcel', required: true },
+  sender_id: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  message: { type: String, required: true },
+  is_read: { type: Boolean, default: false }
+}, { 
+  timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
 
-  find: (query = {}) => {
-    let q = supabase.from('messages').select('*, sender:users!messages_sender_id_fkey(name, profile_photo)');
-    for (const key in query) {
-      const col = key === 'delivery' ? 'delivery_id' : key;
-      q = q.eq(col, query[key]);
-    }
-    return {
-      populate: function() { return this; },
-      sort: function(sd) {
-        if (!sd) return this;
-        const field = Object.keys(sd)[0];
-        // Map common field names
-        const mappedField = field === 'createdAt' ? 'created_at' : field;
-        q = q.order(mappedField, { ascending: sd[field] === 1 });
-        return this;
-      },
-      then: async function(resolve, reject) {
-        const { data, error } = await q;
-        if (error) return reject(error);
-        resolve(data.map(d => ({ ...d, _id: d.id, sender: d.sender ? d.sender : null })));
-      }
-    };
-  },
+messageSchema.virtual('delivery').get(function() { return this.delivery_id; }).set(function(v) { this.delivery_id = v; });
+messageSchema.virtual('sender', {
+  ref: 'User',
+  localField: 'sender_id',
+  foreignField: '_id',
+  justOne: true
+});
 
-  findById: (id) => {
-    return {
-      populate: function() {
-        return this;
-      },
-      then: async function(resolve, reject) {
-        const { data, error } = await supabase
-          .from('messages')
-          .select('*, sender:users!messages_sender_id_fkey(name, profile_photo)')
-          .eq('id', id)
-          .single();
-        if (error) return reject(error);
-        if (data) data._id = data.id;
-        resolve(data);
-      }
-    };
-  }
-};
-
+const Message = mongoose.model('Message', messageSchema);
 module.exports = Message;

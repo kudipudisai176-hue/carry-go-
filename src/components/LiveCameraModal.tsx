@@ -49,9 +49,18 @@ export default function LiveCameraModal({ isOpen, onClose, onCapture }: LiveCame
             }
 
             // Stop existing stream before starting new one
+            if (videoRef.current && videoRef.current.srcObject) {
+                const oldStream = videoRef.current.srcObject as MediaStream;
+                oldStream.getTracks().forEach(track => track.stop());
+                videoRef.current.srcObject = null;
+            }
             if (stream) {
                 stream.getTracks().forEach(track => track.stop());
+                setStream(null);
             }
+
+            // Give a tiny moment for hardware to release (crucial for some Windows drivers)
+            await new Promise(r => setTimeout(r, 200));
 
             // 2. Try with ideal constraints first
             try {
@@ -64,6 +73,13 @@ export default function LiveCameraModal({ isOpen, onClose, onCapture }: LiveCame
                 };
                 
                 const mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+                
+                // Double check if we should still apply it (prevent race condition)
+                if (!isOpen) { 
+                    mediaStream.getTracks().forEach(t => t.stop());
+                    return;
+                }
+
                 console.log("Camera started successfully with ideal constraints");
                 setStream(mediaStream);
                 if (videoRef.current) {

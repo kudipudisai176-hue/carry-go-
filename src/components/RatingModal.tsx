@@ -3,7 +3,7 @@ import { Star, X, MessageSquare, CheckCircle2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
-import { supabase } from "@/lib/supabaseClient";
+import axios from "axios";
 import { toast } from "sonner";
 
 interface RatingModalProps {
@@ -28,23 +28,22 @@ export default function RatingModal({ parcelId, revieweeId, revieweeName, onClos
 
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Authentication required");
+      const token = localStorage.getItem("token");
+      if (!token) throw new Error("Authentication required");
 
-      const { error } = await supabase.from("reviews").insert({
-        parcelId,
-        revieweeId,
-        reviewerId: user.id,
+      await axios.post("/api/reviews", {
+        parcel: parcelId,
+        reviewee: revieweeId,
         rating,
         comment,
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
       });
-
-      if (error) throw error;
 
       toast.success("Review submitted! Thank you.");
       onSuccess();
     } catch (err: any) {
-      toast.error("Failed to submit review: " + err.message);
+      toast.error("Failed to submit review: " + (err.response?.data?.message || err.message));
     } finally {
       setLoading(false);
     }

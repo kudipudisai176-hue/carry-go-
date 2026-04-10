@@ -2,15 +2,18 @@ import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MessageSquare, Send, Loader2, X } from "lucide-react";
-import { supabase } from "@/lib/supabaseClient";
+import axios from "axios";
 import { toast } from "sonner";
 
 interface Message {
   id: string;
-  senderId: string;
+  _id: string;
+  sender_id: { _id?: string, name?: string, profile_photo?: string } | string;
   message: string;
   created_at: string;
 }
+
+import { socket } from "@/lib/socket";
 
 export default function ParcelChat({ deliveryId, currentUserId, showHeader = true, className = "", onClose }: { deliveryId: string, currentUserId: string, showHeader?: boolean, className?: string, onClose?: () => void }) {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -18,70 +21,78 @@ export default function ParcelChat({ deliveryId, currentUserId, showHeader = tru
   const [loading, setLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
+  const fetchMessages = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+      const { data } = await axios.get(`/api/messages/${deliveryId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setMessages(data || []);
+      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+    } catch (error) {
+      console.error("Failed to fetch messages:", error);
+    }
+  };
+
   useEffect(() => {
-    const fetchMessages = async () => {
-      setLoading(true);
-      try {
-        const { data, error } = await supabase
-          .from('messages')
-          .select('*')
-          .eq('deliveryId', deliveryId)
-          .order('created_at', { ascending: true });
-        
-        if (error) throw error;
-        setMessages(data || []);
+    if (!deliveryId) return;
+    
+    setLoading(true);
+    fetchMessages().finally(() => setLoading(false));
+
+    // Real-time via Sockets
+    console.log("Joining chat room:", deliveryId);
+    socket.emit("join_chat", deliveryId.toString());
+    
+    const handleNewMessage = (msg: any) => {
+      // Check both deliveryId as string/ObjectId
+      const msgDeliveryId = msg.delivery_id?.toString() || msg.deliveryId?.toString();
+      if (msgDeliveryId === deliveryId.toString()) {
+        setMessages(prev => {
+          if (prev.some(m => (m._id || m.id) === (msg._id || msg.id))) return prev;
+          return [...prev, msg];
+        });
         setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
-      } catch (error) {
-        console.error("Failed to fetch messages:", error);
-      } finally {
-        setLoading(false);
       }
     };
 
-    fetchMessages();
-
-    // Real-time subscription
-    const channel = supabase
-      .channel(`delivery:${deliveryId}`)
-      .on('postgres_changes', { 
-        event: 'INSERT', 
-        schema: 'public', 
-        table: 'messages',
-        filter: `deliveryId=eq.${deliveryId}`
-      }, (payload) => {
-        setMessages(prev => {
-          if (prev.some(m => m.id === payload.new.id)) return prev;
-          return [...prev, payload.new as Message];
-        });
-        setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
-      })
-      .subscribe();
+    socket.on("new_message", handleNewMessage);
 
     return () => {
-      supabase.removeChannel(channel);
+      socket.off("new_message", handleNewMessage);
     };
   }, [deliveryId]);
 
   const sendMessage = async () => {
-    if (!newMessage.trim()) return;
+    if (!newMessage.trim() || !deliveryId) return;
 
     const msgContent = newMessage;
     setNewMessage("");
 
     try {
-      const { error } = await supabase
-        .from('messages')
-        .insert({
-          deliveryId,
-          senderId: currentUserId,
-          message: msgContent
-        });
+      const token = localStorage.getItem("token");
+      if (!token) {
+        toast.error("Session expired. Please login again.");
+        return;
+      }
+
+      const { data } = await axios.post('/api/messages', {
+        deliveryId: deliveryId.toString(),
+        message: msgContent
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       
-      if (error) throw error;
+      setMessages(prev => {
+         if (prev.some(m => (m._id || m.id) === (data._id || data.id))) return prev;
+         return [...prev, data];
+      });
       setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Send message error:", error);
-      toast.error("Failed to send message.");
+      const errMsg = error.response?.data?.message || "Check your connection and try again.";
+      toast.error(`Message failed: ${errMsg}`);
     }
   };
 
@@ -95,7 +106,7 @@ export default function ParcelChat({ deliveryId, currentUserId, showHeader = tru
              </div>
              <div>
                <h3 className="text-white font-black text-sm uppercase tracking-widest leading-none mb-1">Secure Inbox</h3>
-               <p className="text-white/60 text-[9px] font-bold uppercase tracking-tighter">Real-time Coordination</p>
+               <p className="text-white/60 text-[9px] font-bold uppercase tracking-tighter">Coordination</p>
              </div>
           </div>
           {onClose && (
@@ -125,9 +136,18 @@ export default function ParcelChat({ deliveryId, currentUserId, showHeader = tru
         ) : (
           <div className="px-6 py-6 space-y-4">
             {messages.map((m) => {
-              const isMe = m.senderId === currentUserId;
+              // Handle various ID formats from backend (populated vs raw)
+              let senderId = '';
+              if (typeof m.sender_id === 'string') {
+                senderId = m.sender_id;
+              } else if (m.sender_id && typeof m.sender_id === 'object') {
+                senderId = (m.sender_id as any).id || (m.sender_id as any)._id || '';
+              }
+              
+              const isMe = senderId === currentUserId || (currentUserId && senderId.toString() === currentUserId.toString());
+              
               return (
-                <div key={m.id} className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
+                <div key={m._id || m.id} className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
                   <div
                     className={`max-w-[85%] rounded-[1.5rem] px-5 py-3 text-sm shadow-sm transition-all ${
                       isMe
@@ -150,7 +170,7 @@ export default function ParcelChat({ deliveryId, currentUserId, showHeader = tru
 
       <div className="border-t border-slate-100 p-5 bg-white flex gap-3 items-center">
         <Input
-          placeholder="New message..."
+          placeholder="Type your message..."
           value={newMessage}
           onChange={(e) => setNewMessage(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), sendMessage())}

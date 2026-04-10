@@ -105,9 +105,10 @@ router.post('/:id/simulate-payment', protect, async (req, res) => {
       parcel_id: parcel._id,
       sender_id: req.user._id,
       amount: parcel.price,
+      method: 'online',
       payment_status: 'paid',
       escrow_status: 'held',
-      paymentGatewayId: 'sim_' + Date.now(),
+      payment_gateway_id: 'sim_' + Date.now(),
     });
 
     res.json(parcel);
@@ -222,8 +223,19 @@ router.get('/byphone/:phone', protect, async (req, res) => {
 // @desc    Update parcel status
 router.put('/:id/status', protect, async (req, res) => {
   try {
+    console.log(`[Status Update] ID: ${req.params.id}, User: ${req.user?._id}, New Status: ${req.body.status}`);
+    
+    // Validate ID format before find
+    if (!req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
+      console.error(`[Status Update] Invalid ObjectId format: ${req.params.id}`);
+      return res.status(400).json({ message: 'Invalid Parcel ID format' });
+    }
+
     const parcel = await Parcel.findById(req.params.id);
-    if (!parcel) return res.status(404).json({ message: 'Parcel not found' });
+    if (!parcel) {
+      console.error(`[Status Update] Parcel not found for ID: ${req.params.id}`);
+      return res.status(404).json({ message: 'Parcel not found' });
+    }
 
     const newStatus = req.body.status || parcel.status;
     
@@ -331,27 +343,46 @@ router.put('/:id/status', protect, async (req, res) => {
     }
 
     parcel.status = newStatus;
-    const updatedParcel = await parcel.save();
+    
+    let updatedParcel;
+    try {
+      updatedParcel = await parcel.save();
+    } catch (saveError) {
+      console.error("[Parcel Status Update] Save Error Detail:", {
+        message: saveError.message,
+        errors: saveError.errors,
+        id: req.params.id,
+        newStatus
+      });
+      return res.status(400).json({ 
+        message: "Validation failed during status update", 
+        details: saveError.message 
+      });
+    }
 
     // 🔔 Fire notifications in background (don't wait)
     (async () => {
       try {
+        if (!parcel.sender_id) return; // Prevent crash if sender is somehow missing
+
         if (newStatus === 'requested') {
           await Notification.create({
             recipient_id: parcel.sender_id,
             title: "New Delivery Request!",
-            message: `${req.user.name} wants to carry your parcel reaching ${parcel.to_location}.`,
+            message: `${req.user.name || "A traveller"} wants to carry your parcel reaching ${parcel.to_location}.`,
             type: 'parcel_requested',
             reference_id: parcel._id
           });
         } else if (newStatus === 'accepted') {
-          await Notification.create({
-            recipient_id: parcel.traveller_id,
-            title: "Request Approved!",
-            message: `Sender approved your request for parcel to ${parcel.to_location}.`,
-            type: 'parcel_accepted',
-            reference_id: parcel._id
-          });
+          if (parcel.traveller_id) {
+            await Notification.create({
+              recipient_id: parcel.traveller_id,
+              title: "Request Approved!",
+              message: `Sender approved your request for parcel to ${parcel.to_location}.`,
+              type: 'parcel_accepted',
+              reference_id: parcel._id
+            });
+          }
         } else if (newStatus === 'in-transit') {
           await Notification.create({
             recipient_id: parcel.sender_id,
@@ -402,6 +433,7 @@ router.put('/:id/status', protect, async (req, res) => {
 
     res.json(updatedParcel);
   } catch (error) {
+    console.error("[Parcel Status Update] unexpected error:", error);
     res.status(500).json({ message: error.message });
   }
 });
@@ -517,7 +549,7 @@ router.delete('/:id', protect, async (req, res) => {
       return res.status(401).json({ message: 'Not authorized' });
     }
     
-    await Parcel.deleteOne({ id: req.params.id });
+    await Parcel.findByIdAndDelete(req.params.id);
     res.json({ message: 'Parcel removed' });
   } catch (error) {
     res.status(500).json({ message: error.message });

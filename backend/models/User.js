@@ -1,115 +1,66 @@
-const { supabase } = require('../config/db');
+const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
-// Helper: maps Supabase snake_case row → camelCase-compatible object
-const mapUser = (data) => {
-  if (!data) return null;
-  return {
-    ...data,
-    _id: data.id,
-    profilePhoto: data.profile_photo,
-    walletBalance: data.wallet_balance,
-    totalTrips: data.total_trips,
-    personalOtp: data.personal_otp,
-    personalOtpExpiresAt: data.personal_otp_expires_at,
-    vehicleType: data.vehicle_type,
-    sub_role: data.sub_role,
-    aadharNumber: data.aadhar_number,
-    aadharPhoto: data.aadhar_photo,
-    idPhoto: data.id_photo,
-    livePhoto: data.live_photo,
-    idProofType: data.id_proof_type,
-    idNumber: data.id_number,
-    save: async function () {
-      const updateData = {
-        name: this.name, email: this.email, phone: this.phone,
-        role: this.role, sub_role: this.sub_role, bio: this.bio,
-        profile_photo: this.profilePhoto || this.profile_photo,
-        wallet_balance: this.walletBalance ?? this.wallet_balance ?? 0,
-        total_trips: this.totalTrips ?? this.total_trips ?? 0,
-        rating: this.rating,
-        personal_otp: this.personalOtp || this.personal_otp,
-        aadhar_number: this.aadharNumber || this.aadhar_number,
-        aadhar_photo: this.aadharPhoto || this.aadhar_photo,
-        personal_otp_expires_at: this.personalOtpExpiresAt || this.personal_otp_expires_at,
-        vehicle_type: this.vehicleType || this.vehicle_type,
-        updated_at: new Date(),
-      };
-      Object.keys(updateData).forEach(k => updateData[k] === undefined && delete updateData[k]);
+const userSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  email: { type: String, required: true, unique: true },
+  password: { type: String, required: true },
+  phone: { type: String },
+  role: { type: String, enum: ['sender_receiver', 'traveller', 'both'], default: 'sender_receiver' },
+  sub_role: { type: String, enum: ['sender', 'receiver'], default: 'sender' },
+  bio: { type: String },
+  profile_photo: { type: String },
+  wallet_balance: { type: Number, default: 0 },
+  rating: { type: Number, default: 5.0 },
+  total_trips: { type: Number, default: 0 },
+  personal_otp: { type: String },
+  personal_otp_expires_at: { type: Date },
+  personal_otp_used: { type: Boolean, default: false },
+  vehicle_type: { type: String },
+  aadhar_number: { type: String },
+  aadhar_photo: { type: String },
+  id_photo: { type: String },
+  live_photo: { type: String },
+  id_proof_type: { type: String },
+  id_number: { type: String },
+  dob: { type: String },
+  gender: { type: String },
+  address: { type: String },
+  city: { type: String },
+  state: { type: String },
+  pincode: { type: String },
+}, { 
+  timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
 
-      const { data: updated, error } = await supabase
-        .from('users').update(updateData).eq('id', this.id).select().single();
-      if (error) throw error;
-      Object.assign(this, mapUser(updated));
-      return this;
-    },
-    matchPassword: async function (enteredPassword) {
-      return await bcrypt.compare(enteredPassword, this.password);
-    }
-  };
+// Virtuals for frontend camelCase compatibility
+userSchema.virtual('profilePhoto').get(function() { return this.profile_photo; }).set(function(v) { this.profile_photo = v; });
+userSchema.virtual('walletBalance').get(function() { return this.wallet_balance; }).set(function(v) { this.wallet_balance = v; });
+userSchema.virtual('totalTrips').get(function() { return this.total_trips; }).set(function(v) { this.total_trips = v; });
+userSchema.virtual('personalOtp').get(function() { return this.personal_otp; }).set(function(v) { this.personal_otp = v; });
+userSchema.virtual('personalOtpExpiresAt').get(function() { return this.personal_otp_expires_at; }).set(function(v) { this.personal_otp_expires_at = v; });
+userSchema.virtual('vehicleType').get(function() { return this.vehicle_type; }).set(function(v) { this.vehicle_type = v; });
+userSchema.virtual('aadharNumber').get(function() { return this.aadhar_number; }).set(function(v) { this.aadhar_number = v; });
+userSchema.virtual('aadharPhoto').get(function() { return this.aadhar_photo; }).set(function(v) { this.aadhar_photo = v; });
+userSchema.virtual('idPhoto').get(function() { return this.id_photo; }).set(function(v) { this.id_photo = v; });
+userSchema.virtual('livePhoto').get(function() { return this.live_photo; }).set(function(v) { this.live_photo = v; });
+userSchema.virtual('idProofType').get(function() { return this.id_proof_type; }).set(function(v) { this.id_proof_type = v; });
+userSchema.virtual('idNumber').get(function() { return this.id_number; }).set(function(v) { this.id_number = v; });
+userSchema.virtual('personalOtpUsed').get(function() { return this.personal_otp_used; }).set(function(v) { this.personal_otp_used = v; });
+
+// Password hashing middleware
+userSchema.pre('save', async function () {
+  if (!this.isModified('password')) return;
+  const salt = await bcrypt.genSalt(10);
+  this.password = await bcrypt.hash(this.password, salt);
+});
+
+// Method to compare passwords
+userSchema.methods.matchPassword = async function (enteredPassword) {
+  return await bcrypt.compare(enteredPassword, this.password);
 };
 
-const User = {
-  findById: (id) => {
-    const q = supabase.from('users').select('*').eq('id', id).single();
-    return {
-      select: function () { return this; },
-      then: async function (resolve) {
-        const { data, error } = await q;
-        resolve(error ? null : mapUser(data));
-      }
-    };
-  },
-
-  findOne: (query) => {
-    let q = supabase.from('users').select('*');
-    for (const key in query) {
-      const val = query[key];
-      if (typeof val === 'object' && val.$in) {
-        q = q.in(key, val.$in);
-      } else {
-        q = q.eq(key, val);
-      }
-    }
-    return {
-      select: function () { return this; },
-      then: async function (resolve) {
-        const { data } = await q.maybeSingle();
-        resolve(data ? mapUser(data) : null);
-      }
-    };
-  },
-
-  create: async (userData) => {
-    const hashedPassword = await bcrypt.hash(userData.password, await bcrypt.genSalt(10));
-    const normalized = {
-      name: userData.name,
-      email: userData.email,
-      password: hashedPassword,
-      phone: userData.phone,
-      role: userData.role,
-      sub_role: userData.sub_role,
-      bio: userData.bio,
-      profile_photo: userData.profilePhoto,
-      wallet_balance: userData.walletBalance || 0,
-      rating: userData.rating || 5.0,
-      total_trips: userData.totalTrips || 0,
-      aadhar_number: userData.aadharNumber,
-      id_proof_type: userData.idProofType,
-      id_number: userData.idNumber,
-      id_photo: userData.idPhoto,
-      live_photo: userData.livePhoto,
-      aadhar_photo: userData.aadharPhoto,
-      personal_otp: userData.personalOtp,
-      personal_otp_expires_at: userData.personalOtpExpiresAt,
-      vehicle_type: userData.vehicleType,
-    };
-    Object.keys(normalized).forEach(k => normalized[k] === undefined && delete normalized[k]);
-
-    const { data, error } = await supabase.from('users').insert(normalized).select().single();
-    if (error) throw error;
-    return mapUser(data);
-  }
-};
-
+const User = mongoose.model('User', userSchema);
 module.exports = User;

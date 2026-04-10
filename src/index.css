@@ -296,14 +296,18 @@
   }
 }
 
-@keyframes gradient-x {
-  0%,
-  100% {
-    background-position: 0% 50%;
+@keyframes shimmer {
+  from {
+    transform: translateX(-100%);
   }
+  to {
+    transform: translateX(100%);
+  }
+}
 
-  50% {
-    background-position: 100% 50%;
+@keyframes dash {
+  to {
+    stroke-dashoffset: -100;
   }
 }
 

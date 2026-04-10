@@ -10,6 +10,34 @@ const generateToken = (id) => {
   });
 };
 
+// @desc    Get current logged-in user's profile (used by AuthProvider on load)
+// @route   GET /api/users/profile
+router.get('/profile', protect, async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select('-password');
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    res.json({
+      _id: user._id,
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      sub_role: user.sub_role,
+      phone: user.phone,
+      profilePhoto: user.profilePhoto,
+      walletBalance: user.walletBalance,
+      rating: user.rating,
+      totalTrips: user.totalTrips,
+      bio: user.bio,
+      aadharNumber: user.idNumber,
+      idNumber: user.idNumber,
+      personalOtp: user.personalOtp,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 const generateOtpData = () => {
   const otp = Math.floor(1000 + Math.random() * 9000).toString();
   const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 min
@@ -59,6 +87,7 @@ router.post('/register', async (req, res) => {
       console.log(`User created successfully: ${email}`);
       res.status(201).json({
         _id: user._id,
+        id: user._id,
         name: user.name,
         email: user.email,
         role: user.role,
@@ -100,26 +129,24 @@ router.post('/login', async (req, res) => {
     const user = await User.findOne({ email });
 
     if (user && (await user.matchPassword(password))) {
-        // Reuse existing OTP or generate one if missing (Permanent OTP logic)
-        if (!user.personalOtp) {
-          const otpData = generateOtpData();
-          user.personalOtp = otpData.otp;
-          user.personalOtpExpiresAt = otpData.expiresAt;
-          user.personalOtpUsed = false;
-          await user.save();
-        }
-        
-        const token = generateToken(user._id);
+      if (!user.personalOtp) {
+        const otpData = generateOtpData();
+        user.personalOtp = otpData.otp;
+        user.personalOtpExpiresAt = otpData.expiresAt;
+        user.personalOtpUsed = false;
+        await user.save();
+      }
+
       res.json({
         _id: user._id,
+        id: user._id,
         name: user.name,
         email: user.email,
         role: user.role,
         sub_role: user.sub_role,
         phone: user.phone,
         walletBalance: user.walletBalance,
-        aadharNumber: user.aadharNumber,
-        aadharPhoto: user.aadharPhoto,
+        aadharNumber: user.idNumber,
         profilePhoto: user.profilePhoto,
         vehicleType: user.vehicleType,
         bio: user.bio,
@@ -136,25 +163,23 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// @desc    Auth user with phone (after Supabase verification)
+// @desc    Auth user with phone (OTP-based)
 // @route   POST /api/users/login-otp
 router.post('/login-otp', async (req, res) => {
   try {
     const { phone } = req.body;
     if (!phone) return res.status(400).json({ message: 'Phone number is required' });
 
-    // Find user by phone
     let user = await User.findOne({ phone });
 
-    // Auto-create if not exists (Pro Idea)
     if (!user) {
       console.log(`Auto-creating user for phone: ${phone}`);
       const otpData = generateOtpData();
       user = await User.create({
-        name: phone, // Default name to phone
-        email: `${phone.replace('+', '')}@carrygo.com`, // Virtual email
-        password: 'otp_verified_user', // Placeholder
-        role: 'receiver', // Default to receiver
+        name: phone,
+        email: `${phone.replace('+', '')}@carrygo.com`,
+        password: 'otp_verified_user',
+        role: 'receiver',
         phone: phone,
         personalOtp: otpData.otp,
         personalOtpExpiresAt: otpData.expiresAt
@@ -163,6 +188,7 @@ router.post('/login-otp', async (req, res) => {
 
     res.json({
       _id: user._id,
+      id: user._id,
       name: user.name,
       email: user.email,
       role: user.role,
@@ -186,7 +212,6 @@ router.put('/profile', protect, async (req, res) => {
     const user = await User.findById(req.user._id);
 
     if (user) {
-      console.log(`Existing user found, updating fields:`, Object.keys(req.body));
       user.name = req.body.name || user.name;
       user.email = req.body.email || user.email;
       user.phone = req.body.phone || user.phone;
@@ -203,17 +228,16 @@ router.put('/profile', protect, async (req, res) => {
       user.idNumber = req.body.idNumber || user.idNumber;
       user.idPhoto = req.body.idPhoto || user.idPhoto;
       user.livePhoto = req.body.livePhoto || user.livePhoto;
-      
+
       if (req.body.password) {
         user.password = req.body.password;
       }
 
-      console.log('Attempting to save updated user...');
       const updatedUser = await user.save();
-      console.log('User profile saved successfully');
 
       res.json({
         _id: updatedUser._id,
+        id: updatedUser._id,
         name: updatedUser.name,
         email: updatedUser.email,
         role: updatedUser.role,
@@ -291,9 +315,9 @@ router.post('/generate-otp', protect, async (req, res) => {
     user.personalOtpUsed = false;
     await user.save();
 
-    res.json({ 
-      personalOtp: user.personalOtp, 
-      expiresAt: user.personalOtpExpiresAt 
+    res.json({
+      personalOtp: user.personalOtp,
+      expiresAt: user.personalOtpExpiresAt
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
