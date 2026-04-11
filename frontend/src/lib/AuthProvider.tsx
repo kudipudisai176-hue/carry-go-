@@ -23,7 +23,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   // Internal helper for retrying network requests
-  const withRetry = async <T>(fn: () => Promise<T>, retries = 2, delay = 500): Promise<T> => {
+  const withRetry = async <T,>(fn: () => Promise<T>, retries = 2, delay = 500): Promise<T> => {
     try {
       return await fn();
     } catch (err: any) {

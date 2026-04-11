@@ -113,7 +113,7 @@ export default function Signup() {
         password,
         phone: `+91${phone.replace(/^(?:\+91|91)/, "").slice(-10)}`,
         role: role as any,
-        sub_role: role === "sender_receiver" ? "sender" : undefined,
+        sub_role: (role === "sender_receiver" ? "sender" : undefined) as UserSubRole | undefined,
         dob,
         gender: gender || 'other',
         address,
