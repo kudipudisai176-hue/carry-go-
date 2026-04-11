@@ -22,6 +22,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Internal helper for retrying network requests
+  const withRetry = async <T>(fn: () => Promise<T>, retries = 2, delay = 500): Promise<T> => {
+    try {
+      return await fn();
+    } catch (err: any) {
+      // Only retry if it's a network error (no response) and we have retries left
+      if (retries > 0 && !err.response) {
+        console.warn(`Auth request failed, retrying... (${retries} left)`);
+        await new Promise(r => setTimeout(r, delay));
+        return withRetry(fn, retries - 1, delay * 1.5);
+      }
+      throw err;
+    }
+  };
+
   useEffect(() => {
     const initAuth = async () => {
       const token = localStorage.getItem("token");
@@ -36,16 +51,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signup = async (params: any) => {
     try {
-      const { data } = await api.post(`${API_URL}/register`, params);
+      const response = await withRetry(() => api.post(`${API_URL}/register`, params));
+      const { data } = response;
       if (data.token) {
         localStorage.setItem("token", data.token);
         setUser(data);
         return { success: true };
       }
-      return { success: false, message: "Signup failed: No token received" };
+      return { success: false, message: "Signup failed: Account created but no session token received." };
     } catch (err: any) {
-      console.error("Signup error:", err);
-      return { success: false, message: err.response?.data?.message || "Signup failed" };
+      console.error("Signup service error:", err);
+      const message = err.response?.data?.message || err.message || "Signup failed due to a server or network error.";
+      return { success: false, message };
     }
   };
 
