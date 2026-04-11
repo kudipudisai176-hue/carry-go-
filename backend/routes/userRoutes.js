@@ -59,7 +59,7 @@ router.post('/register', async (req, res) => {
     }
 
     const otpData = generateOtpData();
-    const user = await User.create({
+    const userData = {
       name,
       email,
       password,
@@ -72,16 +72,18 @@ router.post('/register', async (req, res) => {
       city,
       state,
       pincode,
-      idProofType,
-      idNumber,
-      idPhoto,
-      livePhoto,
-      profilePhoto,
+      id_proof_type: idProofType,
+      id_number: idNumber,
+      id_photo: idPhoto,
+      live_photo: livePhoto,
+      profile_photo: profilePhoto || livePhoto,
       bio: req.body.bio,
-      personalOtp: otpData.otp,
-      personalOtpExpiresAt: otpData.expiresAt,
-      personalOtpUsed: false
-    });
+      personal_otp: otpData.otp,
+      personal_otp_expires_at: otpData.expiresAt,
+      personal_otp_used: false
+    };
+
+    const user = await User.create(userData);
 
     if (user) {
       console.log(`User created successfully: ${email}`);
@@ -112,8 +114,8 @@ router.post('/register', async (req, res) => {
         token: generateToken(user._id),
       });
     } else {
-      console.log('Invalid user data provided');
-      res.status(400).json({ message: 'Invalid user data' });
+      console.log('User creation failed: Unknown reason');
+      res.status(400).json({ message: 'User registration failed' });
     }
   } catch (error) {
     console.error(`Registration error: ${error.message}`);

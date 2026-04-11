@@ -106,8 +106,8 @@ export default function Signup() {
 
     setSubmitting(true);
     try {
-      // Logic from SignupUser/Traveller: use selected role
-      const result = await signup({
+      console.log("Starting signup submission...");
+      const signupParams = {
         name,
         email,
         password,
@@ -115,14 +115,16 @@ export default function Signup() {
         role: role as any,
         sub_role: role === "sender_receiver" ? "sender" : undefined,
         dob,
-        gender,
+        gender: gender || 'other',
         address,
         idProofType: idType,
         idNumber,
         idPhoto: idPhoto || undefined,
         livePhoto: livePhoto || undefined,
         profilePhoto: profilePhoto || livePhoto || undefined
-      });
+      };
+      
+      const result = await signup(signupParams);
 
       if (result.success) {
         setIsSuccess(true);
@@ -131,10 +133,13 @@ export default function Signup() {
           navigate("/dashboard", { replace: true });
         }, 3000);
       } else {
+        console.error("Signup failed result:", result);
         toast.error(result.message || "Signup failed. Please check your details.");
       }
     } catch (err: any) {
-      toast.error(err.message || "An unexpected error occurred during signup.");
+      console.error("Signup exception:", err);
+      const errorMsg = err.response?.data?.message || err.message || "An unexpected error occurred during signup.";
+      toast.error(errorMsg);
     } finally {
       setSubmitting(false);
     }
@@ -314,8 +319,16 @@ export default function Signup() {
 
        <div className="flex flex-col items-center gap-6">
           <div className="relative h-48 w-48 rounded-[2.5rem] bg-neutral-50 border-4 border-dashed border-neutral-200 flex items-center justify-center overflow-hidden">
-             {livePhoto ? (
-               <img src={livePhoto} className="h-full w-full object-cover" />
+             {livePhoto && livePhoto.startsWith('data:image') ? (
+               <img 
+                src={livePhoto} 
+                className="h-full w-full object-cover" 
+                onError={() => {
+                  console.error("Live photo failed to load");
+                  setLivePhoto(null);
+                  toast.error("Captured photo was invalid. Please take it again.");
+                }}
+               />
              ) : (
                <User className="h-16 w-16 text-slate-300" />
              )}
