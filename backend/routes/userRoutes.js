@@ -49,25 +49,32 @@ const generateOtpData = () => {
 router.post('/register', async (req, res) => {
   try {
     const { name, email, password, role, phone, dob, gender, address, city, state, pincode, idProofType, idNumber, idPhoto, livePhoto, profilePhoto } = req.body;
-    console.log(`Registration attempt for: ${email}`);
+    
+    console.log(`[Registration] Starting process for: ${email}`);
+    
+    // Check for required environment variables
+    if (!process.env.JWT_SECRET) {
+      console.error("[Registration] CRITICAL: JWT_SECRET is missing from environment variables");
+      return res.status(500).json({ message: 'Server configuration error: JWT_SECRET is missing' });
+    }
 
     const userExists = await User.findOne({ email });
-
     if (userExists) {
-      console.log(`User already exists: ${email}`);
+      console.log(`[Registration] User already exists: ${email}`);
       return res.status(400).json({ message: 'User already exists' });
     }
 
+    console.log(`[Registration] Creating user object...`);
     const otpData = generateOtpData();
     const userData = {
       name,
       email,
       password,
-      role,
+      role: role || 'sender_receiver',
       sub_role: req.body.sub_role || 'sender',
       phone,
       dob,
-      gender,
+      gender: gender || 'other',
       address,
       city,
       state,
@@ -83,10 +90,20 @@ router.post('/register', async (req, res) => {
       personal_otp_used: false
     };
 
+    console.log(`[Registration] Attempting database save for: ${email}`);
     const user = await User.create(userData);
 
     if (user) {
-      console.log(`User created successfully: ${email}`);
+      console.log(`[Registration] User saved successfully. Generating token...`);
+      let token;
+      try {
+        token = generateToken(user._id);
+      } catch (tokenErr) {
+        console.error(`[Registration] Token generation failed: ${tokenErr.message}`);
+        return res.status(500).json({ message: 'User created but token generation failed', error: tokenErr.message });
+      }
+
+      console.log(`[Registration] Registration complete for: ${email}`);
       res.status(201).json({
         _id: user._id,
         id: user._id,
@@ -111,11 +128,11 @@ router.post('/register', async (req, res) => {
         totalTrips: user.totalTrips,
         bio: user.bio,
         personalOtp: user.personalOtp,
-        token: generateToken(user._id),
+        token: token,
       });
     } else {
-      console.log('User creation failed: Unknown reason');
-      res.status(400).json({ message: 'User registration failed' });
+      console.error('[Registration] User creation returned null result');
+      res.status(400).json({ message: 'User registration failed for unknown reason' });
     }
   } catch (error) {
     console.error(`Registration error: ${error.message}`);
