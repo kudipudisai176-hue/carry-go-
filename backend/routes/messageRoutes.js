@@ -42,7 +42,7 @@ router.post('/', protect, async (req, res) => {
         if (recipient) {
           await Notification.create({
             recipient_id: recipient,
-            title: `New Message from ${req.user.name}`,
+            title: `New Message`,
             message: message.slice(0, 50),
             type: 'chat_message',
             reference_id: deliveryId

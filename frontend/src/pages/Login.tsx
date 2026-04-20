@@ -44,25 +44,22 @@ export default function Login() {
     setErrors({ email: emailErr, password: passwordErr });
 
     if (emailErr || passwordErr) {
-      toast.error("Please fix the errors");
+      toast.error("Fix errors");
       setIsSubmitting(false);
       return;
     }
 
-    try {
+      try {
       const result = await login(email, password);
       if (result.success) {
-        toast.success("Welcome back to CarryGo!");
+        toast.success("Welcome back");
         navigate("/dashboard", { replace: true });
       } else {
-        const errorMsg = result.message === "Invalid login credentials" 
-          ? "Incorrect email or password. Please try again." 
-          : (result.message || "Invalid email or password");
-        toast.error(errorMsg);
+        toast.error("Invalid login");
       }
     } catch (error) {
       console.error("Login error:", error);
-      toast.error("Login failed. Please try again.");
+      toast.error("Login failed");
     } finally {
       setIsSubmitting(false);
     }

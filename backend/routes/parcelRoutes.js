@@ -61,7 +61,7 @@ router.post('/', protect, async (req, res) => {
     });
 
     // 📱 Send SMS in background (don't wait)
-    const smsMessage = `Your CarryGo OTP is ${createdParcel.delivery_otp} for parcel delivery from ${req.user.name}. Track: ${process.env.FRONTEND_URL}/sender`;
+    const smsMessage = `CarryGo OTP for ${req.user.name}: ${createdParcel.delivery_otp}. Link: ${process.env.FRONTEND_URL}/sender`;
     sendSMS(createdParcel.receiver_phone, smsMessage).catch(err => console.error("Initial Receiver SMS failed:", err.message));
 
     res.status(201).json(createdParcel);
@@ -261,7 +261,7 @@ router.put('/:id/status', protect, async (req, res) => {
           parcel.delivery_otp = Math.floor(1000 + Math.random() * 9000).toString();
        }
        // 📱 SMS Trigger on Pickup
-       const pickupMsg = `🚚 Your parcel is on the way! From: ${parcel.sender_name}. Route: ${parcel.from_location} → ${parcel.to_location}. Delivery OTP: ${parcel.delivery_otp}`;
+       const pickupMsg = `Parcel is on the way. From: ${parcel.sender_name}. Route: ${parcel.from_location} to ${parcel.to_location}. OTP: ${parcel.delivery_otp}`;
        try { await sendSMS(parcel.receiver_phone, pickupMsg); } catch (e) { console.error("Pickup SMS failed", e.message); }
     }
 
@@ -368,8 +368,8 @@ router.put('/:id/status', protect, async (req, res) => {
         if (newStatus === 'requested') {
           await Notification.create({
             recipient_id: parcel.sender_id,
-            title: "New Delivery Request!",
-            message: `${req.user.name || "A traveller"} wants to carry your parcel reaching ${parcel.to_location}.`,
+            title: "Delivery Request",
+            message: `${req.user.name || "A traveller"} wants to carry your parcel to ${parcel.to_location}.`,
             type: 'parcel_requested',
             reference_id: parcel._id
           });
@@ -377,7 +377,7 @@ router.put('/:id/status', protect, async (req, res) => {
           if (parcel.traveller_id) {
             await Notification.create({
               recipient_id: parcel.traveller_id,
-              title: "Request Approved!",
+              title: "Request Approved",
               message: `Sender approved your request for parcel to ${parcel.to_location}.`,
               type: 'parcel_accepted',
               reference_id: parcel._id
@@ -386,24 +386,24 @@ router.put('/:id/status', protect, async (req, res) => {
         } else if (newStatus === 'in-transit') {
           await Notification.create({
             recipient_id: parcel.sender_id,
-            title: "Parcel In Transit 🚚",
-            message: `Your parcel to ${parcel.to_location} has been picked up & is on the way.`,
+            title: "Order in Transit",
+            message: `Your parcel to ${parcel.to_location} was picked up and is on the way.`,
             type: 'transit_started',
             reference_id: parcel._id
           });
         } else if (newStatus === 'delivered') {
           await Notification.create({
             recipient_id: parcel.sender_id,
-            title: "Parcel Delivered! 🎉",
-            message: `Your parcel has been successfully delivered to ${parcel.receiver_name}.`,
+            title: "Order Delivered",
+            message: `Your parcel was successfully delivered to ${parcel.receiver_name}.`,
             type: 'delivered',
             reference_id: parcel._id
           });
         } else if (newStatus === 'arrived') {
           await Notification.create({
             recipient_id: parcel.sender_id,
-            title: "Almost There! 📍",
-            message: `Your traveller has arrived at the destination for your parcel to ${parcel.to_location}.`,
+            title: "Traveller Arrived",
+            message: `The traveller arrived at the destination for your parcel to ${parcel.to_location}.`,
             type: 'parcel_arrived',
             reference_id: parcel._id
           });
@@ -411,8 +411,8 @@ router.put('/:id/status', protect, async (req, res) => {
           if (parcel.receiver_id) {
             await Notification.create({
               recipient_id: parcel.receiver_id,
-              title: "Arrived! 📦",
-              message: `The traveller has arrived with your parcel from ${parcel.sender_name}. Please provide the Delivery OTP to complete the handover.`,
+              title: "Parcel Arrived",
+              message: `The traveller has arrived with your parcel from ${parcel.sender_name}. Use OTP to get it.`,
               type: 'parcel_arrived',
               reference_id: parcel._id
             });
@@ -420,8 +420,8 @@ router.put('/:id/status', protect, async (req, res) => {
         } else if (newStatus === 'received') {
           await Notification.create({
             recipient_id: parcel.sender_id,
-            title: "Confirmed & Received! ✅",
-            message: `${parcel.receiver_name} has confirmed the delivery and rated the service ${parcel.receiver_rating}/5.`,
+            title: "Order Received",
+            message: `${parcel.receiver_name} received the parcel and rated the service ${parcel.receiver_rating}/5.`,
             type: 'received',
             reference_id: parcel._id
           });

@@ -67,24 +67,24 @@ export default function Signup() {
   const handleNext = () => {
     if (step === 1) {
       if (!name || !email || !password || !phone) {
-        toast.error("Please fill all account details");
+        toast.error("Fill account info");
         return;
       }
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        toast.error("Invalid email format");
+        toast.error("Invalid email");
         return;
       }
       if (password.length < 8) {
-        toast.error("Password must be at least 8 characters");
+        toast.error("Password too short");
         return;
       }
       if (phone.length !== 10) {
-        toast.error("Phone number must be 10 digits");
+        toast.error("Phone invalid");
         return;
       }
     } else if (step === 2) {
       if (!dob || !address) {
-        toast.error("Please fill all personal details");
+        toast.error("Fill personal info");
         return;
       }
     }
@@ -96,11 +96,11 @@ export default function Signup() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!idNumber || !idPhoto || !livePhoto) {
-      toast.error("Please complete verification details");
+      toast.error("Finish verification");
       return;
     }
     if (!agreedTerms) {
-      toast.error("Please agree to the Terms & Conditions");
+      toast.error("Agree to terms");
       return;
     }
 
@@ -128,17 +128,17 @@ export default function Signup() {
 
       if (result.success) {
         setIsSuccess(true);
-        toast.success("Account created successfully!");
+        toast.success("Account created");
         setTimeout(() => {
           navigate("/dashboard", { replace: true });
         }, 3000);
       } else {
         console.error("Signup failed result:", result);
-        toast.error(result.message || "Signup failed. Please check your details.");
+        toast.error(result.message || "Signup failed");
       }
     } catch (err: any) {
       console.error("Signup exception:", err);
-      const errorMsg = err.response?.data?.message || err.message || "An unexpected error occurred during signup.";
+      const errorMsg = err.response?.data?.message || err.message || "Signup error";
       toast.error(errorMsg);
     } finally {
       setSubmitting(false);
