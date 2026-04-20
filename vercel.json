@@ -1,13 +1,45 @@
 {
-    "experimentalServices": {
-        "frontend": {
-            "entrypoint": "frontend",
-            "routePrefix": "/",
-            "framework": "vite"
-        },
-        "backend": {
-            "entrypoint": "backend",
-            "routePrefix": "/_/backend"
-        }
+  "version": 2,
+  "rewrites": [
+    {
+      "source": "/_/backend/(.*)",
+      "destination": "/backend/server.js"
+    },
+    {
+      "source": "/signup",
+      "destination": "/"
+    },
+    {
+      "source": "/login",
+      "destination": "/"
+    },
+    {
+      "source": "/dashboard",
+      "destination": "/"
+    },
+    {
+      "source": "/sender",
+      "destination": "/"
+    },
+    {
+      "source": "/traveller",
+      "destination": "/"
+    },
+    {
+      "source": "/receiver",
+      "destination": "/"
+    },
+    {
+      "source": "/profile",
+      "destination": "/"
+    },
+    {
+      "source": "/messages/:path*",
+      "destination": "/"
+    },
+    {
+      "source": "/((?!api|_/backend).*)",
+      "destination": "/"
     }
+  ]
 }
