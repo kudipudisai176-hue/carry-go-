@@ -157,6 +157,12 @@ router.post('/register', async (req, res) => {
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
+    
+    if (!process.env.JWT_SECRET) {
+      console.error("[Login] CRITICAL: JWT_SECRET is missing");
+      return res.status(500).json({ message: 'Server configuration error: JWT_SECRET is missing' });
+    }
+
     const user = await User.findOne({ email });
 
     if (user && (await user.matchPassword(password))) {
@@ -190,7 +196,8 @@ router.post('/login', async (req, res) => {
       res.status(401).json({ message: 'Invalid email or password' });
     }
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error(`[Login] error: ${error.stack || error.message}`);
+    res.status(500).json({ message: 'Internal Server Error during login', error: error.message });
   }
 });
 
@@ -198,6 +205,11 @@ router.post('/login', async (req, res) => {
 // @route   POST /api/users/login-otp
 router.post('/login-otp', async (req, res) => {
   try {
+    if (!process.env.JWT_SECRET) {
+      console.error("[Login-OTP] CRITICAL: JWT_SECRET is missing");
+      return res.status(500).json({ message: 'Server configuration error: JWT_SECRET is missing' });
+    }
+
     const { phone } = req.body;
     if (!phone) return res.status(400).json({ message: 'Phone number is required' });
 
@@ -231,7 +243,8 @@ router.post('/login-otp', async (req, res) => {
       token: generateToken(user._id),
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error(`[Login-OTP] error: ${error.stack || error.message}`);
+    res.status(500).json({ message: 'Internal Server Error during OTP login', error: error.message });
   }
 });
 
