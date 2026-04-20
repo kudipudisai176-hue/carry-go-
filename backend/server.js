@@ -99,3 +99,5 @@ if (process.env.NODE_ENV !== 'production') {
 module.exports = app;
 
 // Trigger redeploy to apply new environment variables
+
+// Final redeploy trigger for vercel.json updates
