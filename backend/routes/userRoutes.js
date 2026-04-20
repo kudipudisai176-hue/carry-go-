@@ -91,7 +91,19 @@ router.post('/register', async (req, res) => {
     };
 
     console.log(`[Registration] Attempting database save for: ${email}`);
-    const user = await User.create(userData);
+    let user;
+    try {
+      user = await User.create(userData);
+    } catch (dbErr) {
+      console.error(`[Registration] DB Save Failed: ${dbErr.message}`);
+      if (dbErr.name === 'ValidationError') {
+        return res.status(400).json({ message: 'Validation failed', errors: dbErr.errors });
+      }
+      if (dbErr.code === 11000) {
+        return res.status(400).json({ message: 'User with this email already exists' });
+      }
+      throw dbErr; // Let the outer catch handle other DB errors
+    }
 
     if (user) {
       console.log(`[Registration] User saved successfully. Generating token...`);
@@ -104,6 +116,7 @@ router.post('/register', async (req, res) => {
       }
 
       console.log(`[Registration] Registration complete for: ${email}`);
+      // Return user data without the heavy photos to avoid hitting Vercel's response size limit
       res.status(201).json({
         _id: user._id,
         id: user._id,
@@ -118,25 +131,24 @@ router.post('/register', async (req, res) => {
         city: user.city,
         state: user.state,
         pincode: user.pincode,
-        idProofType: user.idProofType,
-        idNumber: user.idNumber,
-        idPhoto: user.idPhoto,
-        livePhoto: user.livePhoto,
-        profilePhoto: user.profilePhoto,
         walletBalance: user.walletBalance,
         rating: user.rating,
         totalTrips: user.totalTrips,
         bio: user.bio,
-        personalOtp: user.personalOtp,
+        personalOtp: user.personalOtp || user.personal_otp,
         token: token,
       });
     } else {
       console.error('[Registration] User creation returned null result');
-      res.status(400).json({ message: 'User registration failed for unknown reason' });
+      res.status(400).json({ message: 'User registration failed: No user object created' });
     }
   } catch (error) {
-    console.error(`Registration error: ${error.message}`);
-    res.status(500).json({ message: 'Server error during registration', error: error.message });
+    console.error(`[Registration] CRITICAL ERROR: ${error.stack || error.message}`);
+    res.status(500).json({ 
+      message: 'Internal Server Error during registration', 
+      error: error.message,
+      detail: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 });
 
