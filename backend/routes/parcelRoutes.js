@@ -223,7 +223,8 @@ router.get('/byphone/:phone', protect, async (req, res) => {
 // @desc    Update parcel status
 router.put('/:id/status', protect, async (req, res) => {
   try {
-    console.log(`[Status Update] ID: ${req.params.id}, User: ${req.user?._id}, New Status: ${req.body.status}`);
+    console.log(`[Status Update] ID: ${req.params.id}, New Status: ${req.body.status}`);
+    console.log(`[Status Update] Payload:`, JSON.stringify(req.body));
     
     // Validate ID format before find
     // Validate ID format (support both MongoDB ObjectId and UUID)
@@ -352,15 +353,12 @@ router.put('/:id/status', protect, async (req, res) => {
     try {
       updatedParcel = await parcel.save();
     } catch (saveError) {
-      console.error("[Parcel Status Update] Save Error Detail:", {
-        message: saveError.message,
-        errors: saveError.errors,
-        id: req.params.id,
-        newStatus
-      });
+      console.error("[Parcel Status Update] SAVE FAILED:", saveError.message);
+      if (saveError.details) console.error("[Parcel Status Update] SAVE DETAILS:", saveError.details);
+      
       return res.status(400).json({ 
-        message: "Validation failed during status update", 
-        details: saveError.message 
+        message: "Database update failed during status change", 
+        error: saveError.message 
       });
     }
 
