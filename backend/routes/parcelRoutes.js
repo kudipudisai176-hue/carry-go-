@@ -226,8 +226,12 @@ router.put('/:id/status', protect, async (req, res) => {
     console.log(`[Status Update] ID: ${req.params.id}, User: ${req.user?._id}, New Status: ${req.body.status}`);
     
     // Validate ID format before find
-    if (!req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
-      console.error(`[Status Update] Invalid ObjectId format: ${req.params.id}`);
+    // Validate ID format (support both MongoDB ObjectId and UUID)
+    const isMongoId = /^[0-9a-fA-F]{24}$/.test(req.params.id);
+    const isUUID = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(req.params.id);
+    
+    if (!isMongoId && !isUUID) {
+      console.error(`[Status Update] Invalid ID format: ${req.params.id}`);
       return res.status(400).json({ message: 'Invalid Parcel ID format' });
     }
 
@@ -369,7 +373,7 @@ router.put('/:id/status', protect, async (req, res) => {
           await Notification.create({
             recipient_id: parcel.sender_id,
             title: "Delivery Request",
-            message: `${req.user.name || "A traveller"} wants to carry your parcel to ${parcel.to_location}.`,
+            message: `${req.user.name || "Someone"} wants to take your parcel to ${parcel.to_location}.`,
             type: 'parcel_requested',
             reference_id: parcel._id
           });
@@ -378,7 +382,7 @@ router.put('/:id/status', protect, async (req, res) => {
             await Notification.create({
               recipient_id: parcel.traveller_id,
               title: "Request Approved",
-              message: `Sender approved your request for parcel to ${parcel.to_location}.`,
+              message: `The sender said yes to your request for the parcel to ${parcel.to_location}.`,
               type: 'parcel_accepted',
               reference_id: parcel._id
             });
@@ -387,7 +391,7 @@ router.put('/:id/status', protect, async (req, res) => {
           await Notification.create({
             recipient_id: parcel.sender_id,
             title: "Order in Transit",
-            message: `Your parcel to ${parcel.to_location} was picked up and is on the way.`,
+            message: `Your parcel to ${parcel.to_location} was picked up and is moving.`,
             type: 'transit_started',
             reference_id: parcel._id
           });
@@ -395,7 +399,7 @@ router.put('/:id/status', protect, async (req, res) => {
           await Notification.create({
             recipient_id: parcel.sender_id,
             title: "Order Delivered",
-            message: `Your parcel was successfully delivered to ${parcel.receiver_name}.`,
+            message: `Your parcel was given to ${parcel.receiver_name} successfully.`,
             type: 'delivered',
             reference_id: parcel._id
           });
@@ -403,7 +407,7 @@ router.put('/:id/status', protect, async (req, res) => {
           await Notification.create({
             recipient_id: parcel.sender_id,
             title: "Traveller Arrived",
-            message: `The traveller arrived at the destination for your parcel to ${parcel.to_location}.`,
+            message: `The traveller is now at the place for your parcel to ${parcel.to_location}.`,
             type: 'parcel_arrived',
             reference_id: parcel._id
           });
@@ -412,7 +416,7 @@ router.put('/:id/status', protect, async (req, res) => {
             await Notification.create({
               recipient_id: parcel.receiver_id,
               title: "Parcel Arrived",
-              message: `The traveller has arrived with your parcel from ${parcel.sender_name}. Use OTP to get it.`,
+              message: `The traveller is here with your parcel from ${parcel.sender_name}. Give them the code to get it.`,
               type: 'parcel_arrived',
               reference_id: parcel._id
             });

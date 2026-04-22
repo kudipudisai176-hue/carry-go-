@@ -166,11 +166,11 @@ router.post('/login', async (req, res) => {
     const user = await User.findOne({ email });
 
     if (user && (await user.matchPassword(password))) {
-      if (!user.personalOtp) {
+      if (!user.personal_otp) {
         const otpData = generateOtpData();
-        user.personalOtp = otpData.otp;
-        user.personalOtpExpiresAt = otpData.expiresAt;
-        user.personalOtpUsed = false;
+        user.personal_otp = otpData.otp;
+        user.personal_otp_expires_at = otpData.expiresAt;
+        user.personal_otp_used = false;
         await user.save();
       }
 
@@ -189,7 +189,7 @@ router.post('/login', async (req, res) => {
         bio: user.bio,
         rating: user.rating,
         totalTrips: user.totalTrips,
-        personalOtp: user.personalOtp,
+        personalOtp: user.personal_otp,
         token: generateToken(user._id),
       });
     } else {
@@ -224,8 +224,8 @@ router.post('/login-otp', async (req, res) => {
         password: 'otp_verified_user',
         role: 'receiver',
         phone: phone,
-        personalOtp: otpData.otp,
-        personalOtpExpiresAt: otpData.expiresAt
+        personal_otp: otpData.otp,
+        personal_otp_expires_at: otpData.expiresAt
       });
     }
 
@@ -239,7 +239,7 @@ router.post('/login-otp', async (req, res) => {
       walletBalance: user.walletBalance,
       rating: user.rating,
       totalTrips: user.totalTrips,
-      personalOtp: user.personalOtp,
+      personalOtp: user.personal_otp,
       token: generateToken(user._id),
     });
   } catch (error) {
@@ -302,7 +302,7 @@ router.put('/profile', protect, async (req, res) => {
         rating: updatedUser.rating,
         totalTrips: updatedUser.totalTrips,
         bio: updatedUser.bio,
-        personalOtp: updatedUser.personalOtp,
+        personalOtp: updatedUser.personal_otp,
         token: generateToken(updatedUser._id),
       });
     } else {
@@ -354,14 +354,14 @@ router.post('/generate-otp', protect, async (req, res) => {
     if (!user) return res.status(404).json({ message: 'User not found' });
 
     const otpData = generateOtpData();
-    user.personalOtp = otpData.otp;
-    user.personalOtpExpiresAt = otpData.expiresAt;
-    user.personalOtpUsed = false;
+    user.personal_otp = otpData.otp;
+    user.personal_otp_expires_at = otpData.expiresAt;
+    user.personal_otp_used = false;
     await user.save();
 
     res.json({
-      personalOtp: user.personalOtp,
-      expiresAt: user.personalOtpExpiresAt
+      personalOtp: user.personal_otp,
+      expiresAt: user.personal_otp_expires_at
     });
   } catch (error) {
     res.status(500).json({ message: error.message });

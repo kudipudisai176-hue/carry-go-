@@ -5,7 +5,6 @@ const express = require('express');
 const cors = require('cors');
 const http = require('http');
 const { Server } = require('socket.io');
-const mongoose = require('mongoose');
 const { connectDB } = require('./config/db');
 
 // Connect to MongoDB
@@ -69,7 +68,7 @@ io.on('connection', (socket) => {
 });
 
 app.get('/', (req, res) => {
-  res.send('CarryGo API (MongoDB) is running with WebSockets...');
+  res.send('CarryGo API (JSON Storage) is running with WebSockets...');
 });
 
 // Routes
@@ -83,7 +82,7 @@ app.use('/api/payment', require('./routes/payment'));
 app.get('/health', (req, res) => {
   res.json({
     status: 'online',
-    database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+    database: 'Supabase (PostgreSQL)',
     timestamp: new Date().toISOString()
   });
 });
