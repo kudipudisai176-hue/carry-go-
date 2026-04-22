@@ -11,12 +11,19 @@ const createModel = (tableName) => {
       ...data,
       _id: data.id,
       save: async function() {
-        // 🧹 Clean the object before updating Supabase
-        // We must remove virtual fields like _id and methods like save/matchPassword
-        const payload = { ...this };
-        delete payload._id;
-        delete payload.save;
-        delete payload.matchPassword;
+        // 🧹 Clean the payload for Supabase
+        const payload = {};
+        for (const key in this) {
+          // Only include lowercase/snake_case fields that are not methods
+          // Also allow 'id' as it is the primary key
+          if (
+            typeof this[key] !== 'function' && 
+            key !== '_id' && 
+            (key === 'id' || /^[a-z0-9_]+$/.test(key))
+          ) {
+            payload[key] = this[key];
+          }
+        }
         
         const { data: updated, error } = await supabase
           .from(table)
@@ -47,7 +54,6 @@ const createModel = (tableName) => {
       skip: function() { return this; },
 
       exec: async function() {
-        console.log(`[DB Query] ${table}.${method}:`, JSON.stringify(arg));
         let q = supabase.from(table).select(this._select, { count: 'exact' });
 
         const applyFilter = (query, filter) => {
@@ -62,8 +68,7 @@ const createModel = (tableName) => {
               }).join(',');
               currentQ = currentQ.or(orConditions);
             } else if (typeof val === 'object' && val !== null) {
-              if (val.$ne) currentQ = currentQ.neq(key, val.$ne);
-              if (val.$neq) currentQ = currentQ.neq(key, val.$neq);
+              if (val.$ne || val.$neq) currentQ = currentQ.neq(key, val.$ne || val.$neq);
               if (val.$in) currentQ = currentQ.in(key, val.$in);
               if (val.$regex) currentQ = currentQ.ilike(key, `%${val.$regex}%`);
             } else {
@@ -106,7 +111,14 @@ const createModel = (tableName) => {
     findById: (id) => createQuery('findById', id),
     
     create: async (doc) => {
-      const { _id, ...cleanDoc } = doc;
+      // 🧹 Clean the doc for initial creation
+      const cleanDoc = {};
+      for (const key in doc) {
+        if (key !== '_id' && (key === 'id' || /^[a-z0-9_]+$/.test(key))) {
+          cleanDoc[key] = doc[key];
+        }
+      }
+      
       const { data, error } = await supabase.from(table).insert(cleanDoc).select().single();
       if (error) {
         console.error(`[DB Error] ${table}.create:`, error.message);
@@ -116,8 +128,13 @@ const createModel = (tableName) => {
     },
 
     updateMany: async (filter, update) => {
-      const payload = update.$set || update;
-      delete payload._id;
+      const rawPayload = update.$set || update;
+      const payload = {};
+      for (const key in rawPayload) {
+        if (key !== '_id' && (key === 'id' || /^[a-z0-9_]+$/.test(key))) {
+          payload[key] = rawPayload[key];
+        }
+      }
       
       let q = supabase.from(table).update(payload);
       for (const key in filter) {
