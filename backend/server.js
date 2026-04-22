@@ -7,7 +7,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const { connectDB } = require('./config/db');
 
-// Connect to MongoDB
+// Connect to Database
 connectDB();
 
 const app = express();
@@ -68,7 +68,7 @@ io.on('connection', (socket) => {
 });
 
 app.get('/', (req, res) => {
-  res.send('CarryGo API (JSON Storage) is running with WebSockets...');
+  res.send('CarryGo API (Supabase) is running...');
 });
 
 // Routes
@@ -89,14 +89,8 @@ app.get('/health', (req, res) => {
 
 const PORT = process.env.PORT || 5000;
 
-if (process.env.NODE_ENV !== 'production') {
-  server.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-  });
-}
+server.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
 
 module.exports = app;
-
-// Trigger redeploy to apply new environment variables
-
-// Final redeploy trigger for vercel.json updates
