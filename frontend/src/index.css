@@ -92,6 +92,22 @@
 }
 
 @layer base {
+  html {
+    font-size: 16px;
+  }
+  
+  @media (max-width: 640px) {
+    html {
+      font-size: 14px;
+    }
+  }
+
+  @media (max-width: 380px) {
+    html {
+      font-size: 13px;
+    }
+  }
+
   * {
     @apply border-border;
   }
