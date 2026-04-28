@@ -31,7 +31,7 @@ router.post('/', protect, async (req, res) => {
     const savedMessage = await Message.create({
       delivery_id: deliveryId,
       sender_id: req.user._id,
-      message,
+      text: message,
     });
     
     // 🔔 Create In-App Notification for recipient

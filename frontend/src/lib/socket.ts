@@ -9,8 +9,16 @@ export const socket = io(SOCKET_URL, {
 });
 
 export const connectSocket = (userId: string) => {
+  // Ensure we join the room even if socket reconnects
+  socket.off("connect");
+  socket.on("connect", () => {
+     socket.emit("join_user_notifications", userId);
+  });
+
   if (!socket.connected) {
     socket.connect();
+  } else {
+    // If already connected, just emit
     socket.emit("join_user_notifications", userId);
   }
 };

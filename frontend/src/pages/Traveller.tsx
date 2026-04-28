@@ -37,12 +37,9 @@ export default function Traveller() {
    const [to, setTo] = useState("");
    const [results, setResults] = useState<Parcel[]>([]);
    const [myDeliveries, setMyDeliveries] = useState<Parcel[]>([]);
-   const [activeTab, setActiveTab] = useState<"deliveries" | "search">("deliveries");
+   const [activeTab, setActiveTab] = useState<"deliveries" | "search" | "history">("deliveries");
    const [profileUser, setProfileUser] = useState<UserData | null>(null);
    const [loading, setLoading] = useState(false);
-   const [isWaitingForAccept, setIsWaitingForAccept] = useState(false);
-
-   // -- Delivery Flow State --
    const [flowStep, setFlowStep] = useState<0 | 1 | 2 | 3 | 4 | 5>(0); // 0=List, 1=Details, 2=Pickup, 3=Map, 4=Delivery, 5=Complete
    const [activeParcel, setActiveParcel] = useState<Parcel | null>(null);
    const [otpValue, setOtpValue] = useState(["", "", "", ""]);
@@ -126,12 +123,10 @@ export default function Traveller() {
 
    const actuallySendRequest = async (id: string) => {
       try {
-         setIsWaitingForAccept(true);
          await requestParcel(id, user!.name);
          toast.info("Request sent! Waiting for approval.");
          handleSearch();
       } catch (err: any) {
-         setIsWaitingForAccept(false);
          toast.error("Failed to send request");
       }
    };
@@ -231,7 +226,6 @@ export default function Traveller() {
       setDeliveryPhoto(null);
       setPickupPhotoFile(null);
       setDeliveryPhotoFile(null);
-      setIsWaitingForAccept(false);
    };
 
    const handleOtpInput = (val: string, index: number) => {
@@ -304,6 +298,12 @@ export default function Traveller() {
                   className={`flex-1 flex items-center justify-center gap-2 rounded-xl py-3 text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${activeTab === "search" ? "bg-white text-orange-600 shadow-sm" : "text-slate-400 hover:text-slate-600"}`}
                >
                   <Search className="h-4 w-4" /> FIND PARCELS
+               </button>
+               <button
+                  onClick={() => setActiveTab("history")}
+                  className={`flex-1 flex items-center justify-center gap-2 rounded-xl py-3 text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${activeTab === "history" ? "bg-white text-orange-600 shadow-sm" : "text-slate-400 hover:text-slate-600"}`}
+               >
+                  <History className="h-4 w-4" /> HISTORY
                </button>
             </div>
          </motion.div>
@@ -379,6 +379,41 @@ export default function Traveller() {
                            <div className="text-right">
                               <StatusBadge status={p.status} />
                               <p className="text-lg font-bold text-orange-600 mt-1">₹{p.price}</p>
+                           </div>
+                        </div>
+                     ))
+                  )}
+               </motion.div>
+            )}
+
+            {activeTab === "history" && (
+               <motion.div key="history" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
+                  {myDeliveries.filter(p => p.status === 'delivered').length === 0 ? (
+                     <div className="bg-white rounded-[3rem] p-12 border-2 border-dashed border-slate-100 text-center">
+                        <History className="h-12 w-12 mx-auto mb-4 text-slate-200" />
+                        <h3 className="font-bold text-slate-800">No completed deliveries yet</h3>
+                        <p className="text-xs text-slate-400 mt-1">Your past deliveries will appear here</p>
+                     </div>
+                  ) : (
+                     myDeliveries.filter(p => p.status === 'delivered').map(p => (
+                        <div key={p.id} className="bg-white p-5 rounded-3xl border border-slate-100 flex justify-between items-center group">
+                           <div className="flex gap-4 items-center">
+                              <div className="h-10 w-10 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-500 font-bold"><CheckCircle2 className="h-5 w-5" /></div>
+                              <div>
+                                 <p className="font-bold text-slate-400 uppercase text-[9px] tracking-widest">Completed Delivery</p>
+                                 <div className="flex items-center gap-2 mt-1">
+                                    <p className="text-[12px] font-black text-slate-800 uppercase tracking-tight">{p.fromLocation}</p>
+                                    <div className="flex items-center min-w-[24px] relative px-1">
+                                       <div className="h-[2px] w-full bg-slate-200 rounded-full relative overflow-hidden" />
+                                       <Navigation2 className="h-3 w-3 text-slate-400 rotate-90 absolute right-0" />
+                                    </div>
+                                    <p className="text-[12px] font-black text-slate-800 uppercase tracking-tight">{p.toLocation}</p>
+                                 </div>
+                              </div>
+                           </div>
+                           <div className="text-right">
+                              <p className="text-[10px] font-bold text-emerald-600/70 uppercase">Earned</p>
+                              <p className="text-xl font-black text-emerald-600 leading-none mt-1">₹{p.price}</p>
                            </div>
                         </div>
                      ))
@@ -524,7 +559,7 @@ export default function Traveller() {
                            <p className="text-xl font-bold text-white leading-tight">{activeParcel.toLocation}</p>
                         </div>
 
-                        <div className="flex gap-4">
+                        <div className="flex flex-col gap-4">
                            <button
                               onClick={() => {
                                  if (activeParcel) {
@@ -533,27 +568,60 @@ export default function Traveller() {
                                     window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(activeParcel.toLocation)}`, '_blank');
                                  }
                               }}
-                              className="flex-1 h-14 bg-white/10 text-white rounded-2xl flex items-center justify-center gap-3 font-bold hover:bg-white/20 transition-all"
+                              className="w-full h-14 bg-white/10 text-white rounded-2xl flex items-center justify-center gap-3 font-bold hover:bg-white/20 transition-all"
                            >
                               <Map className="h-5 w-5" /> Navigation
                            </button>
-                           <button
-                              onClick={() => {
-                                 if (activeParcel) {
-                                    window.dispatchEvent(new CustomEvent('start-call', {
-                                       detail: {
-                                          userId: activeParcel.receiverId || activeParcel.senderId,
-                                          userName: activeParcel.receiverName,
-                                          deliveryId: activeParcel.id
-                                       }
-                                    }));
-                                 }
-                              }}
-                              className="h-14 w-14 bg-blue-500 text-white rounded-2xl flex items-center justify-center shadow-lg active:scale-95 transition-all"
-                           >
-                              <Phone className="h-6 w-6" />
-                           </button>
-                           <button onClick={() => setActiveChat(activeParcel.id)} className="h-14 w-14 bg-orange-500 text-white rounded-2xl flex items-center justify-center shadow-lg active:scale-95 transition-all"><MessageSquare className="h-6 w-6" /></button>
+
+                           <div className="grid grid-cols-2 gap-4">
+                              <div className="bg-white/5 border border-white/5 p-4 rounded-3xl backdrop-blur-md">
+                                 <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-3">Sender</p>
+                                 <div className="flex gap-2">
+                                    <button
+                                       onClick={() => {
+                                          if (activeParcel) {
+                                             window.dispatchEvent(new CustomEvent('start-call', {
+                                                detail: {
+                                                   userId: activeParcel.senderId,
+                                                   userName: activeParcel.senderName,
+                                                   deliveryId: activeParcel.id
+                                                }
+                                             }));
+                                          }
+                                       }}
+                                       className="flex-1 h-12 bg-blue-500/20 text-blue-400 hover:bg-blue-500 hover:text-white rounded-2xl flex items-center justify-center transition-all active:scale-95"
+                                    >
+                                       <Phone className="h-5 w-5" />
+                                    </button>
+                                    <button onClick={() => setActiveChat(activeParcel.id)} className="flex-1 h-12 bg-orange-500/20 text-orange-400 hover:bg-orange-500 hover:text-white rounded-2xl flex items-center justify-center transition-all active:scale-95"><MessageSquare className="h-5 w-5" /></button>
+                                 </div>
+                              </div>
+
+                              <div className="bg-white/5 border border-white/5 p-4 rounded-3xl backdrop-blur-md">
+                                 <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-3">Receiver</p>
+                                 <div className="flex gap-2">
+                                    <button
+                                       onClick={() => {
+                                          if (activeParcel && activeParcel.receiverId) {
+                                             window.dispatchEvent(new CustomEvent('start-call', {
+                                                detail: {
+                                                   userId: activeParcel.receiverId,
+                                                   userName: activeParcel.receiverName,
+                                                   deliveryId: activeParcel.id
+                                                }
+                                             }));
+                                          } else if (activeParcel && activeParcel.receiverPhone) {
+                                             window.location.href = `tel:${activeParcel.receiverPhone}`;
+                                          }
+                                       }}
+                                       className="flex-1 h-12 bg-blue-500/20 text-blue-400 hover:bg-blue-500 hover:text-white rounded-2xl flex items-center justify-center transition-all active:scale-95"
+                                    >
+                                       <Phone className="h-5 w-5" />
+                                    </button>
+                                    <button onClick={() => setActiveChat(activeParcel.id)} className="flex-1 h-12 bg-orange-500/20 text-orange-400 hover:bg-orange-500 hover:text-white rounded-2xl flex items-center justify-center transition-all active:scale-95"><MessageSquare className="h-5 w-5" /></button>
+                                 </div>
+                              </div>
+                           </div>
                         </div>
                      </div>
                   </div>
@@ -637,17 +705,6 @@ export default function Traveller() {
                </div>
             )}
          </AnimatePresence>
-
-         {isWaitingForAccept && (
-            <div className="fixed inset-0 z-[100] bg-white/95 flex flex-col items-center justify-center p-10 text-center animate-in fade-in zoom-in duration-300">
-               <div className="relative mb-8 text-orange-500">
-                  <div className="h-20 w-20 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
-               </div>
-               <h2 className="text-2xl font-black mb-2">Request Pending</h2>
-               <p className="text-sm text-slate-400 font-bold max-w-xs">{activeParcel?.senderName} will review your profile shortly.</p>
-               <Button variant="ghost" className="mt-8 text-[10px] font-bold uppercase tracking-widest text-slate-300" onClick={resetFlow}>Cancel Request</Button>
-            </div>
-         )}
       </div>
    );
 }

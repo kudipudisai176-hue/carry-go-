@@ -51,15 +51,19 @@ io.on('connection', (socket) => {
 
   // Signaling for Voice Calls
   socket.on('call_user', ({ userToCall, signalData, from, name, deliveryId }) => {
-    io.to(`user_${userToCall}`).emit('incoming_call', { signal: signalData, from, name, deliveryId });
+    socket.to(`user_${userToCall}`).emit('incoming_call', { signal: signalData, from, name, deliveryId });
   });
 
   socket.on('answer_call', (data) => {
-    io.to(`user_${data.to}`).emit('call_accepted', data.signal);
+    socket.to(`user_${data.to}`).emit('call_accepted', data.signal);
+  });
+
+  socket.on('call_signal', (data) => {
+    socket.to(`user_${data.to}`).emit('call_signal', data.signal);
   });
 
   socket.on('end_call', ({ to }) => {
-    io.to(`user_${to}`).emit('call_ended');
+    socket.to(`user_${to}`).emit('call_ended');
   });
 
   socket.on('disconnect', () => {

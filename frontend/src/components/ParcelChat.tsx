@@ -9,7 +9,8 @@ interface Message {
   id: string;
   _id: string;
   sender_id: { _id?: string, name?: string, profile_photo?: string } | string;
-  message: string;
+  message?: string;
+  text?: string;
   created_at: string;
 }
 
@@ -151,7 +152,7 @@ export default function ParcelChat({ deliveryId, currentUserId, showHeader = tru
                         : "bg-white text-slate-800 border border-slate-100 rounded-tl-none"
                     }`}
                   >
-                    <p className="leading-relaxed font-medium">{m.message}</p>
+                    <p className="leading-relaxed font-medium">{m.message || m.text}</p>
                     <p className={`text-[9px] mt-1.5 font-black uppercase tracking-tighter opacity-50 ${isMe ? 'text-right' : 'text-left'}`}>
                       {new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </p>

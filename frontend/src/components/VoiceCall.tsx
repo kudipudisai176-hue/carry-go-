@@ -34,43 +34,100 @@ export default function VoiceCall({ userId, userName, currentUserId, currentUser
   }, [callStatus]);
 
   useEffect(() => {
-    const initCall = async () => {
+    const pc = new RTCPeerConnection({
+       iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+    });
+    peerConnection.current = pc;
+
+    pc.ontrack = (event) => {
+       if (audioRef.current) {
+         audioRef.current.srcObject = event.streams[0];
+       }
+    };
+
+    pc.onicecandidate = (event) => {
+       if (event.candidate) {
+         socket.emit("call_signal", { to: userId, signal: { type: "ice", candidate: event.candidate } });
+       }
+    };
+
+    const setupCaller = async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         localStream.current = stream;
+        
+        stream.getTracks().forEach(track => {
+           pc.addTrack(track, stream);
+        });
 
-        if (!isIncoming) {
-          // Logic for starting a call
-          socket.emit("call_user", {
-            userToCall: userId,
-            signalData: { type: "init" }, // Simplified signaling
-            from: currentUserId,
-            name: currentUserName,
-            deliveryId
-          });
-        }
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        socket.emit("call_user", {
+          userToCall: userId,
+          signalData: offer,
+          from: currentUserId,
+          name: currentUserName,
+          deliveryId
+        });
       } catch (err) {
-        toast.error("Microphone access denied");
+        console.error("Caller setup error", err);
+        toast.error("Microphone access denied.");
         onClose();
       }
     };
 
-    initCall();
+    const setupReceiverInit = async () => {
+       if (incomingSignal && incomingSignal.type === "offer") {
+          try {
+             await pc.setRemoteDescription(new RTCSessionDescription(incomingSignal));
+          } catch (err) {
+             console.error("Error setting remote description for offer", err);
+          }
+       }
+    };
 
-    // Socket listeners
-    socket.on("call_accepted", () => {
+    if (!isIncoming) {
+       setupCaller();
+    } else {
+       setupReceiverInit();
+    }
+
+    const handleCallAccepted = async (signal: any) => {
       setCallStatus("connected");
-    });
+      if (signal && signal.type === "answer" && peerConnection.current) {
+         try {
+            await peerConnection.current.setRemoteDescription(new RTCSessionDescription(signal));
+         } catch (err) {
+            console.error("Error setting remote description for answer", err);
+         }
+      }
+    };
 
-    socket.on("call_ended", () => {
+    const handleCallSignal = async (signal: any) => {
+      if (signal && signal.type === "ice" && signal.candidate && peerConnection.current) {
+         try {
+            await peerConnection.current.addIceCandidate(new RTCIceCandidate(signal.candidate));
+         } catch (e) {
+            console.error("Error adding ice candidate", e);
+         }
+      }
+    };
+
+    const handleCallEnded = () => {
       setCallStatus("ended");
       setTimeout(onClose, 2000);
-    });
+    };
+
+    socket.on("call_accepted", handleCallAccepted);
+    socket.on("call_signal", handleCallSignal);
+    socket.on("call_ended", handleCallEnded);
 
     return () => {
       localStream.current?.getTracks().forEach(track => track.stop());
-      socket.off("call_accepted");
-      socket.off("call_ended");
+      peerConnection.current?.close();
+      socket.off("call_accepted", handleCallAccepted);
+      socket.off("call_signal", handleCallSignal);
+      socket.off("call_ended", handleCallEnded);
     };
   }, []);
 
@@ -80,9 +137,28 @@ export default function VoiceCall({ userId, userName, currentUserId, currentUser
     setTimeout(onClose, 1000);
   };
 
-  const handleAcceptCall = () => {
-    socket.emit("answer_call", { to: userId, signal: { type: "answer" } });
-    setCallStatus("connected");
+  const handleAcceptCall = async () => {
+    const pc = peerConnection.current;
+    if (pc) {
+      try {
+         // Get mic access only upon accepting
+         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+         localStream.current = stream;
+         
+         stream.getTracks().forEach(track => {
+            pc.addTrack(track, stream);
+         });
+
+         const answer = await pc.createAnswer();
+         await pc.setLocalDescription(answer);
+         socket.emit("answer_call", { to: userId, signal: answer });
+         setCallStatus("connected");
+      } catch (err) {
+         console.error("Error accepting call", err);
+         toast.error("Microphone access denied.");
+         onClose();
+      }
+    }
   };
 
   const formatTime = (seconds: number) => {
@@ -134,13 +210,31 @@ export default function VoiceCall({ userId, userName, currentUserId, currentUser
             </>
           ) : (
             <>
-              <Button onClick={() => setIsMuted(!isMuted)} variant="ghost" className={`h-14 w-14 rounded-full border border-white/10 ${isMuted ? 'bg-white/10 text-orange-500' : 'text-white'}`}>
+              <Button 
+                 onClick={() => {
+                   setIsMuted(!isMuted);
+                   if (localStream.current) {
+                     localStream.current.getAudioTracks().forEach(track => {
+                       track.enabled = isMuted; // Toggle enabled state
+                     });
+                   }
+                 }} 
+                 variant="ghost" 
+                 className={`h-14 w-14 rounded-full border border-white/10 ${isMuted ? 'bg-white/10 text-orange-500' : 'text-white'}`}>
                 {isMuted ? <MicOff /> : <Mic />}
               </Button>
               <Button onClick={handleEndCall} size="icon" variant="destructive" className="h-16 w-16 rounded-full shadow-2xl shadow-red-500/40 active:scale-90 transition-all">
                 <PhoneOff className="h-7 w-7" />
               </Button>
-              <Button variant="ghost" className="h-14 w-14 rounded-full border border-white/10 text-white">
+              <Button 
+                onClick={() => {
+                   if (audioRef.current) {
+                      audioRef.current.muted = !audioRef.current.muted;
+                   }
+                }}
+                variant="ghost" 
+                className="h-14 w-14 rounded-full border border-white/10 text-white"
+              >
                 <Volume2 />
               </Button>
             </>

@@ -465,18 +465,18 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
                 <div
                   key={s.id}
                   onClick={() => setFilter(s.id as any)}
-                  className={`group relative flex cursor-pointer flex-col items-center justify-center rounded-[2rem] sm:rounded-[2.5rem] border p-4 sm:p-6 transition-all duration-500 overflow-hidden ${filter === s.id
+                  className={`group relative flex cursor-pointer flex-col items-center justify-center rounded-2xl sm:rounded-3xl border p-3 sm:p-4 transition-all duration-500 overflow-hidden ${filter === s.id
                     ? `bg-${s.color}-500 text-white border-transparent shadow-2xl shadow-${s.color}-500/40 scale-105 z-10`
                     : `bg-white border-slate-100 hover:border-${s.color}-200 hover:shadow-2xl ${s.glow} hover:-translate-y-1`}`}
                 >
                   {/* Yellow Light Reflection Effect instead of White */}
                   <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-amber-400/10 to-amber-400/20 translate-y-full group-hover:translate-y-0 transition-transform duration-700 pointer-events-none" />
 
-                  <div className={`relative z-10 mb-2 sm:mb-3 flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-xl sm:rounded-2xl transition-all duration-500 ${filter === s.id ? 'bg-white/20' : `bg-slate-50 text-slate-400 group-hover:bg-${s.color}-50 group-hover:text-${s.color}-500 group-hover:rotate-12`}`}>
-                    <s.icon className={`h-5 w-5 sm:h-6 sm:w-6 ${filter === s.id ? 'text-white' : ''}`} />
+                  <div className={`relative z-10 mb-2 flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-xl transition-all duration-500 ${filter === s.id ? 'bg-white/20' : `bg-slate-50 text-slate-400 group-hover:bg-${s.color}-50 group-hover:text-${s.color}-500 group-hover:rotate-12`}`}>
+                    <s.icon className={`h-4 w-4 sm:h-5 sm:w-5 ${filter === s.id ? 'text-white' : ''}`} />
                   </div>
-                  <span className={`relative z-10 text-xl sm:text-2xl font-black transition-colors ${filter === s.id ? 'text-white' : 'text-slate-900'}`}>{s.value}</span>
-                  <span className={`relative z-10 text-[9px] sm:text-[10px] font-black uppercase tracking-widest mt-1 transition-colors ${filter === s.id ? 'text-white/70' : 'text-slate-400'}`}>{s.label}</span>
+                  <span className={`relative z-10 text-lg sm:text-xl font-black transition-colors ${filter === s.id ? 'text-white' : 'text-slate-900'}`}>{s.value}</span>
+                  <span className={`relative z-10 text-[8px] sm:text-[9px] font-black uppercase tracking-widest mt-1 transition-colors ${filter === s.id ? 'text-white/70' : 'text-slate-400'}`}>{s.label}</span>
 
                   {/* Bottom Glow Indicator */}
                   {filter !== s.id && (
@@ -657,21 +657,13 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
                                     <p className="text-[10px] font-bold text-slate-400 uppercase">Receiver</p>
                                     <p className="font-bold text-slate-800">{p.receiverName}</p>
                                   </div>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      window.dispatchEvent(new CustomEvent('start-call', {
-                                        detail: {
-                                          userId: p.receiverId || p.senderId, // If receiver has no ID, we use sender (fallback) or add it
-                                          userName: p.receiverName,
-                                          deliveryId: p.id
-                                        }
-                                      }));
-                                    }}
+                                  <a
+                                    href={`tel:${p.receiverPhone}`}
+                                    onClick={(e) => e.stopPropagation()}
                                     className="h-9 w-9 bg-blue-500 text-white rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20"
                                   >
                                     <Phone className="h-4 w-4" />
-                                  </button>
+                                  </a>
                                 </div>
                                 {p.travellerName && (p.status !== 'requested') ? (
                                   <div className="p-4 bg-emerald-50 rounded-3xl flex justify-between items-center transition-all animate-in fade-in slide-in-from-left-4">
@@ -680,21 +672,13 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
                                       <p className="font-bold text-slate-800">{p.travellerName}</p>
                                     </div>
                                     <div className="flex gap-2">
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          window.dispatchEvent(new CustomEvent('start-call', {
-                                            detail: {
-                                              userId: p.travellerId,
-                                              userName: p.travellerName,
-                                              deliveryId: p.id
-                                            }
-                                          }));
-                                        }}
+                                      <a
+                                        href={`tel:${p.travellerPhone}`}
+                                        onClick={(e) => e.stopPropagation()}
                                         className="h-9 w-9 bg-emerald-500 text-white rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20"
                                       >
                                         <Phone className="h-4 w-4" />
-                                      </button>
+                                      </a>
 
                                       <button onClick={(e) => { e.stopPropagation(); setActiveChat(p.id); }} className="h-9 w-9 bg-slate-900 text-white rounded-xl flex items-center justify-center"><MessageCircle className="h-4 w-4" /></button>
                                     </div>
@@ -726,7 +710,7 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
                                 )}
                               </div>
 
-                              {p.pickupOtp && (p.status === 'accepted' || p.status === 'picked-up') && (
+                              {p.pickupOtp && (['accepted', 'assigned', 'arrived'].includes(p.status)) && (
                                 <div className="mt-4 bg-orange-500 text-white p-4 rounded-2xl text-center shadow-lg shadow-orange-500/20">
                                   <p className="text-[10px] font-bold uppercase opacity-70 mb-1">Pickup Verification OTP</p>
                                   <p className="text-3xl font-bold tracking-[0.3em] font-mono">{p.pickupOtp}</p>
