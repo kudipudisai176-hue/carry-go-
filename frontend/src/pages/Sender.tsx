@@ -402,7 +402,7 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
     <div className="min-h-screen bg-slate-50 mx-auto max-w-4xl px-4 pb-20 pt-20">
 
       {/* Breadcrumbs */}
-      <div className="mb-6 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400/60">
+      <div className="mb-6 flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400/60">
         <span className="hover:text-orange-500 cursor-pointer transition-colors" onClick={() => navigate('/dashboard')}>Dashboard</span>
         <span className="opacity-40">/</span>
         <span className="hover:text-orange-500 cursor-pointer transition-colors" onClick={() => setActiveTab('outgoing')}>Parcels</span>
@@ -410,28 +410,28 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
         <span className="text-slate-900">Manage Dispatch</span>
       </div>
 
-      <div className="mb-8 rounded-3xl bg-white p-8 shadow-xl shadow-slate-200/50 border border-slate-100">
-        <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-5">
-            <div className="group relative flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-orange-600 shadow-xl shadow-orange-500/30 text-white transition-transform hover:scale-105">
-              <Box className="h-8 w-8 animate-float-slow" />
+      <div className="mb-6 sm:mb-8 rounded-[2rem] sm:rounded-3xl bg-white p-5 sm:p-8 shadow-xl shadow-slate-200/50 border border-slate-100">
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-4 sm:gap-5">
+            <div className="group relative flex h-12 w-12 sm:h-16 sm:w-16 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-orange-600 shadow-xl shadow-orange-500/30 text-white transition-transform hover:scale-105">
+              <Box className="h-6 w-6 sm:h-8 sm:w-8 animate-float-slow" />
               <div className="absolute inset-0 rounded-2xl bg-white opacity-0 group-hover:opacity-20 transition-opacity" />
             </div>
             <div>
-              <h1 className="text-3xl font-black text-slate-900 tracking-tight leading-tight">Post a New Parcel</h1>
+              <h1 className="text-xl sm:text-3xl font-black text-slate-900 tracking-tight leading-tight">Post a New Parcel</h1>
               <div className="flex items-center gap-3 mt-1">
-                <p className="text-sm font-medium text-slate-400">Track, send and manage deliveries seamlessly</p>
+                <p className="text-xs sm:text-sm font-medium text-slate-400">Track, send and manage deliveries seamlessly</p>
               </div>
             </div>
           </div>
           <Button
             onClick={handlePostButtonClick}
-            className={`group h-14 rounded-2xl px-10 font-black uppercase tracking-widest shadow-xl transition-all active:scale-95 ${showForm ? 'bg-slate-900 text-white hover:bg-slate-800' : 'bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:shadow-orange-500/40 hover:-translate-y-1'}`}
+            className={`group w-full sm:w-auto h-12 sm:h-14 rounded-2xl px-6 sm:px-10 text-xs sm:text-sm font-black uppercase tracking-widest shadow-xl transition-all active:scale-95 ${showForm ? 'bg-slate-900 text-white hover:bg-slate-800' : 'bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:shadow-orange-500/40 hover:-translate-y-1'}`}
           >
             {showForm ? (
-              <><X className="mr-2 h-5 w-5" /> Cancel</>
+              <><X className="mr-2 h-4 w-4 sm:h-5 sm:w-5" /> Cancel</>
             ) : (
-              <><Plus className="mr-2 h-6 w-6 font-bold" /> Post Parcel</>
+              <><Plus className="mr-2 h-5 w-5 sm:h-6 sm:w-6 font-bold" /> Post Parcel</>
             )}
           </Button>
         </div>
@@ -465,18 +465,18 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
                 <div
                   key={s.id}
                   onClick={() => setFilter(s.id as any)}
-                  className={`group relative flex cursor-pointer flex-col items-center justify-center rounded-[2.5rem] border p-6 transition-all duration-500 overflow-hidden ${filter === s.id
+                  className={`group relative flex cursor-pointer flex-col items-center justify-center rounded-[2rem] sm:rounded-[2.5rem] border p-4 sm:p-6 transition-all duration-500 overflow-hidden ${filter === s.id
                     ? `bg-${s.color}-500 text-white border-transparent shadow-2xl shadow-${s.color}-500/40 scale-105 z-10`
                     : `bg-white border-slate-100 hover:border-${s.color}-200 hover:shadow-2xl ${s.glow} hover:-translate-y-1`}`}
                 >
                   {/* Yellow Light Reflection Effect instead of White */}
                   <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-amber-400/10 to-amber-400/20 translate-y-full group-hover:translate-y-0 transition-transform duration-700 pointer-events-none" />
 
-                  <div className={`relative z-10 mb-3 flex h-12 w-12 items-center justify-center rounded-2xl transition-all duration-500 ${filter === s.id ? 'bg-white/20' : `bg-slate-50 text-slate-400 group-hover:bg-${s.color}-50 group-hover:text-${s.color}-500 group-hover:rotate-12`}`}>
-                    <s.icon className={`h-6 w-6 ${filter === s.id ? 'text-white' : ''}`} />
+                  <div className={`relative z-10 mb-2 sm:mb-3 flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-xl sm:rounded-2xl transition-all duration-500 ${filter === s.id ? 'bg-white/20' : `bg-slate-50 text-slate-400 group-hover:bg-${s.color}-50 group-hover:text-${s.color}-500 group-hover:rotate-12`}`}>
+                    <s.icon className={`h-5 w-5 sm:h-6 sm:w-6 ${filter === s.id ? 'text-white' : ''}`} />
                   </div>
-                  <span className={`relative z-10 text-2xl font-black transition-colors ${filter === s.id ? 'text-white' : 'text-slate-900'}`}>{s.value}</span>
-                  <span className={`relative z-10 text-[10px] font-black uppercase tracking-widest mt-1 transition-colors ${filter === s.id ? 'text-white/70' : 'text-slate-400'}`}>{s.label}</span>
+                  <span className={`relative z-10 text-xl sm:text-2xl font-black transition-colors ${filter === s.id ? 'text-white' : 'text-slate-900'}`}>{s.value}</span>
+                  <span className={`relative z-10 text-[9px] sm:text-[10px] font-black uppercase tracking-widest mt-1 transition-colors ${filter === s.id ? 'text-white/70' : 'text-slate-400'}`}>{s.label}</span>
 
                   {/* Bottom Glow Indicator */}
                   {filter !== s.id && (
@@ -488,8 +488,8 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
 
             <div className="mt-6 space-y-6">
               {showForm && (
-                <form onSubmit={handleSubmit} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-xl">
-                  <h2 className="text-lg font-bold mb-4 flex items-center gap-2"><Sparkles className="h-5 w-5 text-secondary" /> {editingParcel ? 'Edit Parcel' : 'Send New Parcel'}</h2>
+                <form onSubmit={handleSubmit} className="rounded-2xl sm:rounded-3xl border border-slate-200 bg-white p-5 sm:p-6 shadow-xl">
+                  <h2 className="text-base sm:text-lg font-bold mb-4 flex items-center gap-2"><Sparkles className="h-4 w-4 sm:h-5 sm:w-5 text-secondary" /> {editingParcel ? 'Edit Parcel' : 'Send New Parcel'}</h2>
                   <div className="space-y-6 pt-4">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                       <div className="space-y-2">
@@ -622,9 +622,9 @@ export default function Sender({ startWithForm = false }: { startWithForm?: bool
 
               <div className="space-y-4">
                 {filteredParcels.length === 0 ? (
-                  <div className="py-20 text-center border-2 border-dashed border-slate-200 rounded-3xl text-slate-400">
-                    <Box className="h-12 w-12 mx-auto mb-2 opacity-20" />
-                    <p className="font-bold">No parcels found</p>
+                  <div className="py-12 sm:py-20 text-center border-2 border-dashed border-slate-200 rounded-3xl text-slate-400">
+                    <Box className="h-10 w-10 sm:h-12 sm:w-12 mx-auto mb-2 opacity-20" />
+                    <p className="text-sm sm:text-base font-bold">No parcels found</p>
                   </div>
                 ) : (
                   filteredParcels.map(p => {
