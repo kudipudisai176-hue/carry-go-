@@ -7,6 +7,7 @@ const { protect } = require('../middleware/authMiddleware');
 const Payment = require('../models/Payment');
 const Wallet = require('../models/Wallet');
 const { sendSMS } = require('../services/smsService');
+const uploadImage = require('../utils/uploadImage');
 
 // @desc    Create a new parcel
 router.post('/', protect, async (req, res) => {
@@ -42,7 +43,7 @@ router.post('/', protect, async (req, res) => {
       size: req.body.size || "",
       item_count: req.body.item_count || req.body.itemCount || 1,
       vehicle_type: req.body.vehicle_type || req.body.vehicleType || "",
-      parcel_photo: req.body.parcel_photo || req.body.parcelPhoto || "",
+      parcel_photo: await uploadImage(req.body.parcel_photo || req.body.parcelPhoto || ""),
       receiver_name: req.body.receiver_name || req.body.receiverName || "",
       receiver_phone: receiver_phone || "",
       parcel_charge: parcel_charge,
@@ -259,7 +260,8 @@ router.put('/:id/status', protect, async (req, res) => {
        // [Removed OTP check as requested by User]
        
        if (req.body.pickup_photo || req.body.pickupPhoto || req.body.photoBase64) {
-          parcel.pickup_photo = req.body.pickup_photo || req.body.pickupPhoto || req.body.photoBase64;
+          const base64Str = req.body.pickup_photo || req.body.pickupPhoto || req.body.photoBase64;
+          parcel.pickup_photo = await uploadImage(base64Str, 'pickups');
        }
 
        if (!parcel.delivery_otp) {
@@ -303,7 +305,8 @@ router.put('/:id/status', protect, async (req, res) => {
         }
         
        if (req.body.delivery_photo || req.body.deliveryPhoto || req.body.photoBase64) {
-          parcel.delivery_photo = req.body.delivery_photo || req.body.deliveryPhoto || req.body.photoBase64;
+          const base64Str = req.body.delivery_photo || req.body.deliveryPhoto || req.body.photoBase64;
+          parcel.delivery_photo = await uploadImage(base64Str, 'deliveries');
        }
 
        if (parcel.payment_status === 'paid' && parcel.escrow_status === 'held') {
@@ -340,7 +343,8 @@ router.put('/:id/status', protect, async (req, res) => {
 
     if (newStatus === 'received') {
        if (req.body.received_photo || req.body.receivedPhoto || req.body.photoBase64) {
-          parcel.received_photo = req.body.received_photo || req.body.receivedPhoto || req.body.photoBase64;
+          const base64Str = req.body.received_photo || req.body.receivedPhoto || req.body.photoBase64;
+          parcel.received_photo = await uploadImage(base64Str, 'received');
        }
        if (req.body.receiver_rating || req.body.receiverRating) {
           parcel.receiver_rating = req.body.receiver_rating || req.body.receiverRating;
@@ -523,7 +527,11 @@ router.put('/:id', protect, async (req, res) => {
     parcel.item_count = item_count || req.body.itemCount || parcel.item_count;
     parcel.vehicle_type = vehicle_type || req.body.vehicleType || parcel.vehicle_type;
     parcel.description = description || parcel.description;
-    parcel.parcel_photo = parcel_photo || req.body.parcelPhoto || parcel.parcel_photo;
+    
+    if (parcel_photo || req.body.parcelPhoto) {
+      parcel.parcel_photo = await uploadImage(parcel_photo || req.body.parcelPhoto);
+    }
+    
     parcel.receiver_name = receiver_name || req.body.receiverName || parcel.receiver_name;
     parcel.receiver_phone = receiver_phone || req.body.receiverPhone || parcel.receiver_phone;
 
